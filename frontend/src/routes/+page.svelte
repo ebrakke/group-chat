@@ -48,6 +48,10 @@
   let selectedChannel: Channel | null = $state(null);
   let showChannelMenu = $state(false);
   
+  // Mobile state
+  let sidebarOpen = $state(false);
+  let showMessageActions: string | null = $state(null);
+  
   // Image modal state
   let showImageModal = $state(false);
   let imageModalUrl = $state('');
@@ -342,7 +346,16 @@
   
   async function switchChannel(channelId: string) {
     currentChannel = channelId;
+    sidebarOpen = false; // Close sidebar on mobile when switching channels
     await loadChannelMessages();
+  }
+  
+  function toggleSidebar() {
+    sidebarOpen = !sidebarOpen;
+  }
+  
+  function closeSidebar() {
+    sidebarOpen = false;
   }
   
   async function handleSendMessage(e: Event) {
@@ -653,8 +666,21 @@
 {:else}
   <!-- Main chat interface -->
   <div class="flex h-screen bg-gray-50">
+    <!-- Mobile backdrop -->
+    {#if sidebarOpen}
+      <div 
+        class="fixed inset-0 bg-black bg-opacity-50 z-20 md:hidden"
+        onclick={closeSidebar}
+      ></div>
+    {/if}
+    
     <!-- Sidebar -->
-    <aside class="w-60 border-r bg-white flex flex-col">
+    <aside class="
+      w-60 border-r bg-white flex flex-col
+      fixed md:static inset-y-0 left-0 z-30
+      transform transition-transform duration-300 ease-in-out
+      {sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+    ">
       <div class="p-4 border-b">
         <h2 class="text-lg font-semibold text-gray-900">Relay Chat</h2>
       </div>
@@ -719,14 +745,26 @@
     </aside>
 
     <!-- Main chat area -->
-    <main class="flex-1 flex flex-col">
-      <header class="border-b bg-white px-6 py-4">
-        <div class="flex items-center justify-between">
-          <div class="flex-1">
-            <h1 class="text-lg font-semibold text-gray-900">
+    <main class="flex-1 flex flex-col w-full md:w-auto">
+      <header class="border-b bg-white px-4 md:px-6 py-3 md:py-4">
+        <div class="flex items-center justify-between gap-3">
+          <!-- Hamburger menu (mobile only) -->
+          <button
+            onclick={toggleSidebar}
+            class="md:hidden p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded -ml-2"
+            title="Toggle sidebar"
+            aria-label="Toggle sidebar"
+          >
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+          
+          <div class="flex-1 min-w-0">
+            <h1 class="text-base md:text-lg font-semibold text-gray-900 truncate">
               # {channels.find(c => c.id === currentChannel)?.name || currentChannel}
             </h1>
-            <p class="text-sm text-gray-500">
+            <p class="text-sm text-gray-500 truncate hidden md:block">
               {channels.find(c => c.id === currentChannel)?.description || ''}
             </p>
           </div>
@@ -765,7 +803,7 @@
       <div 
         bind:this={messagesContainer}
         onscroll={handleScroll}
-        class="flex-1 overflow-y-auto p-6 space-y-4 relative"
+        class="flex-1 overflow-y-auto p-3 md:p-6 space-y-3 md:space-y-4 relative"
       >
         {#if loadingMessages}
           <div class="text-center text-gray-500">
@@ -778,12 +816,18 @@
         {:else}
           {#each messages as message (message.id)}
             <div 
-              class="flex gap-3 group"
+              class="flex gap-2 md:gap-3 group"
               onmouseenter={() => hoveredMessageId = message.id}
               onmouseleave={() => hoveredMessageId = null}
+              onclick={(e) => {
+                // On mobile, tap to show/hide actions
+                if (window.innerWidth < 768 && e.target === e.currentTarget) {
+                  showMessageActions = showMessageActions === message.id ? null : message.id;
+                }
+              }}
             >
               <div class="flex-shrink-0">
-                <div class="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white text-sm font-medium">
+                <div class="w-8 h-8 md:w-10 md:h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white text-xs md:text-sm font-medium">
                   {getInitials(message.author.displayName)}
                 </div>
               </div>
@@ -831,14 +875,13 @@
                         {#if isImage(attachment.mimeType)}
                           <button
                             onclick={() => openImageModal(attachment.url, attachment.filename)}
-                            class="block"
+                            class="block w-full md:w-auto"
                           >
                             <img
                               src={attachment.url}
                               alt={attachment.filename}
-                              class="max-w-md rounded-lg border shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+                              class="w-full md:max-w-md rounded-lg border shadow-sm hover:shadow-md transition-shadow cursor-pointer"
                               loading="lazy"
-                              style="max-width: 400px;"
                             />
                           </button>
                         {:else}
@@ -889,33 +932,33 @@
                     </button>
                   {/if}
                   
-                  <!-- Message actions (on hover) -->
-                  {#if hoveredMessageId === message.id}
-                    <div class="mt-2 flex gap-2">
+                  <!-- Message actions (on hover for desktop, on tap for mobile) -->
+                  {#if hoveredMessageId === message.id || showMessageActions === message.id}
+                    <div class="mt-2 flex flex-wrap gap-1 md:gap-2">
                       <button
-                        onclick={() => showEmojiPickerFor(message.id)}
-                        class="text-xs text-gray-500 hover:text-gray-700"
+                        onclick={(e) => { e.stopPropagation(); showEmojiPickerFor(message.id); }}
+                        class="text-xs md:text-xs px-2 py-1.5 md:px-0 md:py-0 text-gray-500 hover:text-gray-700 bg-gray-100 md:bg-transparent rounded md:rounded-none min-h-[44px] md:min-h-0 flex items-center"
                       >
                         🙂 React
                       </button>
                       <button
-                        onclick={() => openThread(message.id)}
-                        class="text-xs text-gray-500 hover:text-gray-700"
+                        onclick={(e) => { e.stopPropagation(); openThread(message.id); }}
+                        class="text-xs md:text-xs px-2 py-1.5 md:px-0 md:py-0 text-gray-500 hover:text-gray-700 bg-gray-100 md:bg-transparent rounded md:rounded-none min-h-[44px] md:min-h-0 flex items-center"
                       >
-                        💬 Reply in thread
+                        💬 Reply
                       </button>
                       {#if canEdit(message)}
                         <button
-                          onclick={() => startEdit(message)}
-                          class="text-xs text-gray-500 hover:text-gray-700"
+                          onclick={(e) => { e.stopPropagation(); startEdit(message); }}
+                          class="text-xs md:text-xs px-2 py-1.5 md:px-0 md:py-0 text-gray-500 hover:text-gray-700 bg-gray-100 md:bg-transparent rounded md:rounded-none min-h-[44px] md:min-h-0 flex items-center"
                         >
                           ✏️ Edit
                         </button>
                       {/if}
                       {#if canDelete(message)}
                         <button
-                          onclick={() => handleDelete(message.id)}
-                          class="text-xs text-red-500 hover:text-red-700"
+                          onclick={(e) => { e.stopPropagation(); handleDelete(message.id); }}
+                          class="text-xs md:text-xs px-2 py-1.5 md:px-0 md:py-0 text-red-500 hover:text-red-700 bg-red-50 md:bg-transparent rounded md:rounded-none min-h-[44px] md:min-h-0 flex items-center"
                         >
                           🗑️ Delete
                         </button>
@@ -931,7 +974,7 @@
         {#if showScrollButton}
           <button
             onclick={scrollToBottom}
-            class="fixed bottom-24 right-8 bg-blue-600 text-white rounded-full p-3 shadow-lg hover:bg-blue-700 transition-all"
+            class="fixed bottom-20 md:bottom-24 right-4 md:right-8 bg-blue-600 text-white rounded-full p-3 shadow-lg hover:bg-blue-700 transition-all z-10"
             title="Scroll to bottom"
           >
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -941,7 +984,7 @@
         {/if}
       </div>
       
-      <div class="border-t bg-white p-4">
+      <div class="border-t bg-white p-3 md:p-4">
         <form onsubmit={handleSendMessage} class="relative">
           <FileUpload
             bind:attachments={attachments}
@@ -956,19 +999,19 @@
                 onkeydown={handleKeyDown}
                 placeholder="Message #{channels.find(c => c.id === currentChannel)?.name || currentChannel}"
                 disabled={sendingMessage}
-                class="w-full rounded-md border border-gray-300 px-4 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed resize-none"
+                class="w-full rounded-md border border-gray-300 px-3 md:px-4 py-2.5 md:py-2 text-base shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed resize-none"
                 rows="1"
               ></textarea>
             </div>
             <button
               type="submit"
               disabled={sendingMessage || (!messageInput.trim() && attachments.length === 0)}
-              class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              class="px-3 md:px-4 py-2.5 md:py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium min-h-[44px] md:min-h-0"
             >
               {sendingMessage ? 'Sending...' : 'Send'}
             </button>
           </div>
-          <p class="text-xs text-gray-500 mt-1">
+          <p class="text-xs text-gray-500 mt-1 hidden md:block">
             Press Enter to send, Shift+Enter for new line. Drag & drop or paste files to attach.
           </p>
         </form>

@@ -101,19 +101,25 @@
   }
 </script>
 
-<aside class="fixed right-0 top-0 h-screen w-96 bg-white border-l shadow-lg flex flex-col z-50">
+<aside class="fixed inset-0 md:right-0 md:top-0 md:left-auto md:w-96 md:inset-y-0 h-screen bg-white md:border-l shadow-lg flex flex-col z-50">
   <!-- Header -->
-  <header class="border-b px-4 py-3 flex items-center justify-between bg-gray-50">
-    <h2 class="text-lg font-semibold text-gray-900">Thread</h2>
+  <header class="border-b px-4 py-3 flex items-center gap-3 bg-gray-50">
+    <!-- Back button (mobile) / Close button (desktop) -->
     <button
       onclick={onClose}
-      class="text-gray-400 hover:text-gray-600 transition-colors"
+      class="text-gray-600 hover:text-gray-900 transition-colors p-1 -ml-1"
       title="Close thread"
+      aria-label="Close thread"
     >
-      <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg class="w-6 h-6 md:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+      </svg>
+      <svg class="w-6 h-6 hidden md:block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
       </svg>
     </button>
+    
+    <h2 class="text-lg font-semibold text-gray-900 flex-1">Thread</h2>
   </header>
   
   <!-- Thread content -->
@@ -186,24 +192,24 @@
   </div>
   
   <!-- Reply input -->
-  <div class="border-t bg-white p-4">
+  <div class="border-t bg-white p-3 md:p-4">
     <form onsubmit={handleSendReply} class="space-y-3">
       <textarea
         bind:value={replyInput}
         onkeydown={handleKeyDown}
         placeholder="Reply in thread..."
         disabled={sendingReply || loading}
-        class="w-full rounded-md border border-gray-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed resize-none"
+        class="w-full rounded-md border border-gray-300 px-3 py-2.5 md:py-2 text-base md:text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed resize-none"
         rows="3"
       ></textarea>
       
-      <div class="flex items-center justify-between">
-        <label class="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+      <div class="flex items-center justify-between gap-2">
+        <label class="flex items-center gap-2 text-xs md:text-sm text-gray-600 cursor-pointer min-h-[44px] md:min-h-0">
           <input
             type="checkbox"
             bind:checked={alsoSendToChannel}
             disabled={sendingReply || loading}
-            class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+            class="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-5 h-5 md:w-4 md:h-4"
           />
           <span>Also send to channel</span>
         </label>
@@ -211,7 +217,7 @@
         <button
           type="submit"
           disabled={sendingReply || !replyInput.trim() || loading}
-          class="px-4 py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          class="px-3 md:px-4 py-2.5 md:py-2 bg-blue-600 text-white text-sm rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium min-h-[44px] md:min-h-0"
         >
           {sendingReply ? 'Sending...' : 'Send'}
         </button>

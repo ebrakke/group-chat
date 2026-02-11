@@ -119,8 +119,17 @@
     }
   }
   
-  function copyToClipboard(text: string) {
-    navigator.clipboard.writeText(text);
+  async function copyToClipboard(code: string) {
+    try {
+      const baseUrl = window.location.origin;
+      const inviteUrl = `${baseUrl}/invite/${code}`;
+      await navigator.clipboard.writeText(inviteUrl);
+      // Show success feedback (could be enhanced with a toast notification)
+      alert('Invite link copied to clipboard!');
+    } catch (err) {
+      console.error('Failed to copy:', err);
+      alert('Failed to copy invite link. Please try again.');
+    }
   }
 </script>
 
@@ -170,11 +179,11 @@
                         {invite.code}
                       </code>
                       <button
-                        onclick={() => copyToClipboard(invite.url)}
+                        onclick={() => copyToClipboard(invite.code)}
                         class="text-blue-600 hover:text-blue-700 text-xs"
-                        title="Copy URL"
+                        title="Copy invite link"
                       >
-                        Copy URL
+                        Copy invite link
                       </button>
                     </div>
                     <p class="text-xs text-gray-500">

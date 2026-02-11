@@ -14,8 +14,6 @@ import { hasUsers } from './lib/users.js';
 import { channelExists, createChannelRecord } from './lib/channels.js';
 import { WebSocketServer } from 'ws';
 import { WebSocketHandler } from './websocket/handler.js';
-import http from 'http';
-
 const app = new Hono();
 
 // Enable CORS for frontend

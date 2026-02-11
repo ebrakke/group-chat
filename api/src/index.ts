@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { serve } from '@hono/node-server';
+import { cors } from 'hono/cors';
 import { authRoutes } from './routes/auth.js';
 import { channelRoutes } from './routes/channels.js';
 import { messageRoutes } from './routes/messages.js';
@@ -7,11 +8,58 @@ import { userRoutes } from './routes/users.js';
 import { inviteRoutes } from './routes/invites.js';
 import { uploadRoutes } from './routes/upload.js';
 import { initDatabase } from './db/schema.js';
+import { NostrClient } from './nostr/client.js';
+import { generateSecretKey, getPublicKey } from 'nostr-tools';
+import { hasUsers } from './lib/users.js';
+import { channelExists, createChannelRecord } from './lib/channels.js';
 
 const app = new Hono();
 
+// Enable CORS for frontend
+app.use('/*', cors({
+  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  credentials: true,
+}));
+
 // Initialize database
 initDatabase();
+
+// Initialize Nostr client
+let nostrClient: NostrClient;
+
+async function initNostrClient() {
+  const relayUrl = process.env.RELAY_URL || 'ws://localhost:3334';
+  
+  // Generate server keypair (in production, this should be persisted)
+  const serverPrivkey = generateSecretKey();
+  const serverPubkey = getPublicKey(serverPrivkey);
+  
+  console.log('Server Nostr pubkey:', serverPubkey);
+  
+  nostrClient = new NostrClient({
+    relayUrl,
+    serverPrivkey,
+  });
+  
+  try {
+    await nostrClient.connect();
+    console.log('Connected to Nostr relay');
+  } catch (err) {
+    console.error('Failed to connect to Nostr relay:', err);
+    console.log('API will continue without relay connection');
+  }
+}
+
+// Initialize #general channel on first startup
+async function initDefaultChannel() {
+  if (!channelExists('general')) {
+    console.log('Creating default #general channel');
+    createChannelRecord('general', 'general', 'Default channel for everyone');
+    
+    // Note: We can't publish to relay yet because no users exist
+    // The channel will be published when the first user signs up
+  }
+}
 
 // Health check
 app.get('/health', (c) => c.json({ status: 'ok' }));
@@ -27,7 +75,23 @@ api.route('/upload', uploadRoutes);
 
 app.route('/api/v1', api);
 
-const port = parseInt(process.env.PORT || '4000');
-console.log(`API server starting on port ${port}`);
+// Export Nostr client getter
+export function getNostrClient(): NostrClient {
+  return nostrClient;
+}
 
-serve({ fetch: app.fetch, port });
+// Start server
+const port = parseInt(process.env.PORT || '4000');
+
+async function start() {
+  await initNostrClient();
+  await initDefaultChannel();
+  
+  console.log(`API server starting on port ${port}`);
+  serve({ fetch: app.fetch, port });
+}
+
+start().catch(err => {
+  console.error('Failed to start server:', err);
+  process.exit(1);
+});

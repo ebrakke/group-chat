@@ -1,23 +1,160 @@
 import { Hono } from 'hono';
+import {
+  hasUsers,
+  createUser,
+  verifyCredentials,
+  createSession,
+  deleteSession,
+  getUserNostrPrivkey,
+} from '../lib/users.js';
+import { validateInvite, useInvite } from '../lib/invites.js';
+import { authMiddleware } from '../middleware/auth.js';
+import { getNostrClient } from '../index.js';
 
 export const authRoutes = new Hono();
 
+/**
+ * POST /auth/signup
+ * Create a new account
+ */
 authRoutes.post('/signup', async (c) => {
-  // TODO: Implement signup
-  return c.json({ message: 'Not implemented' }, 501);
+  try {
+    const body = await c.req.json();
+    const { username, password, displayName, inviteCode } = body;
+
+    // Validate required fields
+    if (!username || !password || !displayName) {
+      return c.json({ error: 'Missing required fields' }, 400);
+    }
+
+    // Validate username format
+    if (!/^[a-zA-Z0-9_-]{3,20}$/.test(username)) {
+      return c.json({ error: 'Username must be 3-20 characters, alphanumeric, dashes, or underscores' }, 400);
+    }
+
+    // Check if this is the first user
+    const isFirstUser = !hasUsers();
+
+    // If not first user, validate invite code
+    if (!isFirstUser) {
+      if (!inviteCode) {
+        return c.json({ error: 'Invite code required' }, 400);
+      }
+
+      if (!validateInvite(inviteCode)) {
+        return c.json({ error: 'Invalid or expired invite code' }, 400);
+      }
+    }
+
+    // Create user (first user becomes admin)
+    const role = isFirstUser ? 'admin' : 'member';
+    const user = await createUser(username, password, displayName, role);
+
+    // Increment invite use count if not first user
+    if (!isFirstUser && inviteCode) {
+      useInvite(inviteCode);
+    }
+
+    // Publish Nostr profile event
+    try {
+      const nostrClient = getNostrClient();
+      if (nostrClient.isConnected()) {
+        const privkey = getUserNostrPrivkey(user.id);
+        await nostrClient.publishProfile(displayName, null, privkey);
+      }
+    } catch (err) {
+      console.error('Failed to publish profile event:', err);
+      // Don't fail signup if Nostr publish fails
+    }
+
+    // Create session
+    const session = createSession(user.id);
+
+    return c.json({
+      token: session.token,
+      user: {
+        id: user.id,
+        username: user.username,
+        displayName: user.displayName,
+        nostrPubkey: user.nostrPubkey,
+        role: user.role,
+      },
+    }, 201);
+  } catch (err: any) {
+    console.error('Signup error:', err);
+    return c.json({ error: err.message || 'Signup failed' }, 500);
+  }
 });
 
+/**
+ * POST /auth/login
+ * Login with username and password
+ */
 authRoutes.post('/login', async (c) => {
-  // TODO: Implement login
-  return c.json({ message: 'Not implemented' }, 501);
+  try {
+    const body = await c.req.json();
+    const { username, password } = body;
+
+    if (!username || !password) {
+      return c.json({ error: 'Missing username or password' }, 400);
+    }
+
+    const user = await verifyCredentials(username, password);
+
+    if (!user) {
+      return c.json({ error: 'Invalid credentials' }, 401);
+    }
+
+    const session = createSession(user.id);
+
+    return c.json({
+      token: session.token,
+      user: {
+        id: user.id,
+        username: user.username,
+        displayName: user.displayName,
+        nostrPubkey: user.nostrPubkey,
+        role: user.role,
+      },
+    });
+  } catch (err: any) {
+    console.error('Login error:', err);
+    return c.json({ error: err.message || 'Login failed' }, 500);
+  }
 });
 
-authRoutes.post('/logout', async (c) => {
-  // TODO: Implement logout
-  return c.json({ message: 'Not implemented' }, 501);
+/**
+ * POST /auth/logout
+ * Invalidate current session
+ */
+authRoutes.post('/logout', authMiddleware, async (c) => {
+  try {
+    const authHeader = c.req.header('Authorization');
+    const token = authHeader?.slice(7); // Remove 'Bearer ' prefix
+
+    if (token) {
+      deleteSession(token);
+    }
+
+    return c.json({ message: 'Logged out successfully' });
+  } catch (err: any) {
+    console.error('Logout error:', err);
+    return c.json({ error: err.message || 'Logout failed' }, 500);
+  }
 });
 
-authRoutes.get('/me', async (c) => {
-  // TODO: Implement get current user
-  return c.json({ message: 'Not implemented' }, 501);
+/**
+ * GET /auth/me
+ * Get current authenticated user
+ */
+authRoutes.get('/me', authMiddleware, async (c) => {
+  const user = c.get('user');
+
+  return c.json({
+    id: user.id,
+    username: user.username,
+    displayName: user.displayName,
+    nostrPubkey: user.nostrPubkey,
+    role: user.role,
+  });
 });

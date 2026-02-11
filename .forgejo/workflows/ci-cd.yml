@@ -1,0 +1,98 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - '*'
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  # CI Job - Build and Test on every push/PR
+  ci:
+    runs-on: docker
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install root dependencies
+        run: npm ci
+
+      - name: Build and test API
+        run: |
+          cd api
+          npm ci
+          npm run build
+
+      - name: Type check API
+        run: |
+          cd api
+          npx tsc --noEmit
+
+      - name: Build and test Frontend
+        run: |
+          cd frontend
+          npm ci
+          npm run build
+
+      - name: Type check Frontend
+        run: |
+          cd frontend
+          npx tsc --noEmit
+
+  # CD Job - Deploy to production on push to master
+  deploy:
+    runs-on: docker
+    needs: ci
+    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to production
+        env:
+          REPO_PATH: "/root/relay-chat"
+        run: |
+          # Clone/update the repository on the host
+          if [ -d "$REPO_PATH" ]; then
+            cd $REPO_PATH
+            git fetch origin
+            git reset --hard origin/master
+          else
+            git clone https://forge.brakke.cc/erik/relay-chat.git $REPO_PATH
+            cd $REPO_PATH
+          fi
+          
+          # Deploy using docker compose
+          docker compose -f docker-compose.prod.yml up -d --build
+          
+          # Wait for containers to start
+          sleep 10
+
+      - name: Health check
+        run: |
+          # Check if all containers are running
+          if docker ps | grep -q "relay-chat-frontend-1" && \
+             docker ps | grep -q "relay-chat-api-1" && \
+             docker ps | grep -q "relay-chat-relay-1" && \
+             docker ps | grep -q "relay-chat-blossom-1"; then
+            echo "✅ All containers are running!"
+            docker ps | grep relay-chat
+          else
+            echo "❌ Some containers failed to start"
+            docker ps -a | grep relay-chat
+            exit 1
+          fi
+
+      - name: Verify site
+        run: |
+          echo "Deployment completed successfully!"
+          echo "Site should be available at: https://chat.brakke.cc"
+          echo "Manual verification recommended."

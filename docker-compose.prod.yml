@@ -17,7 +17,7 @@ services:
     environment:
       - DATABASE_PATH=/data/relay-chat.db
       - RELAY_URL=ws://relay:3334
-      - BLOSSOM_URL=http://blossom:3335
+      - BLOSSOM_URL=http://blossom:3000
       - SESSION_SECRET=change-me-in-production-use-random-64-chars
       - KEY_ENCRYPTION_SECRET=change-me-in-production-use-random-64-chars
       - INVITE_REQUIRED=true

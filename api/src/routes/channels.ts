@@ -167,7 +167,7 @@ channelRoutes.delete('/:id', authMiddleware, async (c) => {
 
     // Prevent deleting #general
     if (id === 'general') {
-      return c.json({ error: 'Cannot delete #general channel' }, 400);
+      return c.json({ error: 'Cannot delete #general channel' }, 403);
     }
 
     const channel = getChannel(id);

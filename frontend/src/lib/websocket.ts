@@ -1,7 +1,19 @@
 import type { Message } from './api';
 import { env } from '$env/dynamic/public';
+import { browser } from '$app/environment';
 
-const WS_URL = env.PUBLIC_WS_URL || import.meta.env.VITE_WS_URL || 'ws://localhost:4000/ws';
+// In production, derive WebSocket URL from window.location
+// In dev/SSR, use environment variable
+function getWebSocketUrl(): string {
+  if (browser && typeof window !== 'undefined') {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const host = window.location.host;
+    return `${protocol}//${host}/ws`;
+  }
+  return env.PUBLIC_WS_URL || import.meta.env.VITE_WS_URL || 'ws://localhost:4000/ws';
+}
+
+const WS_URL = getWebSocketUrl();
 
 export type WebSocketEventType = 
   | 'message.new' 

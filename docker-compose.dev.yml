@@ -5,8 +5,8 @@ services:
       - "3002:3000"
     environment:
       - API_URL=http://api:4000
-      - PUBLIC_API_URL=http://localhost:4002/api/v1
-      - PUBLIC_WS_URL=ws://localhost:4002/ws
+      - VITE_API_URL=
+      - VITE_WS_URL=/ws
     depends_on:
       - api
 
@@ -17,7 +17,7 @@ services:
     environment:
       - DATABASE_PATH=/data/relay-chat.db
       - RELAY_URL=ws://relay:3334
-      - BLOSSOM_URL=http://blossom:3335
+      - BLOSSOM_URL=http://blossom:3000
       - SESSION_SECRET=dev-session-secret-not-for-production
       - KEY_ENCRYPTION_SECRET=dev-key-encryption-secret-not-for-production
       - INVITE_REQUIRED=true

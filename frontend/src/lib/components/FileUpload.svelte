@@ -7,8 +7,12 @@
     error?: string;
   }
   
-  export let attachments: Attachment[] = $state([]);
-  export let onAttachmentsChange: ((attachments: Attachment[]) => void) | undefined = undefined;
+  interface Props {
+    attachments?: Attachment[];
+    onAttachmentsChange?: (attachments: Attachment[]) => void;
+  }
+  
+  let { attachments = $bindable([]), onAttachmentsChange }: Props = $props();
   
   let fileInput: HTMLInputElement;
   let isDragging = $state(false);

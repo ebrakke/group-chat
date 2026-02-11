@@ -1,12 +1,23 @@
 <script lang="ts">
   import { createChannel, updateChannel, deleteChannel, type Channel } from '$lib/api';
   
-  export let isOpen = $state(false);
-  export let mode: 'create' | 'edit' = $state('create');
-  export let channel: Channel | null = $state(null);
-  export let onClose: (() => void) | undefined = undefined;
-  export let onSuccess: ((channel: Channel) => void) | undefined = undefined;
-  export let onDelete: ((channelId: string) => void) | undefined = undefined;
+  interface Props {
+    isOpen?: boolean;
+    mode?: 'create' | 'edit';
+    channel?: Channel | null;
+    onClose?: () => void;
+    onSuccess?: (channel: Channel) => void;
+    onDelete?: (channelId: string) => void;
+  }
+  
+  let { 
+    isOpen = $bindable(false), 
+    mode = $bindable('create'), 
+    channel = $bindable(null),
+    onClose,
+    onSuccess,
+    onDelete
+  }: Props = $props();
   
   let id = $state('');
   let name = $state('');

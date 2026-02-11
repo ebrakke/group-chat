@@ -1,8 +1,17 @@
 <script lang="ts">
-  export let isOpen = $state(false);
-  export let imageUrl = $state('');
-  export let filename = $state('');
-  export let onClose: (() => void) | undefined = undefined;
+  interface Props {
+    isOpen?: boolean;
+    imageUrl?: string;
+    filename?: string;
+    onClose?: () => void;
+  }
+  
+  let { 
+    isOpen = $bindable(false), 
+    imageUrl = $bindable(''), 
+    filename = $bindable(''),
+    onClose
+  }: Props = $props();
   
   function close() {
     isOpen = false;

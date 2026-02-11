@@ -6,17 +6,21 @@ import { defineConfig, devices } from '@playwright/test';
  */
 export default defineConfig({
   testDir: './tests',
-  fullyParallel: true,
+  fullyParallel: false, // Run tests serially to avoid database conflicts
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
-  reporter: process.env.CI ? 'github' : 'html',
+  workers: process.env.CI ? 1 : 1, // Single worker to avoid race conditions
+  reporter: [
+    ['html', { outputFolder: 'playwright-report', open: 'never' }],
+    ['list'],
+  ],
   
   use: {
     baseURL: 'http://localhost:3002',
-    trace: 'on-first-retry',
+    trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: 'retain-on-failure',
+    actionTimeout: 10000,
   },
 
   projects: [
@@ -26,16 +30,16 @@ export default defineConfig({
     },
   ],
 
-  // Configure global timeout
-  timeout: 30000,
+  // Global timeout settings
+  timeout: 30000, // 30s for each test
   expect: {
-    timeout: 5000,
+    timeout: 10000, // 10s for assertions
   },
 
   // Web server configuration (optional - assumes dev stack is already running)
   // Uncomment if you want Playwright to auto-start the dev stack
   // webServer: {
-  //   command: 'cd ../.. && make dev',
+  //   command: 'cd ../.. && docker compose -f docker-compose.dev.yml up -d',
   //   url: 'http://localhost:3002',
   //   reuseExistingServer: !process.env.CI,
   //   timeout: 120000,

@@ -1,17 +1,25 @@
 {
   "name": "relay-chat-e2e-tests",
   "version": "1.0.0",
-  "private": true,
-  "type": "module",
+  "description": "End-to-end tests for Relay Chat using Playwright",
   "scripts": {
     "test": "playwright test",
-    "test:ui": "playwright test --ui",
     "test:headed": "playwright test --headed",
+    "test:ui": "playwright test --ui",
     "test:debug": "playwright test --debug",
-    "report": "playwright show-report"
+    "test:report": "playwright show-report",
+    "test:codegen": "playwright codegen http://localhost:3002"
   },
+  "keywords": [
+    "e2e",
+    "playwright",
+    "testing",
+    "relay-chat"
+  ],
+  "author": "",
+  "license": "ISC",
   "devDependencies": {
-    "@playwright/test": "^1.49.0",
-    "@types/node": "^22.10.5"
+    "@playwright/test": "^1.40.0",
+    "@types/node": "^20.10.0"
   }
 }

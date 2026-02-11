@@ -59,26 +59,29 @@ authRoutes.post('/signup', async (c) => {
     // NIP-29 relays only accept group-scoped events with an 'h' tag.
     // User profiles in group chats are handled through group membership metadata.
 
-    // If this is the first user, ensure #general channel exists on relay
-    if (isFirstUser) {
-      try {
-        const nostrClient = getNostrClient();
-        if (nostrClient && nostrClient.isConnected()) {
-          const privkey = getUserNostrPrivkey(user.id);
-          await nostrClient.createChannel(
-            'general',
-            'general',
-            'Default channel for everyone',
-            privkey
-          );
-          console.log('✅ #general channel published to relay');
+    // Add the new user to the #general channel
+    try {
+      const nostrClient = getNostrClient();
+      if (nostrClient && nostrClient.isConnected()) {
+        const serverPrivkeyHex = process.env.SERVER_PRIVKEY;
+        if (!serverPrivkeyHex) {
+          console.error('Cannot add user to group: SERVER_PRIVKEY not set');
         } else {
-          console.warn('⚠️  Relay not connected, #general channel not published');
+          const serverPrivkey = Uint8Array.from(Buffer.from(serverPrivkeyHex, 'hex'));
+          const userPubkey = user.nostrPubkey;
+          
+          // Add user to #general group with 'member' role
+          // (admins get both 'admin' and 'member' roles)
+          const roles = isFirstUser ? ['admin', 'member'] : ['member'];
+          await nostrClient.addUserToGroup('general', userPubkey, roles, serverPrivkey);
+          console.log(`✅ Added user ${user.username} to #general channel`);
         }
-      } catch (err) {
-        console.error('❌ Failed to publish #general to relay:', err);
-        // Don't fail signup if channel publish fails
+      } else {
+        console.warn('⚠️  Relay not connected, cannot add user to #general');
       }
+    } catch (err) {
+      console.error('❌ Failed to add user to #general:', err);
+      // Don't fail signup if group membership fails
     }
 
     // Create session

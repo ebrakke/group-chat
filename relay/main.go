@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"net/http"
@@ -53,6 +54,33 @@ func main() {
 		DefaultRoles:            []*nip29.Role{adminRole, memberRole},
 		GroupCreatorDefaultRole: adminRole,
 	})
+
+	// Configure group permissions
+	state.AllowAction = func(ctx context.Context, group nip29.Group, role *nip29.Role, action relay29.Action) bool {
+		// Admins can do everything
+		if role != nil && role.Name == "admin" {
+			return true
+		}
+		
+		// Members can send messages but not moderate
+		if role != nil && role.Name == "member" {
+			_, isDeleteEvent := action.(relay29.DeleteEvent)
+			_, isRemoveUser := action.(relay29.RemoveUser)
+			_, isPutUser := action.(relay29.PutUser)
+			_, isEditMetadata := action.(relay29.EditMetadata)
+			
+			// Members cannot moderate
+			if isDeleteEvent || isRemoveUser || isPutUser || isEditMetadata {
+				return false
+			}
+			
+			// Members can send regular messages
+			return true
+		}
+		
+		// Non-members cannot do anything
+		return false
+	}
 
 	relay.Info.Name = "Relay Chat"
 	relay.Info.Description = "Private NIP-29 group relay for Relay Chat"

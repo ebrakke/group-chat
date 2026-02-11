@@ -271,6 +271,7 @@ export class NostrClient {
       kind: 39000,
       created_at: Math.floor(Date.now() / 1000),
       tags: [
+        ['h', groupId],  // Group identifier (required for NIP-29)
         ['d', groupId],
         ['name', name],
         ['about', description],
@@ -377,6 +378,29 @@ export class NostrClient {
     };
     
     return this.publishEvent(template, privkey);
+  }
+
+  /**
+   * Add a user to a group (NIP-29 kind 9000 - put-user)
+   * This must be called by a group admin
+   */
+  async addUserToGroup(
+    groupId: string,
+    userPubkey: string,
+    roles: string[],
+    adminPrivkey: Uint8Array
+  ): Promise<Event> {
+    const template: EventTemplate = {
+      kind: 9000, // KindSimpleGroupPutUser
+      created_at: Math.floor(Date.now() / 1000),
+      tags: [
+        ['h', groupId],
+        ['p', userPubkey, ...roles],  // User pubkey + roles
+      ],
+      content: '',
+    };
+    
+    return this.publishEvent(template, adminPrivkey);
   }
 
   /**

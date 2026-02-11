@@ -60,6 +60,9 @@ jobs:
         env:
           REPO_PATH: "/root/relay-chat"
         run: |
+          # Install git if not available
+          apt-get update && apt-get install -y git
+          
           # Clone/update the repository on the host
           if [ -d "$REPO_PATH" ]; then
             cd $REPO_PATH

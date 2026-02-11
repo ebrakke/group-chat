@@ -137,9 +137,9 @@ async function main() {
 
     // Step 2: Create admin account
     info('Step 2: Creating admin account...');
-    const timestamp = Date.now();
+    const timestamp = Date.now() % 100000; // Use last 5 digits only
     testUser = await signup(
-      `testadmin${timestamp}`,
+      `admin${timestamp}`,
       'testpassword123',
       'Test Admin'
     );

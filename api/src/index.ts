@@ -117,6 +117,11 @@ export function getNostrClient(): NostrClient {
   return nostrClient;
 }
 
+// Export WebSocket handler getter
+export function getWebSocketHandler(): WebSocketHandler | undefined {
+  return wsHandler;
+}
+
 // Start server
 const port = parseInt(process.env.PORT || '4000');
 

@@ -315,6 +315,18 @@ export class WebSocketHandler {
   }
 
   /**
+   * Broadcast a new message to WebSocket clients (called when message is published)
+   */
+  broadcastNewMessage(channelId: string, message: any): void {
+    const wsMessage: WebSocketMessage = {
+      type: 'message.new',
+      channelId,
+      message,
+    };
+    this.broadcast(wsMessage);
+  }
+
+  /**
    * Close all connections
    */
   closeAll(): void {

@@ -9,7 +9,7 @@ import {
   channelExists,
 } from '../lib/channels.js';
 import { getUserNostrPrivkey } from '../lib/users.js';
-import { getNostrClient } from '../index.js';
+import { getNostrClient, getWebSocketHandler } from '../index.js';
 import { getDb } from '../db/schema.js';
 
 export const channelRoutes = new Hono();
@@ -313,8 +313,8 @@ channelRoutes.post('/:id/messages', authMiddleware, async (c) => {
     // Publish message to relay
     const event = await nostrClient.publishMessage(id, content, privkey, attachments);
 
-    // Return message in API format
-    return c.json({
+    // Format message for API response and WebSocket broadcast
+    const message = {
       id: event.id,
       channelId: id,
       author: {
@@ -329,7 +329,16 @@ channelRoutes.post('/:id/messages', authMiddleware, async (c) => {
       threadCount: 0,
       createdAt: new Date(event.created_at * 1000).toISOString(),
       editedAt: null,
-    }, 201);
+    };
+
+    // Broadcast to WebSocket clients immediately
+    const wsHandler = getWebSocketHandler();
+    if (wsHandler) {
+      wsHandler.broadcastNewMessage(id, message);
+    }
+
+    // Return message in API format
+    return c.json(message, 201);
   } catch (err: any) {
     console.error('Send message error:', err);
     return c.json({ error: err.message || 'Failed to send message' }, 500);

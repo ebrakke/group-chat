@@ -18,6 +18,7 @@ export class NostrClient {
   private connected: boolean = false;
   private subscriptions: Map<string, MessageSubscriptionHandler> = new Map();
   private pendingRequests: Map<string, { resolve: (value: any) => void, reject: (error: any) => void, timeout: NodeJS.Timeout }> = new Map();
+  private pendingQueries: Map<string, { events: Event[], resolve: (events: Event[]) => void, timeout: NodeJS.Timeout }> = new Map();
 
   constructor(config: NostrClientConfig) {
     this.relayUrl = config.relayUrl;
@@ -77,6 +78,12 @@ export class NostrClient {
         const [subId, event] = rest;
         console.log('Received event:', event);
         
+        // Check if this is for a pending query
+        const query = this.pendingQueries.get(subId);
+        if (query) {
+          query.events.push(event);
+        }
+        
         // Call subscription handler if exists
         const handler = this.subscriptions.get(subId);
         if (handler) {
@@ -86,6 +93,15 @@ export class NostrClient {
         // End of stored events
         const subId = rest[0];
         console.log('End of stored events for subscription:', subId);
+        
+        // Check if this is for a pending query
+        const query = this.pendingQueries.get(subId);
+        if (query) {
+          clearTimeout(query.timeout);
+          this.pendingQueries.delete(subId);
+          this.unsubscribe(subId);
+          query.resolve(query.events);
+        }
       } else if (type === 'OK') {
         // Event publication confirmation
         const [eventId, success, message] = rest;
@@ -181,40 +197,24 @@ export class NostrClient {
   /**
    * Query events (returns promise that resolves with array of events)
    */
-  async queryEvents(filters: any[], timeoutMs: number = 5000): Promise<Event[]> {
+  async queryEvents(filters: any[], timeoutMs: number = 2000): Promise<Event[]> {
     return new Promise((resolve) => {
       const subId = `query-${Date.now()}-${Math.random()}`;
       const events: Event[] = [];
-      let eoseReceived = false;
       
+      // Set up timeout as fallback (should hit EOSE before this)
       const timeout = setTimeout(() => {
+        console.warn(`Query ${subId} timed out after ${timeoutMs}ms`);
+        this.pendingQueries.delete(subId);
         this.unsubscribe(subId);
         resolve(events);
       }, timeoutMs);
       
-      const handler = (event: Event) => {
-        events.push(event);
-      };
+      // Store in pending queries map
+      this.pendingQueries.set(subId, { events, resolve, timeout });
       
-      // Listen for EOSE
-      const originalHandleMessage = this.handleMessage.bind(this);
-      const interceptMessage = (message: string) => {
-        try {
-          const [type, ...rest] = JSON.parse(message);
-          if (type === 'EOSE' && rest[0] === subId) {
-            eoseReceived = true;
-            clearTimeout(timeout);
-            this.unsubscribe(subId);
-            resolve(events);
-            return;
-          }
-        } catch (err) {
-          // Ignore parse errors
-        }
-        originalHandleMessage(message);
-      };
-      
-      this.subscribe(subId, filters, handler);
+      // Send REQ to relay
+      this.send(['REQ', subId, ...filters]);
     });
   }
 

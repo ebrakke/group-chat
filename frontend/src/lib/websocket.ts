@@ -1,6 +1,7 @@
 import type { Message } from './api';
+import { env } from '$env/dynamic/public';
 
-const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:4000/ws';
+const WS_URL = env.PUBLIC_WS_URL || import.meta.env.VITE_WS_URL || 'ws://localhost:4000/ws';
 
 export type WebSocketEventType = 
   | 'message.new' 

@@ -192,10 +192,34 @@ channelRoutes.get('/:id/messages', authMiddleware, async (c) => {
     // Query messages from relay
     const events = await nostrClient.getChannelMessages(id, limit, before);
     
+    // Get thread counts and reactions for all messages
+    const messageIds = events.map(e => e.id);
+    const threadCounts = await nostrClient.getThreadCounts(messageIds);
+    const reactionsMap = await nostrClient.getReactions(messageIds);
+    
+    // Get database for user lookups
+    const db = require('../db/schema.js').getDb();
+    
+    // Map pubkeys to user IDs for reactions
+    const pubkeyToUserIdMap: Record<string, string> = {};
+    const allPubkeys = new Set<string>();
+    for (const reactions of Object.values(reactionsMap)) {
+      for (const pubkeys of Object.values(reactions)) {
+        pubkeys.forEach(pk => allPubkeys.add(pk));
+      }
+    }
+    
+    // Batch lookup user IDs for all pubkeys
+    for (const pubkey of allPubkeys) {
+      const user = db.prepare('SELECT id FROM users WHERE nostr_pubkey = ?').get(pubkey);
+      if (user) {
+        pubkeyToUserIdMap[pubkey] = user.id;
+      }
+    }
+    
     // Transform Nostr events to API message format
-    const messages = await Promise.all(events.map(async (event) => {
+    const messages = events.map((event) => {
       // Get author info from database
-      const db = require('../db/schema.js').getDb();
       const author = db.prepare('SELECT id, username, display_name, nostr_pubkey FROM users WHERE nostr_pubkey = ?')
         .get(event.pubkey);
       
@@ -218,6 +242,15 @@ channelRoutes.get('/:id/messages', authMiddleware, async (c) => {
       const editTag = event.tags.find(tag => tag[0] === 'e');
       const isEdit = !!editTag;
       
+      // Convert reactions from pubkeys to user IDs
+      const reactions: Record<string, string[]> = {};
+      const messageReactions = reactionsMap[event.id] || {};
+      for (const [emoji, pubkeys] of Object.entries(messageReactions)) {
+        reactions[emoji] = pubkeys
+          .map(pk => pubkeyToUserIdMap[pk])
+          .filter(Boolean);
+      }
+      
       return {
         id: event.id,
         channelId: id,
@@ -234,12 +267,12 @@ channelRoutes.get('/:id/messages', authMiddleware, async (c) => {
         },
         content: event.content,
         attachments,
-        reactions: {}, // TODO: Query reactions
-        threadCount: 0, // TODO: Count thread replies
+        reactions,
+        threadCount: threadCounts[event.id] || 0,
         createdAt: new Date(event.created_at * 1000).toISOString(),
         editedAt: isEdit ? new Date(event.created_at * 1000).toISOString() : null,
       };
-    }));
+    });
 
     return c.json(messages);
   } catch (err: any) {

@@ -34,12 +34,20 @@ export class WebSocketHandler {
       return;
     }
 
-    // Subscribe to all kind 9 events (messages) and kind 5 events (deletions)
+    // Subscribe to all relevant event types:
+    // - kind 9 (messages)
+    // - kind 5 (deletions)
+    // - kind 11 (thread roots)
+    // - kind 1111 (thread replies)
+    // - kind 7 (reactions)
     this.nostrClient.subscribe(
       this.subscriptionId,
       [
-        { kinds: [9] }, // Messages
-        { kinds: [5] }, // Deletions
+        { kinds: [9] },    // Messages
+        { kinds: [5] },    // Deletions
+        { kinds: [11] },   // Thread roots
+        { kinds: [1111] }, // Thread replies
+        { kinds: [7] },    // Reactions
       ],
       this.handleNostrEvent.bind(this)
     );
@@ -58,6 +66,12 @@ export class WebSocketHandler {
       } else if (event.kind === 5) {
         // Deletion event
         await this.handleDeletionEvent(event);
+      } else if (event.kind === 11 || event.kind === 1111) {
+        // Thread events (root or reply)
+        await this.handleThreadEvent(event);
+      } else if (event.kind === 7) {
+        // Reaction event
+        await this.handleReactionEvent(event);
       }
     } catch (err) {
       console.error('Error handling Nostr event in WebSocket:', err);
@@ -135,14 +149,14 @@ export class WebSocketHandler {
    * Handle deletion event (kind 5)
    */
   private async handleDeletionEvent(event: Event): Promise<void> {
-    // Get the message ID being deleted from 'e' tag
+    // Get the event ID being deleted from 'e' tag
     const eventTag = event.tags.find(tag => tag[0] === 'e');
     if (!eventTag) {
       return;
     }
     const deletedEventId = eventTag[1];
 
-    // We need to query the original event to get the channel ID
+    // We need to query the original event to get the channel ID and kind
     const originalEvents = await this.nostrClient.queryEvents([{ ids: [deletedEventId] }]);
     if (originalEvents.length === 0) {
       console.warn('Cannot find original event for deletion:', deletedEventId);
@@ -156,14 +170,46 @@ export class WebSocketHandler {
     }
     const channelId = channelTag[1];
 
-    // Broadcast deletion to all connected clients
-    const wsMessage: WebSocketMessage = {
-      type: 'message.deleted',
-      channelId,
-      messageId: deletedEventId,
-    };
+    // Check if this is a reaction deletion (kind 7)
+    if (originalEvent.kind === 7) {
+      // Get the message ID from the reaction's 'e' tag
+      const reactionEventTag = originalEvent.tags.find(tag => tag[0] === 'e');
+      if (!reactionEventTag) {
+        return;
+      }
+      const messageId = reactionEventTag[1];
+      const emoji = originalEvent.content;
 
-    this.broadcast(wsMessage);
+      // Get user ID from database
+      const db = getDb();
+      const user = db.prepare('SELECT id FROM users WHERE nostr_pubkey = ?')
+        .get(originalEvent.pubkey) as any;
+
+      if (!user) {
+        console.warn('Reaction deletion from unknown user:', originalEvent.pubkey);
+        return;
+      }
+
+      // Broadcast reaction removal
+      const wsMessage: WebSocketMessage = {
+        type: 'reaction.removed',
+        channelId,
+        messageId,
+        emoji,
+        userId: user.id,
+      };
+
+      this.broadcast(wsMessage);
+    } else {
+      // Regular message deletion
+      const wsMessage: WebSocketMessage = {
+        type: 'message.deleted',
+        channelId,
+        messageId: deletedEventId,
+      };
+
+      this.broadcast(wsMessage);
+    }
   }
 
   /**
@@ -276,5 +322,119 @@ export class WebSocketHandler {
       client.close();
     });
     this.clients.clear();
+  }
+
+  /**
+   * Handle thread event (kind 11 or 1111)
+   */
+  private async handleThreadEvent(event: Event): Promise<void> {
+    // Get channel ID from 'h' tag
+    const channelTag = event.tags.find(tag => tag[0] === 'h');
+    if (!channelTag) {
+      return; // Not a valid channel message
+    }
+    const channelId = channelTag[1];
+
+    // Get the parent message ID from 'e' tag with 'root' marker
+    const rootTag = event.tags.find(tag => tag[0] === 'e' && tag[3] === 'root');
+    if (!rootTag) {
+      return; // Not a valid thread event
+    }
+    const parentId = rootTag[1];
+
+    // Get author info from database
+    const db = getDb();
+    const author = db.prepare('SELECT id, username, display_name, nostr_pubkey FROM users WHERE nostr_pubkey = ?')
+      .get(event.pubkey) as any;
+
+    if (!author) {
+      console.warn('Thread message from unknown user:', event.pubkey);
+      return;
+    }
+
+    // Parse attachments from imeta tags
+    const attachments = event.tags
+      .filter(tag => tag[0] === 'imeta')
+      .map(tag => {
+        const attachment: any = {};
+        for (let i = 1; i < tag.length; i++) {
+          const [key, value] = tag[i].split(' ', 2);
+          if (key === 'url') attachment.url = value;
+          if (key === 'm') attachment.mimeType = value;
+          if (key === 'size') attachment.size = parseInt(value);
+          if (key === 'name') attachment.filename = value;
+        }
+        return attachment;
+      });
+
+    const message = {
+      id: event.id,
+      channelId,
+      author: {
+        id: author.id as string,
+        username: author.username as string,
+        displayName: author.display_name as string,
+        nostrPubkey: author.nostr_pubkey as string,
+      },
+      content: event.content,
+      attachments,
+      reactions: {},
+      threadCount: 0,
+      createdAt: new Date(event.created_at * 1000).toISOString(),
+      editedAt: null,
+    };
+
+    // Broadcast to all connected clients
+    const wsMessage: WebSocketMessage = {
+      type: 'thread.new',
+      channelId,
+      parentId,
+      message,
+    };
+
+    this.broadcast(wsMessage);
+  }
+
+  /**
+   * Handle reaction event (kind 7)
+   */
+  private async handleReactionEvent(event: Event): Promise<void> {
+    // Get channel ID from 'h' tag
+    const channelTag = event.tags.find(tag => tag[0] === 'h');
+    if (!channelTag) {
+      return; // Not a valid reaction
+    }
+    const channelId = channelTag[1];
+
+    // Get the message ID from 'e' tag
+    const eventTag = event.tags.find(tag => tag[0] === 'e');
+    if (!eventTag) {
+      return;
+    }
+    const messageId = eventTag[1];
+    const emoji = event.content;
+
+    // Get user ID from database
+    const db = getDb();
+    const user = db.prepare('SELECT id FROM users WHERE nostr_pubkey = ?')
+      .get(event.pubkey) as any;
+
+    if (!user) {
+      console.warn('Reaction from unknown user:', event.pubkey);
+      return;
+    }
+
+    // Check if this is a reaction or a reaction deletion
+    // We need to query if there's a kind 5 (deletion) event for this reaction
+    // For simplicity, we'll always broadcast as added and let the deletion handler remove it
+    const wsMessage: WebSocketMessage = {
+      type: 'reaction.added',
+      channelId,
+      messageId,
+      emoji,
+      userId: user.id,
+    };
+
+    this.broadcast(wsMessage);
   }
 }

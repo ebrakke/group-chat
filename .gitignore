@@ -11,6 +11,8 @@ relay/relay
 # Data
 *.db
 *.db-journal
+*.db-shm
+*.db-wal
 data/
 
 # Environment

@@ -2,13 +2,24 @@ import type { Message } from './api';
 
 const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:4000/ws';
 
-export type WebSocketEventType = 'message.new' | 'message.updated' | 'message.deleted' | 'authenticated' | 'error';
+export type WebSocketEventType = 
+  | 'message.new' 
+  | 'message.updated' 
+  | 'message.deleted' 
+  | 'thread.new'
+  | 'reaction.added'
+  | 'reaction.removed'
+  | 'authenticated' 
+  | 'error';
 
 export interface WebSocketEvent {
   type: WebSocketEventType;
   channelId?: string;
   message?: Message;
   messageId?: string;
+  parentId?: string;
+  emoji?: string;
+  userId?: string;
   [key: string]: any;
 }
 

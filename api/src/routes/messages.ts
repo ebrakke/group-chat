@@ -114,10 +114,301 @@ messageRoutes.delete('/:id', authMiddleware, async (c) => {
   }
 });
 
-// Thread endpoints (stub for Sprint 3)
-messageRoutes.get('/:id/thread', async (c) => c.json({ message: 'Threads not implemented yet (Sprint 3)' }, 501));
-messageRoutes.post('/:id/thread', async (c) => c.json({ message: 'Threads not implemented yet (Sprint 3)' }, 501));
+/**
+ * GET /messages/:id/thread
+ * Get thread replies for a message
+ */
+messageRoutes.get('/:id/thread', authMiddleware, async (c) => {
+  try {
+    const messageId = c.req.param('id');
 
-// Reaction endpoints (stub for Sprint 3)
-messageRoutes.post('/:id/reactions', async (c) => c.json({ message: 'Reactions not implemented yet (Sprint 3)' }, 501));
-messageRoutes.delete('/:id/reactions/:emoji', async (c) => c.json({ message: 'Reactions not implemented yet (Sprint 3)' }, 501));
+    const nostrClient = getNostrClient();
+    if (!nostrClient.isConnected()) {
+      return c.json({ error: 'Relay not connected' }, 503);
+    }
+
+    // Get the parent message
+    const parentEvents = await nostrClient.queryEvents([{ ids: [messageId] }]);
+    if (parentEvents.length === 0) {
+      return c.json({ error: 'Message not found' }, 404);
+    }
+
+    const parentEvent = parentEvents[0];
+    const db = getDb();
+
+    // Get author info for parent
+    const parentAuthor = db.prepare('SELECT id, username, display_name, nostr_pubkey FROM users WHERE nostr_pubkey = ?')
+      .get(parentEvent.pubkey) as any;
+
+    if (!parentAuthor) {
+      return c.json({ error: 'Parent message author not found' }, 404);
+    }
+
+    // Get channel ID from 'h' tag
+    const channelTag = parentEvent.tags.find(tag => tag[0] === 'h');
+    if (!channelTag) {
+      return c.json({ error: 'Invalid message: no channel tag' }, 400);
+    }
+    const channelId = channelTag[1];
+
+    // Parse parent message
+    const parentAttachments = parentEvent.tags
+      .filter(tag => tag[0] === 'imeta')
+      .map(tag => {
+        const attachment: any = {};
+        for (let i = 1; i < tag.length; i++) {
+          const [key, value] = tag[i].split(' ', 2);
+          if (key === 'url') attachment.url = value;
+          if (key === 'm') attachment.mimeType = value;
+          if (key === 'size') attachment.size = parseInt(value);
+          if (key === 'name') attachment.filename = value;
+        }
+        return attachment;
+      });
+
+    const parentMessage = {
+      id: parentEvent.id,
+      channelId,
+      author: {
+        id: parentAuthor.id,
+        username: parentAuthor.username,
+        displayName: parentAuthor.display_name,
+        nostrPubkey: parentAuthor.nostr_pubkey,
+      },
+      content: parentEvent.content,
+      attachments: parentAttachments,
+      reactions: {},
+      threadCount: 0,
+      createdAt: new Date(parentEvent.created_at * 1000).toISOString(),
+      editedAt: null,
+    };
+
+    // Get thread replies
+    const replyEvents = await nostrClient.getThreadReplies(messageId);
+
+    // Map replies to message format
+    const replies = [];
+    for (const event of replyEvents) {
+      const author = db.prepare('SELECT id, username, display_name, nostr_pubkey FROM users WHERE nostr_pubkey = ?')
+        .get(event.pubkey) as any;
+
+      if (!author) continue;
+
+      const attachments = event.tags
+        .filter(tag => tag[0] === 'imeta')
+        .map(tag => {
+          const attachment: any = {};
+          for (let i = 1; i < tag.length; i++) {
+            const [key, value] = tag[i].split(' ', 2);
+            if (key === 'url') attachment.url = value;
+            if (key === 'm') attachment.mimeType = value;
+            if (key === 'size') attachment.size = parseInt(value);
+            if (key === 'name') attachment.filename = value;
+          }
+          return attachment;
+        });
+
+      replies.push({
+        id: event.id,
+        channelId,
+        author: {
+          id: author.id,
+          username: author.username,
+          displayName: author.display_name,
+          nostrPubkey: author.nostr_pubkey,
+        },
+        content: event.content,
+        attachments,
+        reactions: {},
+        threadCount: 0,
+        createdAt: new Date(event.created_at * 1000).toISOString(),
+        editedAt: null,
+      });
+    }
+
+    return c.json({
+      root: parentMessage,
+      replies,
+    });
+  } catch (err: any) {
+    console.error('Thread fetch error:', err);
+    return c.json({ error: err.message || 'Failed to fetch thread' }, 500);
+  }
+});
+
+/**
+ * POST /messages/:id/thread
+ * Reply in a thread
+ */
+messageRoutes.post('/:id/thread', authMiddleware, async (c) => {
+  try {
+    const messageId = c.req.param('id');
+    const body = await c.req.json();
+    const { content, alsoSendToChannel, attachments } = body;
+
+    if (!content || content.trim().length === 0) {
+      return c.json({ error: 'Reply content required' }, 400);
+    }
+
+    const nostrClient = getNostrClient();
+    if (!nostrClient.isConnected()) {
+      return c.json({ error: 'Relay not connected' }, 503);
+    }
+
+    // Get the parent message
+    const parentEvents = await nostrClient.queryEvents([{ ids: [messageId] }]);
+    if (parentEvents.length === 0) {
+      return c.json({ error: 'Message not found' }, 404);
+    }
+
+    const parentEvent = parentEvents[0];
+    const user = c.get('user');
+
+    // Get channel ID from 'h' tag
+    const channelTag = parentEvent.tags.find(tag => tag[0] === 'h');
+    if (!channelTag) {
+      return c.json({ error: 'Invalid message: no channel tag' }, 400);
+    }
+    const channelId = channelTag[1];
+
+    // Get user's private key
+    const privkey = getUserNostrPrivkey(user.id);
+
+    // Check if this is the first reply (need to create thread root)
+    const existingReplies = await nostrClient.getThreadReplies(messageId);
+    let threadEvent;
+
+    if (existingReplies.length === 0) {
+      // Create thread root (kind 11)
+      threadEvent = await nostrClient.createThreadRoot(
+        channelId,
+        messageId,
+        content,
+        privkey,
+        attachments
+      );
+    } else {
+      // Add reply to existing thread (kind 1111)
+      // Find the most recent reply to use as parent
+      const lastReply = existingReplies[existingReplies.length - 1];
+      threadEvent = await nostrClient.replyInThread(
+        channelId,
+        messageId,
+        lastReply.id,
+        content,
+        privkey,
+        attachments
+      );
+    }
+
+    // If alsoSendToChannel is true, also publish a kind 9 message
+    if (alsoSendToChannel) {
+      const channelContent = `${content}\n\n_Reply to thread: ${messageId}_`;
+      await nostrClient.publishMessage(channelId, channelContent, privkey, attachments);
+    }
+
+    return c.json({
+      id: threadEvent.id,
+      channelId,
+      author: {
+        id: user.id,
+        username: user.username,
+        displayName: user.displayName,
+        nostrPubkey: user.nostrPubkey,
+      },
+      content: threadEvent.content,
+      attachments: attachments || [],
+      reactions: {},
+      threadCount: 0,
+      createdAt: new Date(threadEvent.created_at * 1000).toISOString(),
+      editedAt: null,
+    });
+  } catch (err: any) {
+    console.error('Thread reply error:', err);
+    return c.json({ error: err.message || 'Failed to post reply' }, 500);
+  }
+});
+
+/**
+ * POST /messages/:id/reactions
+ * Add a reaction to a message
+ */
+messageRoutes.post('/:id/reactions', authMiddleware, async (c) => {
+  try {
+    const messageId = c.req.param('id');
+    const body = await c.req.json();
+    const { emoji } = body;
+
+    if (!emoji || emoji.trim().length === 0) {
+      return c.json({ error: 'Emoji required' }, 400);
+    }
+
+    const nostrClient = getNostrClient();
+    if (!nostrClient.isConnected()) {
+      return c.json({ error: 'Relay not connected' }, 503);
+    }
+
+    // Get the message to verify it exists and get channel ID
+    const events = await nostrClient.queryEvents([{ ids: [messageId] }]);
+    if (events.length === 0) {
+      return c.json({ error: 'Message not found' }, 404);
+    }
+
+    const messageEvent = events[0];
+    const channelTag = messageEvent.tags.find(tag => tag[0] === 'h');
+    if (!channelTag) {
+      return c.json({ error: 'Invalid message: no channel tag' }, 400);
+    }
+    const channelId = channelTag[1];
+
+    const user = c.get('user');
+    const privkey = getUserNostrPrivkey(user.id);
+
+    // Check if user already reacted with this emoji
+    const existingReaction = await nostrClient.findUserReaction(messageId, user.nostrPubkey, emoji);
+    if (existingReaction) {
+      return c.json({ error: 'Already reacted with this emoji' }, 400);
+    }
+
+    // Add reaction
+    await nostrClient.addReaction(channelId, messageId, emoji, privkey);
+
+    return c.json({ message: 'Reaction added successfully' });
+  } catch (err: any) {
+    console.error('Reaction add error:', err);
+    return c.json({ error: err.message || 'Failed to add reaction' }, 500);
+  }
+});
+
+/**
+ * DELETE /messages/:id/reactions/:emoji
+ * Remove a reaction from a message
+ */
+messageRoutes.delete('/:id/reactions/:emoji', authMiddleware, async (c) => {
+  try {
+    const messageId = c.req.param('id');
+    const emoji = decodeURIComponent(c.req.param('emoji'));
+
+    const nostrClient = getNostrClient();
+    if (!nostrClient.isConnected()) {
+      return c.json({ error: 'Relay not connected' }, 503);
+    }
+
+    const user = c.get('user');
+
+    // Find the user's reaction event
+    const reactionEvent = await nostrClient.findUserReaction(messageId, user.nostrPubkey, emoji);
+    if (!reactionEvent) {
+      return c.json({ error: 'Reaction not found' }, 404);
+    }
+
+    // Delete the reaction
+    const privkey = getUserNostrPrivkey(user.id);
+    await nostrClient.removeReaction(reactionEvent.id, privkey);
+
+    return c.json({ message: 'Reaction removed successfully' });
+  } catch (err: any) {
+    console.error('Reaction removal error:', err);
+    return c.json({ error: err.message || 'Failed to remove reaction' }, 500);
+  }
+});

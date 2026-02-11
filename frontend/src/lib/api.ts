@@ -122,3 +122,65 @@ export async function fetchCurrentUser(): Promise<User> {
   
   return response.json();
 }
+
+// Thread API
+
+export interface ThreadResponse {
+  root: Message;
+  replies: Message[];
+}
+
+export async function fetchThread(messageId: string): Promise<ThreadResponse> {
+  const response = await fetch(`${API_URL}/api/v1/messages/${messageId}/thread`, {
+    headers: getAuthHeaders(),
+  });
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to fetch thread');
+  }
+  
+  return response.json();
+}
+
+export async function replyInThread(messageId: string, content: string, alsoSendToChannel?: boolean): Promise<Message> {
+  const response = await fetch(`${API_URL}/api/v1/messages/${messageId}/thread`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ content, alsoSendToChannel }),
+  });
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to reply in thread');
+  }
+  
+  return response.json();
+}
+
+// Reaction API
+
+export async function addReaction(messageId: string, emoji: string): Promise<void> {
+  const response = await fetch(`${API_URL}/api/v1/messages/${messageId}/reactions`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ emoji }),
+  });
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to add reaction');
+  }
+}
+
+export async function removeReaction(messageId: string, emoji: string): Promise<void> {
+  const response = await fetch(`${API_URL}/api/v1/messages/${messageId}/reactions/${encodeURIComponent(emoji)}`, {
+    method: 'DELETE',
+    headers: getAuthHeaders(),
+  });
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to remove reaction');
+  }
+}

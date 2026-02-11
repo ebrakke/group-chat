@@ -396,4 +396,229 @@ export class NostrClient {
     
     return this.publishEvent(template, privkey);
   }
+
+  /**
+   * Start a thread on a message (NIP-29 kind 11 - thread root)
+   */
+  async createThreadRoot(
+    groupId: string,
+    parentMessageId: string,
+    content: string,
+    privkey: Uint8Array,
+    attachments?: any[]
+  ): Promise<Event> {
+    const tags: string[][] = [
+      ['h', groupId],
+      ['e', parentMessageId, '', 'root'], // Reference to the original message
+    ];
+    
+    // Add imeta tags for attachments
+    if (attachments && attachments.length > 0) {
+      for (const attachment of attachments) {
+        const imetaTag = [
+          'imeta',
+          `url ${attachment.url}`,
+          `m ${attachment.mimeType}`,
+          `size ${attachment.size}`,
+        ];
+        if (attachment.filename) {
+          imetaTag.push(`name ${attachment.filename}`);
+        }
+        tags.push(imetaTag);
+      }
+    }
+    
+    const template: EventTemplate = {
+      kind: 11,
+      created_at: Math.floor(Date.now() / 1000),
+      tags,
+      content,
+    };
+    
+    return this.publishEvent(template, privkey);
+  }
+
+  /**
+   * Reply in a thread (NIP-22 kind 1111 - thread reply)
+   */
+  async replyInThread(
+    groupId: string,
+    rootEventId: string,
+    parentEventId: string,
+    content: string,
+    privkey: Uint8Array,
+    attachments?: any[]
+  ): Promise<Event> {
+    const tags: string[][] = [
+      ['h', groupId],
+      ['e', rootEventId, '', 'root'],
+      ['e', parentEventId, '', 'reply'],
+    ];
+    
+    // Add imeta tags for attachments
+    if (attachments && attachments.length > 0) {
+      for (const attachment of attachments) {
+        const imetaTag = [
+          'imeta',
+          `url ${attachment.url}`,
+          `m ${attachment.mimeType}`,
+          `size ${attachment.size}`,
+        ];
+        if (attachment.filename) {
+          imetaTag.push(`name ${attachment.filename}`);
+        }
+        tags.push(imetaTag);
+      }
+    }
+    
+    const template: EventTemplate = {
+      kind: 1111,
+      created_at: Math.floor(Date.now() / 1000),
+      tags,
+      content,
+    };
+    
+    return this.publishEvent(template, privkey);
+  }
+
+  /**
+   * Get thread replies for a message
+   */
+  async getThreadReplies(rootEventId: string): Promise<Event[]> {
+    const filter: any = {
+      kinds: [11, 1111],
+      '#e': [rootEventId],
+    };
+    
+    const events = await this.queryEvents([filter]);
+    
+    // Sort by created_at ascending (oldest first)
+    events.sort((a, b) => a.created_at - b.created_at);
+    
+    return events;
+  }
+
+  /**
+   * Get thread counts for multiple messages
+   */
+  async getThreadCounts(messageIds: string[]): Promise<Record<string, number>> {
+    if (messageIds.length === 0) {
+      return {};
+    }
+
+    const filter: any = {
+      kinds: [11, 1111],
+      '#e': messageIds,
+    };
+    
+    const events = await this.queryEvents([filter]);
+    
+    // Count replies per root message
+    const counts: Record<string, number> = {};
+    
+    for (const event of events) {
+      // Find the root 'e' tag
+      const rootTag = event.tags.find(tag => tag[0] === 'e' && tag[3] === 'root');
+      if (rootTag) {
+        const rootId = rootTag[1];
+        counts[rootId] = (counts[rootId] || 0) + 1;
+      }
+    }
+    
+    return counts;
+  }
+
+  /**
+   * Add a reaction to a message (NIP-25 kind 7)
+   */
+  async addReaction(
+    groupId: string,
+    eventId: string,
+    emoji: string,
+    privkey: Uint8Array
+  ): Promise<Event> {
+    const template: EventTemplate = {
+      kind: 7,
+      created_at: Math.floor(Date.now() / 1000),
+      tags: [
+        ['h', groupId],
+        ['e', eventId],
+      ],
+      content: emoji,
+    };
+    
+    return this.publishEvent(template, privkey);
+  }
+
+  /**
+   * Remove a reaction (publish deletion event for the reaction)
+   */
+  async removeReaction(
+    reactionEventId: string,
+    privkey: Uint8Array
+  ): Promise<Event> {
+    return this.deleteMessage(reactionEventId, privkey, 'Reaction removed');
+  }
+
+  /**
+   * Get reactions for multiple messages
+   */
+  async getReactions(messageIds: string[]): Promise<Record<string, Record<string, string[]>>> {
+    if (messageIds.length === 0) {
+      return {};
+    }
+
+    const filter: any = {
+      kinds: [7],
+      '#e': messageIds,
+    };
+    
+    const events = await this.queryEvents([filter]);
+    
+    // Group reactions by message ID, then by emoji, then collect user pubkeys
+    const reactions: Record<string, Record<string, string[]>> = {};
+    
+    for (const event of events) {
+      const eventTag = event.tags.find(tag => tag[0] === 'e');
+      if (!eventTag) continue;
+      
+      const messageId = eventTag[1];
+      const emoji = event.content;
+      
+      if (!reactions[messageId]) {
+        reactions[messageId] = {};
+      }
+      if (!reactions[messageId][emoji]) {
+        reactions[messageId][emoji] = [];
+      }
+      
+      // Add the user's pubkey if not already present
+      if (!reactions[messageId][emoji].includes(event.pubkey)) {
+        reactions[messageId][emoji].push(event.pubkey);
+      }
+    }
+    
+    return reactions;
+  }
+
+  /**
+   * Find user's existing reaction to a message
+   */
+  async findUserReaction(
+    messageId: string,
+    userPubkey: string,
+    emoji: string
+  ): Promise<Event | null> {
+    const filter: any = {
+      kinds: [7],
+      '#e': [messageId],
+      authors: [userPubkey],
+    };
+    
+    const events = await this.queryEvents([filter]);
+    
+    // Find the reaction with matching emoji
+    const reaction = events.find(e => e.content === emoji);
+    return reaction || null;
+  }
 }

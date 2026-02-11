@@ -2,8 +2,10 @@
   import { goto } from '$app/navigation';
   import { onMount, onDestroy } from 'svelte';
   import { marked } from 'marked';
-  import { fetchChannels, fetchMessages, sendMessage, editMessage, deleteMessage, fetchCurrentUser, type Message, type Channel, type User } from '$lib/api';
+  import { fetchChannels, fetchMessages, sendMessage, editMessage, deleteMessage, fetchCurrentUser, addReaction, removeReaction, type Message, type Channel, type User } from '$lib/api';
   import { ChatWebSocket } from '$lib/websocket';
+  import ThreadPanel from '$lib/components/ThreadPanel.svelte';
+  import EmojiPicker from '$lib/components/EmojiPicker.svelte';
   
   let loading = $state(true);
   let isFirstUser = $state(false);
@@ -25,6 +27,14 @@
   
   // Hover state for message actions
   let hoveredMessageId: string | null = $state(null);
+  
+  // Thread state
+  let openThreadId: string | null = $state(null);
+  let threadPanelRef: any = null;
+  
+  // Reaction state
+  let showEmojiPicker = $state(false);
+  let emojiPickerMessageId: string | null = $state(null);
   
   // Signup form state (for first user)
   let username = $state('');
@@ -98,6 +108,24 @@
       }
     });
     
+    ws.on('thread.new', (event) => {
+      if (event.message && event.parentId) {
+        handleThreadReply(event.parentId, event.message);
+      }
+    });
+    
+    ws.on('reaction.added', (event) => {
+      if (event.messageId && event.emoji && event.userId) {
+        handleReactionAdded(event.messageId, event.emoji, event.userId);
+      }
+    });
+    
+    ws.on('reaction.removed', (event) => {
+      if (event.messageId && event.emoji && event.userId) {
+        handleReactionRemoved(event.messageId, event.emoji, event.userId);
+      }
+    });
+    
     ws.on('error', (event) => {
       console.error('WebSocket error:', event);
     });
@@ -123,6 +151,53 @@
   
   function handleDeletedMessage(messageId: string) {
     messages = messages.filter(m => m.id !== messageId);
+  }
+  
+  function handleThreadReply(parentId: string, reply: Message) {
+    // Increment thread count for parent message
+    messages = messages.map(m => {
+      if (m.id === parentId) {
+        return { ...m, threadCount: (m.threadCount || 0) + 1 };
+      }
+      return m;
+    });
+    
+    // If thread panel is open for this message, add reply
+    if (openThreadId === parentId && threadPanelRef) {
+      threadPanelRef.addReply(reply);
+    }
+  }
+  
+  function handleReactionAdded(messageId: string, emoji: string, userId: string) {
+    messages = messages.map(m => {
+      if (m.id === messageId) {
+        const reactions = { ...m.reactions };
+        if (!reactions[emoji]) {
+          reactions[emoji] = [];
+        }
+        if (!reactions[emoji].includes(userId)) {
+          reactions[emoji] = [...reactions[emoji], userId];
+        }
+        return { ...m, reactions };
+      }
+      return m;
+    });
+  }
+  
+  function handleReactionRemoved(messageId: string, emoji: string, userId: string) {
+    messages = messages.map(m => {
+      if (m.id === messageId) {
+        const reactions = { ...m.reactions };
+        if (reactions[emoji]) {
+          reactions[emoji] = reactions[emoji].filter(id => id !== userId);
+          if (reactions[emoji].length === 0) {
+            delete reactions[emoji];
+          }
+        }
+        return { ...m, reactions };
+      }
+      return m;
+    });
   }
   
   async function loadChannelMessages() {
@@ -254,6 +329,58 @@
   
   function getInitials(name: string): string {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  }
+  
+  // Thread functions
+  function openThread(messageId: string) {
+    openThreadId = messageId;
+  }
+  
+  function closeThread() {
+    openThreadId = null;
+  }
+  
+  // Reaction functions
+  function showEmojiPickerFor(messageId: string) {
+    emojiPickerMessageId = messageId;
+    showEmojiPicker = true;
+  }
+  
+  function closeEmojiPicker() {
+    showEmojiPicker = false;
+    emojiPickerMessageId = null;
+  }
+  
+  async function handleEmojiSelect(emoji: string) {
+    if (!emojiPickerMessageId) return;
+    
+    try {
+      await addReaction(emojiPickerMessageId, emoji);
+      // Reaction will be added via WebSocket
+    } catch (err: any) {
+      console.error('Failed to add reaction:', err);
+      alert('Failed to add reaction: ' + (err.message || 'Unknown error'));
+    }
+  }
+  
+  async function handleReactionClick(messageId: string, emoji: string) {
+    const message = messages.find(m => m.id === messageId);
+    if (!message || !user) return;
+    
+    // Check if user already reacted with this emoji
+    const hasReacted = message.reactions[emoji]?.includes(user.id);
+    
+    try {
+      if (hasReacted) {
+        await removeReaction(messageId, emoji);
+      } else {
+        await addReaction(messageId, emoji);
+      }
+      // Reaction will be updated via WebSocket
+    } catch (err: any) {
+      console.error('Failed to toggle reaction:', err);
+      alert('Failed to toggle reaction: ' + (err.message || 'Unknown error'));
+    }
   }
   
   async function handleFirstUserSignup(e: SubmitEvent) {
@@ -531,8 +658,47 @@
                     {@html renderMarkdown(message.content)}
                   </div>
                   
+                  <!-- Reactions -->
+                  {#if Object.keys(message.reactions).length > 0}
+                    <div class="flex flex-wrap gap-1 mt-2">
+                      {#each Object.entries(message.reactions) as [emoji, userIds]}
+                        <button
+                          onclick={() => handleReactionClick(message.id, emoji)}
+                          class="inline-flex items-center gap-1 px-2 py-1 rounded-full text-sm border transition-colors {userIds.includes(user?.id || '') ? 'bg-blue-100 border-blue-300 text-blue-900' : 'bg-gray-100 border-gray-300 text-gray-700 hover:bg-gray-200'}"
+                          title="{userIds.length} reaction{userIds.length !== 1 ? 's' : ''}"
+                        >
+                          <span>{emoji}</span>
+                          <span class="text-xs font-medium">{userIds.length}</span>
+                        </button>
+                      {/each}
+                    </div>
+                  {/if}
+                  
+                  <!-- Thread count -->
+                  {#if message.threadCount > 0}
+                    <button
+                      onclick={() => openThread(message.id)}
+                      class="mt-2 text-xs text-blue-600 hover:text-blue-800 hover:underline font-medium"
+                    >
+                      💬 {message.threadCount} {message.threadCount === 1 ? 'reply' : 'replies'}
+                    </button>
+                  {/if}
+                  
+                  <!-- Message actions (on hover) -->
                   {#if hoveredMessageId === message.id}
                     <div class="mt-2 flex gap-2">
+                      <button
+                        onclick={() => showEmojiPickerFor(message.id)}
+                        class="text-xs text-gray-500 hover:text-gray-700"
+                      >
+                        🙂 React
+                      </button>
+                      <button
+                        onclick={() => openThread(message.id)}
+                        class="text-xs text-gray-500 hover:text-gray-700"
+                      >
+                        💬 Reply in thread
+                      </button>
                       {#if canEdit(message)}
                         <button
                           onclick={() => startEdit(message)}
@@ -595,7 +761,25 @@
         </form>
       </div>
     </main>
+    
+    <!-- Thread Panel -->
+    {#if openThreadId}
+      <ThreadPanel 
+        bind:this={threadPanelRef}
+        messageId={openThreadId} 
+        onClose={closeThread}
+        currentUserId={user?.id}
+      />
+    {/if}
   </div>
+{/if}
+
+<!-- Emoji Picker Modal -->
+{#if showEmojiPicker}
+  <EmojiPicker 
+    onSelect={handleEmojiSelect}
+    onClose={closeEmojiPicker}
+  />
 {/if}
 
 <style>

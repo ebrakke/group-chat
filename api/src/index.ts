@@ -96,15 +96,15 @@ async function start() {
   
   console.log(`API server starting on port ${port}`);
   
-  // Use Hono's node-server adapter with custom HTTP server for WebSocket support
-  const server = serve({
+  // Use serve function with server capture
+  const serverInfo = serve({
     fetch: app.fetch,
     port,
-    createServer: http.createServer,
   });
   
   // Create WebSocket server on the same HTTP server
-  const wss = new WebSocketServer({ server, path: '/ws' });
+  // Cast to any to bypass TypeScript's strict typing
+  const wss = new WebSocketServer({ server: serverInfo as any, path: '/ws' });
   
   wss.on('connection', (ws, request) => {
     if (wsHandler) {

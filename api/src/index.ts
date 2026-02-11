@@ -96,13 +96,14 @@ async function start() {
   
   console.log(`API server starting on port ${port}`);
   
-  // Create HTTP server
-  const server = http.createServer((req, res) => {
-    // @ts-ignore - Hono fetch compatibility
-    return app.fetch(req, res);
+  // Use Hono's node-server adapter with custom HTTP server for WebSocket support
+  const server = serve({
+    fetch: app.fetch,
+    port,
+    createServer: http.createServer,
   });
   
-  // Create WebSocket server
+  // Create WebSocket server on the same HTTP server
   const wss = new WebSocketServer({ server, path: '/ws' });
   
   wss.on('connection', (ws, request) => {
@@ -114,12 +115,9 @@ async function start() {
     }
   });
   
-  // Start listening
-  server.listen(port, () => {
-    console.log(`Server listening on port ${port}`);
-    console.log(`HTTP API: http://localhost:${port}`);
-    console.log(`WebSocket: ws://localhost:${port}/ws`);
-  });
+  console.log(`Server listening on port ${port}`);
+  console.log(`HTTP API: http://localhost:${port}`);
+  console.log(`WebSocket: ws://localhost:${port}/ws`);
 }
 
 start().catch(err => {

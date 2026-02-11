@@ -2,7 +2,7 @@
   import { goto } from '$app/navigation';
   import { onMount, onDestroy } from 'svelte';
   import { marked } from 'marked';
-  import { fetchChannels, fetchMessages, sendMessage, editMessage, deleteMessage, fetchCurrentUser, addReaction, removeReaction, type Message, type Channel, type User } from '$lib/api';
+  import { fetchChannels, fetchMessages, sendMessage, editMessage, deleteMessage, fetchCurrentUser, checkHasUsers, addReaction, removeReaction, type Message, type Channel, type User } from '$lib/api';
   import { ChatWebSocket } from '$lib/websocket';
   import ThreadPanel from '$lib/components/ThreadPanel.svelte';
   import EmojiPicker from '$lib/components/EmojiPicker.svelte';
@@ -50,10 +50,25 @@
     const token = localStorage.getItem('token');
     
     if (!token) {
-      // Check if this is first user
-      isFirstUser = true;
-      loading = false;
-      return;
+      // Check if any users exist in the system
+      try {
+        const hasUsers = await checkHasUsers();
+        if (hasUsers) {
+          // Users exist, redirect to login
+          goto('/login');
+          return;
+        } else {
+          // No users exist, show admin signup
+          isFirstUser = true;
+          loading = false;
+          return;
+        }
+      } catch (err) {
+        console.error('Error checking if users exist:', err);
+        // On error, default to showing login page (safer than exposing admin signup)
+        goto('/login');
+        return;
+      }
     }
     
     try {

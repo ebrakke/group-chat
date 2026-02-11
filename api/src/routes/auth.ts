@@ -175,3 +175,13 @@ authRoutes.get('/me', authMiddleware, async (c) => {
     role: user.role,
   });
 });
+
+/**
+ * GET /auth/has-users
+ * Check if any users exist (public endpoint for initial setup check)
+ */
+authRoutes.get('/has-users', async (c) => {
+  return c.json({
+    hasUsers: hasUsers(),
+  });
+});

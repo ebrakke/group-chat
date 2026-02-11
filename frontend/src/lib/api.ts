@@ -123,6 +123,19 @@ export async function fetchCurrentUser(): Promise<User> {
   return response.json();
 }
 
+export async function checkHasUsers(): Promise<boolean> {
+  const response = await fetch(`${API_URL}/api/v1/auth/has-users`);
+  
+  if (!response.ok) {
+    // If the API call fails, default to assuming users exist (safer - shows login)
+    console.error('Failed to check if users exist, defaulting to showing login');
+    return true;
+  }
+  
+  const data = await response.json();
+  return data.hasUsers;
+}
+
 // Thread API
 
 export interface ThreadResponse {

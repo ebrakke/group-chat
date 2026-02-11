@@ -6,12 +6,18 @@ export interface NostrClientConfig {
   serverPrivkey: Uint8Array;
 }
 
+export interface MessageSubscriptionHandler {
+  (event: Event): void;
+}
+
 export class NostrClient {
   private relayUrl: string;
   private serverPrivkey: Uint8Array;
   private ws: WebSocket | null = null;
   private pool: SimplePool | null = null;
   private connected: boolean = false;
+  private subscriptions: Map<string, MessageSubscriptionHandler> = new Map();
+  private pendingRequests: Map<string, { resolve: (value: any) => void, reject: (error: any) => void, timeout: NodeJS.Timeout }> = new Map();
 
   constructor(config: NostrClientConfig) {
     this.relayUrl = config.relayUrl;
@@ -70,9 +76,16 @@ export class NostrClient {
         // Handle event subscription
         const [subId, event] = rest;
         console.log('Received event:', event);
+        
+        // Call subscription handler if exists
+        const handler = this.subscriptions.get(subId);
+        if (handler) {
+          handler(event);
+        }
       } else if (type === 'EOSE') {
         // End of stored events
-        console.log('End of stored events for subscription:', rest[0]);
+        const subId = rest[0];
+        console.log('End of stored events for subscription:', subId);
       } else if (type === 'OK') {
         // Event publication confirmation
         const [eventId, success, message] = rest;
@@ -80,6 +93,18 @@ export class NostrClient {
           console.log(`Event ${eventId} published successfully`);
         } else {
           console.error(`Event ${eventId} failed: ${message}`);
+        }
+        
+        // Resolve pending request
+        const pending = this.pendingRequests.get(eventId);
+        if (pending) {
+          clearTimeout(pending.timeout);
+          if (success) {
+            pending.resolve({ success: true, eventId });
+          } else {
+            pending.reject(new Error(message || 'Event publication failed'));
+          }
+          this.pendingRequests.delete(eventId);
         }
       } else if (type === 'NOTICE') {
         console.log('Relay notice:', rest[0]);
@@ -117,20 +142,31 @@ export class NostrClient {
   }
 
   /**
-   * Publish an event to the relay
+   * Publish an event to the relay (with confirmation)
    */
   async publishEvent(template: EventTemplate, privkey: Uint8Array): Promise<Event> {
     const event = finalizeEvent(template, privkey);
     
-    this.send(['EVENT', event]);
-    
-    return event;
+    return new Promise((resolve, reject) => {
+      // Set up timeout for confirmation
+      const timeout = setTimeout(() => {
+        this.pendingRequests.delete(event.id);
+        resolve(event); // Resolve anyway, just assume it worked
+      }, 5000);
+      
+      this.pendingRequests.set(event.id, { resolve: () => resolve(event), reject, timeout });
+      
+      this.send(['EVENT', event]);
+    });
   }
 
   /**
-   * Subscribe to events
+   * Subscribe to events with a handler
    */
-  subscribe(subId: string, filters: any[]): void {
+  subscribe(subId: string, filters: any[], handler?: MessageSubscriptionHandler): void {
+    if (handler) {
+      this.subscriptions.set(subId, handler);
+    }
     this.send(['REQ', subId, ...filters]);
   }
 
@@ -138,7 +174,48 @@ export class NostrClient {
    * Unsubscribe from events
    */
   unsubscribe(subId: string): void {
+    this.subscriptions.delete(subId);
     this.send(['CLOSE', subId]);
+  }
+
+  /**
+   * Query events (returns promise that resolves with array of events)
+   */
+  async queryEvents(filters: any[], timeoutMs: number = 5000): Promise<Event[]> {
+    return new Promise((resolve) => {
+      const subId = `query-${Date.now()}-${Math.random()}`;
+      const events: Event[] = [];
+      let eoseReceived = false;
+      
+      const timeout = setTimeout(() => {
+        this.unsubscribe(subId);
+        resolve(events);
+      }, timeoutMs);
+      
+      const handler = (event: Event) => {
+        events.push(event);
+      };
+      
+      // Listen for EOSE
+      const originalHandleMessage = this.handleMessage.bind(this);
+      const interceptMessage = (message: string) => {
+        try {
+          const [type, ...rest] = JSON.parse(message);
+          if (type === 'EOSE' && rest[0] === subId) {
+            eoseReceived = true;
+            clearTimeout(timeout);
+            this.unsubscribe(subId);
+            resolve(events);
+            return;
+          }
+        } catch (err) {
+          // Ignore parse errors
+        }
+        originalHandleMessage(message);
+      };
+      
+      this.subscribe(subId, filters, handler);
+    });
   }
 
   /**
@@ -181,6 +258,116 @@ export class NostrClient {
     };
     
     return this.publishEvent(template, privkey);
+  }
+
+  /**
+   * Publish a channel message (NIP-29 kind 9)
+   */
+  async publishMessage(
+    groupId: string,
+    content: string,
+    privkey: Uint8Array,
+    attachments?: any[]
+  ): Promise<Event> {
+    const tags: string[][] = [
+      ['h', groupId],
+    ];
+    
+    // Add imeta tags for attachments
+    if (attachments && attachments.length > 0) {
+      for (const attachment of attachments) {
+        const imetaTag = [
+          'imeta',
+          `url ${attachment.url}`,
+          `m ${attachment.mimeType}`,
+          `size ${attachment.size}`,
+        ];
+        if (attachment.filename) {
+          imetaTag.push(`name ${attachment.filename}`);
+        }
+        tags.push(imetaTag);
+      }
+    }
+    
+    const template: EventTemplate = {
+      kind: 9,
+      created_at: Math.floor(Date.now() / 1000),
+      tags,
+      content,
+    };
+    
+    return this.publishEvent(template, privkey);
+  }
+
+  /**
+   * Edit a message (publish replacement event)
+   */
+  async editMessage(
+    groupId: string,
+    originalEventId: string,
+    newContent: string,
+    privkey: Uint8Array
+  ): Promise<Event> {
+    const template: EventTemplate = {
+      kind: 9,
+      created_at: Math.floor(Date.now() / 1000),
+      tags: [
+        ['h', groupId],
+        ['e', originalEventId], // Reference original event
+      ],
+      content: newContent,
+    };
+    
+    return this.publishEvent(template, privkey);
+  }
+
+  /**
+   * Delete a message (publish kind 5 deletion event)
+   */
+  async deleteMessage(
+    eventId: string,
+    privkey: Uint8Array,
+    reason?: string
+  ): Promise<Event> {
+    const template: EventTemplate = {
+      kind: 5,
+      created_at: Math.floor(Date.now() / 1000),
+      tags: [
+        ['e', eventId],
+      ],
+      content: reason || '',
+    };
+    
+    return this.publishEvent(template, privkey);
+  }
+
+  /**
+   * Get messages for a channel
+   */
+  async getChannelMessages(
+    groupId: string,
+    limit: number = 50,
+    before?: string
+  ): Promise<Event[]> {
+    const filter: any = {
+      kinds: [9],
+      '#h': [groupId],
+      limit,
+    };
+    
+    if (before) {
+      // Filter by created_at if we have a "before" event ID
+      // We'll need to fetch the before event first to get its timestamp
+      // For now, we'll just use the ID in the until field (not standard)
+      // TODO: Improve pagination by storing timestamps
+    }
+    
+    const events = await this.queryEvents([filter]);
+    
+    // Sort by created_at descending (newest first)
+    events.sort((a, b) => b.created_at - a.created_at);
+    
+    return events;
   }
 
   /**

@@ -176,14 +176,72 @@ channelRoutes.get('/:id/members', authMiddleware, async (c) => {
 channelRoutes.get('/:id/messages', authMiddleware, async (c) => {
   try {
     const id = c.req.param('id');
+    const before = c.req.query('before');
+    const limit = parseInt(c.req.query('limit') || '50');
 
     const channel = getChannel(id);
     if (!channel) {
       return c.json({ error: 'Channel not found' }, 404);
     }
 
-    // TODO: Query messages from relay
-    return c.json([]);
+    const nostrClient = getNostrClient();
+    if (!nostrClient.isConnected()) {
+      return c.json({ error: 'Relay not connected' }, 503);
+    }
+
+    // Query messages from relay
+    const events = await nostrClient.getChannelMessages(id, limit, before);
+    
+    // Transform Nostr events to API message format
+    const messages = await Promise.all(events.map(async (event) => {
+      // Get author info from database
+      const db = require('../db/schema.js').getDb();
+      const author = db.prepare('SELECT id, username, display_name, nostr_pubkey FROM users WHERE nostr_pubkey = ?')
+        .get(event.pubkey);
+      
+      // Parse attachments from imeta tags
+      const attachments = event.tags
+        .filter(tag => tag[0] === 'imeta')
+        .map(tag => {
+          const attachment: any = {};
+          for (let i = 1; i < tag.length; i++) {
+            const [key, value] = tag[i].split(' ', 2);
+            if (key === 'url') attachment.url = value;
+            if (key === 'm') attachment.mimeType = value;
+            if (key === 'size') attachment.size = parseInt(value);
+            if (key === 'name') attachment.filename = value;
+          }
+          return attachment;
+        });
+      
+      // Check if this is an edit (has 'e' tag)
+      const editTag = event.tags.find(tag => tag[0] === 'e');
+      const isEdit = !!editTag;
+      
+      return {
+        id: event.id,
+        channelId: id,
+        author: author ? {
+          id: author.id,
+          username: author.username,
+          displayName: author.display_name,
+          nostrPubkey: author.nostr_pubkey,
+        } : {
+          id: 'unknown',
+          username: 'unknown',
+          displayName: 'Unknown User',
+          nostrPubkey: event.pubkey,
+        },
+        content: event.content,
+        attachments,
+        reactions: {}, // TODO: Query reactions
+        threadCount: 0, // TODO: Count thread replies
+        createdAt: new Date(event.created_at * 1000).toISOString(),
+        editedAt: isEdit ? new Date(event.created_at * 1000).toISOString() : null,
+      };
+    }));
+
+    return c.json(messages);
   } catch (err: any) {
     console.error('Channel messages error:', err);
     return c.json({ error: err.message || 'Failed to fetch messages' }, 500);
@@ -198,9 +256,9 @@ channelRoutes.post('/:id/messages', authMiddleware, async (c) => {
   try {
     const id = c.req.param('id');
     const body = await c.req.json();
-    const { content } = body;
+    const { content, attachments } = body;
 
-    if (!content) {
+    if (!content || content.trim().length === 0) {
       return c.json({ error: 'Message content required' }, 400);
     }
 
@@ -209,9 +267,35 @@ channelRoutes.post('/:id/messages', authMiddleware, async (c) => {
       return c.json({ error: 'Channel not found' }, 404);
     }
 
-    // TODO: Publish NIP-29 message (kind 9) to relay
+    const nostrClient = getNostrClient();
+    if (!nostrClient.isConnected()) {
+      return c.json({ error: 'Relay not connected' }, 503);
+    }
 
-    return c.json({ message: 'Message sent' }, 201);
+    // Get user's private key
+    const user = c.get('user');
+    const privkey = getUserNostrPrivkey(user.id);
+
+    // Publish message to relay
+    const event = await nostrClient.publishMessage(id, content, privkey, attachments);
+
+    // Return message in API format
+    return c.json({
+      id: event.id,
+      channelId: id,
+      author: {
+        id: user.id,
+        username: user.username,
+        displayName: user.displayName,
+        nostrPubkey: user.nostrPubkey,
+      },
+      content: event.content,
+      attachments: attachments || [],
+      reactions: {},
+      threadCount: 0,
+      createdAt: new Date(event.created_at * 1000).toISOString(),
+      editedAt: null,
+    }, 201);
   } catch (err: any) {
     console.error('Send message error:', err);
     return c.json({ error: err.message || 'Failed to send message' }, 500);

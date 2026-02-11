@@ -12,6 +12,9 @@ import { NostrClient } from './nostr/client.js';
 import { generateSecretKey, getPublicKey } from 'nostr-tools';
 import { hasUsers } from './lib/users.js';
 import { channelExists, createChannelRecord } from './lib/channels.js';
+import { WebSocketServer } from 'ws';
+import { WebSocketHandler } from './websocket/handler.js';
+import http from 'http';
 
 const app = new Hono();
 
@@ -26,6 +29,7 @@ initDatabase();
 
 // Initialize Nostr client
 let nostrClient: NostrClient;
+let wsHandler: WebSocketHandler;
 
 async function initNostrClient() {
   const relayUrl = process.env.RELAY_URL || 'ws://localhost:3334';
@@ -44,6 +48,9 @@ async function initNostrClient() {
   try {
     await nostrClient.connect();
     console.log('Connected to Nostr relay');
+    
+    // Initialize WebSocket handler after Nostr client is connected
+    wsHandler = new WebSocketHandler(nostrClient);
   } catch (err) {
     console.error('Failed to connect to Nostr relay:', err);
     console.log('API will continue without relay connection');
@@ -88,7 +95,31 @@ async function start() {
   await initDefaultChannel();
   
   console.log(`API server starting on port ${port}`);
-  serve({ fetch: app.fetch, port });
+  
+  // Create HTTP server
+  const server = http.createServer((req, res) => {
+    // @ts-ignore - Hono fetch compatibility
+    return app.fetch(req, res);
+  });
+  
+  // Create WebSocket server
+  const wss = new WebSocketServer({ server, path: '/ws' });
+  
+  wss.on('connection', (ws, request) => {
+    if (wsHandler) {
+      wsHandler.handleConnection(ws, request);
+    } else {
+      console.error('WebSocket handler not initialized');
+      ws.close();
+    }
+  });
+  
+  // Start listening
+  server.listen(port, () => {
+    console.log(`Server listening on port ${port}`);
+    console.log(`HTTP API: http://localhost:${port}`);
+    console.log(`WebSocket: ws://localhost:${port}/ws`);
+  });
 }
 
 start().catch(err => {

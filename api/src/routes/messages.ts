@@ -53,7 +53,7 @@ messageRoutes.patch('/:id', authMiddleware, async (c) => {
     const editEvent = await nostrClient.editMessage(channelId, messageId, content, privkey);
 
     return c.json({
-      id: editEvent.id,
+      id: messageId, // Return original message ID, not the new edit event ID
       channelId,
       author: {
         id: user.id,
@@ -301,12 +301,6 @@ messageRoutes.post('/:id/thread', authMiddleware, async (c) => {
       );
     }
 
-    // If alsoSendToChannel is true, also publish a kind 9 message
-    if (alsoSendToChannel) {
-      const channelContent = `${content}\n\n_Reply to thread: ${messageId}_`;
-      await nostrClient.publishMessage(channelId, channelContent, privkey, attachments);
-    }
-
     // Prepare the reply message object
     const replyMessage = {
       id: threadEvent.id,
@@ -325,10 +319,41 @@ messageRoutes.post('/:id/thread', authMiddleware, async (c) => {
       editedAt: null,
     };
 
-    // Immediately broadcast the thread reply via WebSocket
+    // If alsoSendToChannel is true, also publish a kind 9 message
+    let channelMessage = null;
+    if (alsoSendToChannel) {
+      const channelContent = `${content}\n\n_Reply to thread: ${messageId}_`;
+      const channelEvent = await nostrClient.publishMessage(channelId, channelContent, privkey, attachments);
+      
+      // Prepare channel message object
+      channelMessage = {
+        id: channelEvent.id,
+        channelId,
+        author: {
+          id: user.id,
+          username: user.username,
+          displayName: user.displayName,
+          nostrPubkey: user.nostrPubkey,
+        },
+        content: channelEvent.content,
+        attachments: attachments || [],
+        reactions: {},
+        threadCount: 0,
+        createdAt: new Date(channelEvent.created_at * 1000).toISOString(),
+        editedAt: null,
+      };
+    }
+
+    // Immediately broadcast via WebSocket
     const wsHandler = getWebSocketHandler();
     if (wsHandler) {
+      // Broadcast the thread reply
       wsHandler.broadcastThreadReply(channelId, messageId, replyMessage);
+      
+      // Also broadcast the channel message if alsoSendToChannel was checked
+      if (channelMessage) {
+        wsHandler.broadcastNewMessage(channelId, channelMessage);
+      }
     }
 
     return c.json(replyMessage);

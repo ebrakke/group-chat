@@ -179,7 +179,15 @@
     
     // If thread panel is open for this message, add reply
     if (openThreadId === parentId && threadPanelRef) {
-      threadPanelRef.addReply(reply);
+      try {
+        if (typeof threadPanelRef.addReply === 'function') {
+          threadPanelRef.addReply(reply);
+        } else {
+          console.warn('threadPanelRef.addReply is not a function', threadPanelRef);
+        }
+      } catch (err) {
+        console.error('Error adding reply to thread panel:', err);
+      }
     }
   }
   

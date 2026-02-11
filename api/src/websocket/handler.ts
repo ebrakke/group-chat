@@ -118,8 +118,17 @@ export class WebSocketHandler {
     const editTag = event.tags.find(tag => tag[0] === 'e');
     const isEdit = !!editTag;
 
+    // For edits, we need to query the original event to get its creation timestamp
+    let originalCreatedAt = event.created_at;
+    if (isEdit && editTag) {
+      const originalEvents = await this.nostrClient.queryEvents([{ ids: [editTag[1]] }]);
+      if (originalEvents.length > 0) {
+        originalCreatedAt = originalEvents[0].created_at;
+      }
+    }
+
     const message = {
-      id: event.id,
+      id: isEdit && editTag ? editTag[1] : event.id, // Use original message ID for edits
       channelId,
       author: {
         id: author.id as string,
@@ -131,7 +140,7 @@ export class WebSocketHandler {
       attachments,
       reactions: {},
       threadCount: 0,
-      createdAt: new Date(event.created_at * 1000).toISOString(),
+      createdAt: new Date(originalCreatedAt * 1000).toISOString(),
       editedAt: isEdit ? new Date(event.created_at * 1000).toISOString() : null,
     };
 

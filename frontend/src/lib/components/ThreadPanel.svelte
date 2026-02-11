@@ -92,8 +92,12 @@
   }
   
   // Export function to add new reply (called from parent)
+  // This method is exposed to the parent component via bind:this
   export function addReply(reply: Message) {
-    replies = [...replies, reply];
+    // Only add if not already present (avoid duplicates)
+    if (!replies.find(r => r.id === reply.id)) {
+      replies = [...replies, reply];
+    }
   }
 </script>
 

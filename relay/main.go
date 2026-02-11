@@ -36,14 +36,22 @@ func main() {
 	}
 	defer db.Close()
 
+	// Define roles
+	adminRole := &nip29.Role{
+		Name:        "admin",
+		Description: "group administrator",
+	}
+	memberRole := &nip29.Role{
+		Name:        "member",
+		Description: "regular group member",
+	}
+
 	relay, state := khatru29.Init(relay29.Options{
-		Domain:    os.Getenv("RELAY_DOMAIN"),
-		SecretKey: relayPrivkey,
-		DB:        db,
-		DefaultRoles: []*nip29.Role{
-			{Name: "admin", Description: "group administrator"},
-			{Name: "member", Description: "regular group member"},
-		},
+		Domain:                  os.Getenv("RELAY_DOMAIN"),
+		SecretKey:               relayPrivkey,
+		DB:                      db,
+		DefaultRoles:            []*nip29.Role{adminRole, memberRole},
+		GroupCreatorDefaultRole: adminRole,
 	})
 
 	relay.Info.Name = "Relay Chat"

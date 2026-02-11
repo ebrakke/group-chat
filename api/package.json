@@ -9,14 +9,15 @@
     "start": "node dist/index.js"
   },
   "dependencies": {
-    "hono": "^4.7.0",
-    "nostr-tools": "^2.12.0",
+    "@hono/node-server": "^1.19.9",
+    "bcrypt": "^5.1.1",
     "better-sqlite3": "^11.8.0",
-    "bcrypt": "^5.1.1"
+    "hono": "^4.7.0",
+    "nostr-tools": "^2.12.0"
   },
   "devDependencies": {
-    "@types/better-sqlite3": "^7.6.12",
     "@types/bcrypt": "^5.0.2",
+    "@types/better-sqlite3": "^7.6.12",
     "@types/node": "^22.0.0",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0"

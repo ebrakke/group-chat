@@ -1,0 +1,52 @@
+services:
+  frontend:
+    build: ./frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - API_URL=http://api:4000
+      - PUBLIC_API_URL=http://localhost:4000/api/v1
+      - PUBLIC_WS_URL=ws://localhost:4000/ws
+    depends_on:
+      - api
+
+  api:
+    build: ./api
+    ports:
+      - "4000:4000"
+    environment:
+      - DATABASE_PATH=/data/relay-chat.db
+      - RELAY_URL=ws://relay:3334
+      - BLOSSOM_URL=http://blossom:3335
+      - SESSION_SECRET=change-me-in-production-use-random-64-chars
+      - KEY_ENCRYPTION_SECRET=change-me-in-production-use-random-64-chars
+      - INVITE_REQUIRED=true
+      - MAX_UPLOAD_SIZE=52428800
+    volumes:
+      - api-data:/data
+    depends_on:
+      - relay
+      - blossom
+
+  relay:
+    build: ./relay
+    ports:
+      - "3334:3334"
+    environment:
+      - RELAY_PRIVKEY=
+      - RELAY_DOMAIN=localhost
+      - ALLOWED_PUBKEYS=
+    volumes:
+      - relay-data:/data
+
+  blossom:
+    image: hzrd149/blossom-server:latest
+    ports:
+      - "3335:3000"
+    volumes:
+      - blossom-data:/app/data
+
+volumes:
+  api-data:
+  relay-data:
+  blossom-data:

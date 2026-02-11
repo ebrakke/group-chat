@@ -29,7 +29,7 @@ func main() {
 		Domain:    os.Getenv("RELAY_DOMAIN"),
 		SecretKey: relayPrivkey,
 		DB:        db,
-		Roles: []*nip29.Role{
+		DefaultRoles: []*nip29.Role{
 			{Name: "admin", Description: "group administrator"},
 			{Name: "member", Description: "regular group member"},
 		},

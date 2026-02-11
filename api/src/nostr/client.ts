@@ -185,6 +185,10 @@ export class NostrClient {
 
   /**
    * Publish a user profile event (kind 0)
+   * 
+   * WARNING: Kind 0 events should NOT be published to NIP-29 group relays.
+   * NIP-29 relays only accept group-scoped events with an 'h' tag.
+   * This method is kept for potential future use with non-NIP-29 relays.
    */
   async publishProfile(
     displayName: string,

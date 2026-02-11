@@ -26,7 +26,6 @@ services:
       - api-data:/data
     depends_on:
       - relay
-      - blossom
 
   relay:
     build: ./relay
@@ -40,7 +39,7 @@ services:
       - relay-data:/data
 
   blossom:
-    image: hzrd149/blossom-server:latest
+    image: ghcr.io/hzrd149/blossom-server:master
     ports:
       - "3335:3000"
     volumes:

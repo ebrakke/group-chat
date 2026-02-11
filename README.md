@@ -20,8 +20,8 @@ Sprint 1 has been fully implemented with the following features:
 - ✅ Channel creation and listing
 - ✅ Auto-creation of #general channel on first startup
 - ✅ Nostr relay connection with NIP-42 AUTH support
-- ✅ Profile event publishing (kind 0)
 - ✅ Channel metadata publishing (kind 39000, NIP-29)
+- ✅ Proper NIP-29 event validation (no kind 0 on group relay)
 
 **Frontend:**
 - ✅ Login page with authentication
@@ -135,6 +135,31 @@ As an admin:
 3. Copy the invite URL and share it
 4. New users can sign up using that link
 
+### Docker Compose Deployment
+
+For production or easy local deployment, use Docker Compose:
+
+```bash
+# Start all services (frontend, api, relay, blossom)
+docker-compose up -d
+
+# View logs
+docker-compose logs -f
+
+# Stop services
+docker-compose down
+```
+
+**Important:** Before running, update the secrets in `docker-compose.yml`:
+- Change `SESSION_SECRET` and `KEY_ENCRYPTION_SECRET` to random 64-character strings
+- Optionally set `RELAY_PRIVKEY` (will be auto-generated if empty)
+
+Services will be available at:
+- Frontend: http://localhost:3000
+- API: http://localhost:4000
+- Relay: ws://localhost:3334
+- Blossom: http://localhost:3335
+
 ## Project Structure
 
 ```
@@ -153,8 +178,8 @@ relay-chat/
 │   │   ├── routes/        # Pages (login, invite, main, admin)
 │   │   └── lib/           # Shared utilities
 │   └── package.json
-├── relay/                 # khatru29 relay (Go) - not implemented yet
-└── docker-compose.yml     # Full stack deployment - coming soon
+├── relay/                 # khatru29 relay (Go) - NIP-29 group relay
+└── docker-compose.yml     # Full stack deployment (Docker Compose)
 ```
 
 ## API Endpoints
@@ -166,7 +191,7 @@ relay-chat/
 - `GET /api/v1/auth/me` - Get current user
 
 ### Invites
-- `GET /api/v1/invite/:code` - Validate invite code
+- `GET /api/v1/invites/:code` - Validate invite code
 - `POST /api/v1/invites` - Generate invite (authenticated)
 - `GET /api/v1/invites` - List invites (admin only)
 - `DELETE /api/v1/invites/:code` - Revoke invite (admin only)
@@ -194,8 +219,9 @@ relay-chat/
 
 **Infrastructure:**
 - Nostr (NIP-29) - Group messaging protocol
-- khatru29 - NIP-29 relay (to be implemented)
-- Blossom - File storage (Sprint 4)
+- khatru29 - NIP-29 relay (Go-based, included)
+- Blossom - File storage server (optional)
+- Docker Compose - Container orchestration
 
 ## Security Notes
 

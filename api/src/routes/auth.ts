@@ -55,17 +55,9 @@ authRoutes.post('/signup', async (c) => {
       useInvite(inviteCode);
     }
 
-    // Publish Nostr profile event
-    try {
-      const nostrClient = getNostrClient();
-      if (nostrClient.isConnected()) {
-        const privkey = getUserNostrPrivkey(user.id);
-        await nostrClient.publishProfile(displayName, null, privkey);
-      }
-    } catch (err) {
-      console.error('Failed to publish profile event:', err);
-      // Don't fail signup if Nostr publish fails
-    }
+    // Note: We don't publish kind 0 (profile) events to the NIP-29 relay.
+    // NIP-29 relays only accept group-scoped events with an 'h' tag.
+    // User profiles in group chats are handled through group membership metadata.
 
     // Create session
     const session = createSession(user.id);

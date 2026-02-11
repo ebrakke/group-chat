@@ -19,7 +19,7 @@
   onMount(async () => {
     // Validate invite code
     try {
-      const response = await fetch(`${API_URL}/api/v1/invite/${code}`);
+      const response = await fetch(`${API_URL}/api/v1/invites/${code}`);
       const data = await response.json();
       
       if (response.ok && data.valid) {

@@ -59,6 +59,28 @@ authRoutes.post('/signup', async (c) => {
     // NIP-29 relays only accept group-scoped events with an 'h' tag.
     // User profiles in group chats are handled through group membership metadata.
 
+    // If this is the first user, ensure #general channel exists on relay
+    if (isFirstUser) {
+      try {
+        const nostrClient = getNostrClient();
+        if (nostrClient && nostrClient.isConnected()) {
+          const privkey = getUserNostrPrivkey(user.id);
+          await nostrClient.createChannel(
+            'general',
+            'general',
+            'Default channel for everyone',
+            privkey
+          );
+          console.log('✅ #general channel published to relay');
+        } else {
+          console.warn('⚠️  Relay not connected, #general channel not published');
+        }
+      } catch (err) {
+        console.error('❌ Failed to publish #general to relay:', err);
+        // Don't fail signup if channel publish fails
+      }
+    }
+
     // Create session
     const session = createSession(user.id);
 

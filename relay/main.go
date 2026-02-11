@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/fiatjaf/eventstore/slicestore"
+	"github.com/fiatjaf/eventstore/sqlite3"
 	"github.com/fiatjaf/relay29"
 	"github.com/fiatjaf/relay29/khatru29"
 	"github.com/nbd-wtf/go-nostr"
@@ -22,8 +22,19 @@ func main() {
 		fmt.Printf("Generated relay keypair. Pubkey: %s\n", pubkey)
 	}
 
-	db := &slicestore.SliceStore{}
-	db.Init()
+	// Use persistent SQLite database
+	dbPath := os.Getenv("DATABASE_PATH")
+	if dbPath == "" {
+		dbPath = "/data/relay.db"
+	}
+
+	db := &sqlite3.SQLite3Backend{
+		DatabaseURL: dbPath,
+	}
+	if err := db.Init(); err != nil {
+		log.Fatalf("Failed to initialize database: %v", err)
+	}
+	defer db.Close()
 
 	relay, state := khatru29.Init(relay29.Options{
 		Domain:    os.Getenv("RELAY_DOMAIN"),

@@ -10,6 +10,7 @@ import {
 } from '../lib/channels.js';
 import { getUserNostrPrivkey } from '../lib/users.js';
 import { getNostrClient } from '../index.js';
+import { getDb } from '../db/schema.js';
 
 export const channelRoutes = new Hono();
 
@@ -198,7 +199,7 @@ channelRoutes.get('/:id/messages', authMiddleware, async (c) => {
     const reactionsMap = await nostrClient.getReactions(messageIds);
     
     // Get database for user lookups
-    const db = require('../db/schema.js').getDb();
+    const db = getDb();
     
     // Map pubkeys to user IDs for reactions
     const pubkeyToUserIdMap: Record<string, string> = {};
@@ -211,7 +212,7 @@ channelRoutes.get('/:id/messages', authMiddleware, async (c) => {
     
     // Batch lookup user IDs for all pubkeys
     for (const pubkey of allPubkeys) {
-      const user = db.prepare('SELECT id FROM users WHERE nostr_pubkey = ?').get(pubkey);
+      const user = db.prepare('SELECT id FROM users WHERE nostr_pubkey = ?').get(pubkey) as any;
       if (user) {
         pubkeyToUserIdMap[pubkey] = user.id;
       }
@@ -221,7 +222,7 @@ channelRoutes.get('/:id/messages', authMiddleware, async (c) => {
     const messages = events.map((event) => {
       // Get author info from database
       const author = db.prepare('SELECT id, username, display_name, nostr_pubkey FROM users WHERE nostr_pubkey = ?')
-        .get(event.pubkey);
+        .get(event.pubkey) as any;
       
       // Parse attachments from imeta tags
       const attachments = event.tags

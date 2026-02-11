@@ -238,9 +238,30 @@ export class NostrClient {
   }
 
   /**
-   * Create a NIP-29 channel metadata event (kind 39000)
+   * Create a NIP-29 group (kind 9007 create-group event)
+   * This must be done before publishing metadata
    */
-  async createChannel(
+  async createGroup(
+    groupId: string,
+    privkey: Uint8Array
+  ): Promise<Event> {
+    const template: EventTemplate = {
+      kind: 9007, // KindSimpleGroupCreateGroup
+      created_at: Math.floor(Date.now() / 1000),
+      tags: [
+        ['h', groupId],
+      ],
+      content: '',
+    };
+    
+    return this.publishEvent(template, privkey);
+  }
+
+  /**
+   * Update a NIP-29 channel metadata event (kind 39000)
+   * NOTE: This should only be called AFTER creating the group with createGroup()
+   */
+  async updateChannelMetadata(
     groupId: string,
     name: string,
     description: string,
@@ -258,6 +279,23 @@ export class NostrClient {
     };
     
     return this.publishEvent(template, privkey);
+  }
+
+  /**
+   * Create a NIP-29 channel (create group + set metadata)
+   * This is the proper way to create a new group
+   */
+  async createChannel(
+    groupId: string,
+    name: string,
+    description: string,
+    privkey: Uint8Array
+  ): Promise<Event> {
+    // First create the group
+    await this.createGroup(groupId, privkey);
+    
+    // Then publish metadata
+    return this.updateChannelMetadata(groupId, name, description, privkey);
   }
 
   /**

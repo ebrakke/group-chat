@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { authMiddleware, adminMiddleware } from '../middleware/auth.js';
 import { getUserNostrPrivkey } from '../lib/users.js';
-import { getNostrClient } from '../index.js';
+import { getNostrClient, getWebSocketHandler } from '../index.js';
 import { getDb } from '../db/schema.js';
 
 export const messageRoutes = new Hono();
@@ -307,7 +307,8 @@ messageRoutes.post('/:id/thread', authMiddleware, async (c) => {
       await nostrClient.publishMessage(channelId, channelContent, privkey, attachments);
     }
 
-    return c.json({
+    // Prepare the reply message object
+    const replyMessage = {
       id: threadEvent.id,
       channelId,
       author: {
@@ -322,7 +323,15 @@ messageRoutes.post('/:id/thread', authMiddleware, async (c) => {
       threadCount: 0,
       createdAt: new Date(threadEvent.created_at * 1000).toISOString(),
       editedAt: null,
-    });
+    };
+
+    // Immediately broadcast the thread reply via WebSocket
+    const wsHandler = getWebSocketHandler();
+    if (wsHandler) {
+      wsHandler.broadcastThreadReply(channelId, messageId, replyMessage);
+    }
+
+    return c.json(replyMessage);
   } catch (err: any) {
     console.error('Thread reply error:', err);
     return c.json({ error: err.message || 'Failed to post reply' }, 500);

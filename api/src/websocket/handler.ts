@@ -327,6 +327,19 @@ export class WebSocketHandler {
   }
 
   /**
+   * Broadcast a new thread reply to WebSocket clients (called when reply is published)
+   */
+  broadcastThreadReply(channelId: string, parentId: string, message: any): void {
+    const wsMessage: WebSocketMessage = {
+      type: 'thread.new',
+      channelId,
+      parentId,
+      message,
+    };
+    this.broadcast(wsMessage);
+  }
+
+  /**
    * Close all connections
    */
   closeAll(): void {

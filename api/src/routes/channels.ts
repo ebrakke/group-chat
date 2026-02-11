@@ -38,9 +38,9 @@ channelRoutes.get('/', authMiddleware, async (c) => {
 
 /**
  * POST /channels
- * Create a new channel (admin only)
+ * Create a new channel (any authenticated member)
  */
-channelRoutes.post('/', authMiddleware, adminMiddleware, async (c) => {
+channelRoutes.post('/', authMiddleware, async (c) => {
   try {
     const body = await c.req.json();
     const { id, name, description } = body;
@@ -75,6 +75,17 @@ channelRoutes.post('/', authMiddleware, adminMiddleware, async (c) => {
       // Don't fail channel creation if Nostr publish fails
     }
 
+    // Broadcast channel creation to all WebSocket clients
+    const wsHandler = getWebSocketHandler();
+    if (wsHandler) {
+      wsHandler.broadcastChannelCreated({
+        id: channel.id,
+        name: channel.name,
+        description: channel.description,
+        memberCount: 0,
+      });
+    }
+
     return c.json({
       id: channel.id,
       name: channel.name,
@@ -88,9 +99,9 @@ channelRoutes.post('/', authMiddleware, adminMiddleware, async (c) => {
 
 /**
  * PATCH /channels/:id
- * Update a channel (admin only)
+ * Update a channel (any authenticated member)
  */
-channelRoutes.patch('/:id', authMiddleware, adminMiddleware, async (c) => {
+channelRoutes.patch('/:id', authMiddleware, async (c) => {
   try {
     const id = c.req.param('id');
     const body = await c.req.json();
@@ -107,7 +118,33 @@ channelRoutes.patch('/:id', authMiddleware, adminMiddleware, async (c) => {
       description !== undefined ? description : existingChannel.description
     );
 
-    // TODO: Publish updated NIP-29 metadata to relay
+    // Publish updated NIP-29 metadata to relay
+    try {
+      const nostrClient = getNostrClient();
+      if (nostrClient.isConnected()) {
+        const user = c.get('user');
+        const privkey = getUserNostrPrivkey(user.id);
+        await nostrClient.updateChannelMetadata(
+          id,
+          updatedChannel.name,
+          updatedChannel.description,
+          privkey
+        );
+      }
+    } catch (err) {
+      console.error('Failed to publish channel update to relay:', err);
+    }
+
+    // Broadcast channel update to all WebSocket clients
+    const wsHandler = getWebSocketHandler();
+    if (wsHandler) {
+      wsHandler.broadcastChannelUpdated({
+        id: updatedChannel.id,
+        name: updatedChannel.name,
+        description: updatedChannel.description,
+        memberCount: 0,
+      });
+    }
 
     return c.json({
       id: updatedChannel.id,
@@ -122,9 +159,9 @@ channelRoutes.patch('/:id', authMiddleware, adminMiddleware, async (c) => {
 
 /**
  * DELETE /channels/:id
- * Delete a channel (admin only)
+ * Delete a channel (any authenticated member, except #general)
  */
-channelRoutes.delete('/:id', authMiddleware, adminMiddleware, async (c) => {
+channelRoutes.delete('/:id', authMiddleware, async (c) => {
   try {
     const id = c.req.param('id');
 
@@ -141,6 +178,12 @@ channelRoutes.delete('/:id', authMiddleware, adminMiddleware, async (c) => {
     deleteChannel(id);
 
     // TODO: Publish NIP-29 delete-group event to relay
+
+    // Broadcast channel deletion to all WebSocket clients
+    const wsHandler = getWebSocketHandler();
+    if (wsHandler) {
+      wsHandler.broadcastChannelDeleted(id);
+    }
 
     return c.json({ message: 'Channel deleted successfully' });
   } catch (err: any) {

@@ -1,4 +1,4 @@
-.PHONY: dev dev-down dev-reset prod prod-down prod-reset test help
+.PHONY: dev dev-down dev-reset prod prod-down prod-reset test test-e2e help
 
 # Default target
 help:
@@ -17,6 +17,7 @@ help:
 	@echo "Testing:"
 	@echo "  make test        - Run messaging verification against dev stack"
 	@echo "  make test-prod   - Run messaging verification against production stack"
+	@echo "  make test-e2e    - Run Playwright e2e tests (requires dev stack running)"
 
 # Development environment
 dev:
@@ -54,3 +55,8 @@ test:
 test-prod:
 	@echo "🧪 Running messaging verification against production stack (port 4000)..."
 	@node test-messaging.js http://localhost:4000
+
+test-e2e:
+	@echo "🎭 Running Playwright e2e tests..."
+	@echo "📌 Make sure dev stack is running (make dev)"
+	@cd tests/e2e && npm test

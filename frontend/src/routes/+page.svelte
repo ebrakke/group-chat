@@ -2,10 +2,13 @@
   import { goto } from '$app/navigation';
   import { onMount, onDestroy } from 'svelte';
   import { marked } from 'marked';
-  import { fetchChannels, fetchMessages, sendMessage, editMessage, deleteMessage, fetchCurrentUser, checkHasUsers, addReaction, removeReaction, type Message, type Channel, type User } from '$lib/api';
+  import { fetchChannels, fetchMessages, sendMessage, editMessage, deleteMessage, fetchCurrentUser, checkHasUsers, addReaction, removeReaction, type Message, type Channel, type User, type UploadResult } from '$lib/api';
   import { ChatWebSocket } from '$lib/websocket';
   import ThreadPanel from '$lib/components/ThreadPanel.svelte';
   import EmojiPicker from '$lib/components/EmojiPicker.svelte';
+  import FileUpload from '$lib/components/FileUpload.svelte';
+  import ChannelModal from '$lib/components/ChannelModal.svelte';
+  import ImageModal from '$lib/components/ImageModal.svelte';
   
   let loading = $state(true);
   let isFirstUser = $state(false);
@@ -35,6 +38,20 @@
   // Reaction state
   let showEmojiPicker = $state(false);
   let emojiPickerMessageId: string | null = $state(null);
+  
+  // File upload state
+  let attachments: UploadResult[] = $state([]);
+  
+  // Channel management state
+  let showChannelModal = $state(false);
+  let channelModalMode: 'create' | 'edit' = $state('create');
+  let selectedChannel: Channel | null = $state(null);
+  let showChannelMenu = $state(false);
+  
+  // Image modal state
+  let showImageModal = $state(false);
+  let imageModalUrl = $state('');
+  let imageModalFilename = $state('');
   
   // Signup form state (for first user)
   let username = $state('');
@@ -141,6 +158,24 @@
       }
     });
     
+    ws.on('channel.created', (event) => {
+      if (event.channel) {
+        handleChannelCreated(event.channel);
+      }
+    });
+    
+    ws.on('channel.updated', (event) => {
+      if (event.channel) {
+        handleChannelUpdated(event.channel);
+      }
+    });
+    
+    ws.on('channel.deleted', (event) => {
+      if (event.channelId) {
+        handleChannelDeleted(event.channelId);
+      }
+    });
+    
     ws.on('error', (event) => {
       console.error('WebSocket error:', event);
     });
@@ -223,6 +258,70 @@
     });
   }
   
+  function handleChannelCreated(channel: Channel) {
+    if (!channels.find(c => c.id === channel.id)) {
+      channels = [...channels, channel];
+    }
+  }
+  
+  function handleChannelUpdated(channel: Channel) {
+    channels = channels.map(c => c.id === channel.id ? channel : c);
+    // Update selected channel if it's being edited
+    if (selectedChannel && selectedChannel.id === channel.id) {
+      selectedChannel = channel;
+    }
+  }
+  
+  function handleChannelDeleted(channelId: string) {
+    channels = channels.filter(c => c.id !== channelId);
+    // If current channel was deleted, switch to general
+    if (currentChannel === channelId) {
+      switchChannel('general');
+    }
+  }
+  
+  function openCreateChannelModal() {
+    channelModalMode = 'create';
+    selectedChannel = null;
+    showChannelModal = true;
+  }
+  
+  function openEditChannelModal() {
+    const channel = channels.find(c => c.id === currentChannel);
+    if (channel) {
+      channelModalMode = 'edit';
+      selectedChannel = channel;
+      showChannelModal = true;
+    }
+  }
+  
+  function handleChannelModalSuccess(channel: Channel) {
+    // Channel updates will come via WebSocket
+    if (channelModalMode === 'create') {
+      switchChannel(channel.id);
+    }
+  }
+  
+  function handleChannelDelete(channelId: string) {
+    // Channel deletion will be handled via WebSocket
+  }
+  
+  function openImageModal(url: string, filename: string) {
+    imageModalUrl = url;
+    imageModalFilename = filename;
+    showImageModal = true;
+  }
+  
+  function formatFileSize(bytes: number): string {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  }
+  
+  function isImage(mimeType: string): boolean {
+    return mimeType.startsWith('image/');
+  }
+  
   async function loadChannelMessages() {
     if (!currentChannel) return;
     
@@ -249,19 +348,23 @@
   async function handleSendMessage(e: Event) {
     e.preventDefault();
     
-    if (!messageInput.trim() || sendingMessage) return;
+    if ((!messageInput.trim() && attachments.length === 0) || sendingMessage) return;
     
-    const content = messageInput.trim();
+    const content = messageInput.trim() || '📎 Attachment';
+    const messageAttachments = attachments.filter(a => !a.uploading && !a.error);
+    
     messageInput = '';
+    attachments = [];
     sendingMessage = true;
     
     try {
-      const message = await sendMessage(currentChannel, content);
+      const message = await sendMessage(currentChannel, content, messageAttachments);
       // Message will be added via WebSocket event
     } catch (err: any) {
       console.error('Failed to send message:', err);
       alert('Failed to send message: ' + (err.message || 'Unknown error'));
-      messageInput = content; // Restore message
+      messageInput = content !== '📎 Attachment' ? content : ''; // Restore message
+      attachments = messageAttachments; // Restore attachments
     } finally {
       sendingMessage = false;
     }
@@ -557,7 +660,18 @@
       </div>
       
       <nav class="flex-1 overflow-y-auto p-4 space-y-1">
-        <p class="text-xs font-semibold text-gray-500 uppercase mb-2">Channels</p>
+        <div class="flex items-center justify-between mb-2">
+          <p class="text-xs font-semibold text-gray-500 uppercase">Channels</p>
+          <button
+            onclick={openCreateChannelModal}
+            class="text-gray-500 hover:text-gray-700"
+            title="Create channel"
+          >
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+            </svg>
+          </button>
+        </div>
         {#each channels as channel}
           <button
             onclick={() => switchChannel(channel.id)}
@@ -608,13 +722,42 @@
     <main class="flex-1 flex flex-col">
       <header class="border-b bg-white px-6 py-4">
         <div class="flex items-center justify-between">
-          <div>
+          <div class="flex-1">
             <h1 class="text-lg font-semibold text-gray-900">
               # {channels.find(c => c.id === currentChannel)?.name || currentChannel}
             </h1>
             <p class="text-sm text-gray-500">
               {channels.find(c => c.id === currentChannel)?.description || ''}
             </p>
+          </div>
+          <div class="relative">
+            <button
+              onclick={() => showChannelMenu = !showChannelMenu}
+              class="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded"
+              title="Channel options"
+            >
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+              </svg>
+            </button>
+            {#if showChannelMenu}
+              <div class="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg border z-10">
+                <button
+                  onclick={() => { openEditChannelModal(); showChannelMenu = false; }}
+                  class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                >
+                  Edit channel
+                </button>
+                {#if currentChannel !== 'general'}
+                  <button
+                    onclick={() => { openEditChannelModal(); showChannelMenu = false; }}
+                    class="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100"
+                  >
+                    Delete channel
+                  </button>
+                {/if}
+              </div>
+            {/if}
           </div>
         </div>
       </header>
@@ -680,6 +823,45 @@
                   <div class="prose prose-sm max-w-none text-gray-800">
                     {@html renderMarkdown(message.content)}
                   </div>
+                  
+                  <!-- Attachments -->
+                  {#if message.attachments && message.attachments.length > 0}
+                    <div class="mt-2 space-y-2">
+                      {#each message.attachments as attachment}
+                        {#if isImage(attachment.mimeType)}
+                          <button
+                            onclick={() => openImageModal(attachment.url, attachment.filename)}
+                            class="block"
+                          >
+                            <img
+                              src={attachment.url}
+                              alt={attachment.filename}
+                              class="max-w-md rounded-lg border shadow-sm hover:shadow-md transition-shadow cursor-pointer"
+                              loading="lazy"
+                              style="max-width: 400px;"
+                            />
+                          </button>
+                        {:else}
+                          <a
+                            href={attachment.url}
+                            download={attachment.filename}
+                            class="inline-flex items-center gap-2 px-3 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 border"
+                          >
+                            <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                            </svg>
+                            <div class="text-left">
+                              <p class="text-sm font-medium text-gray-900">{attachment.filename}</p>
+                              <p class="text-xs text-gray-500">{formatFileSize(attachment.size)}</p>
+                            </div>
+                            <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                            </svg>
+                          </a>
+                        {/if}
+                      {/each}
+                    </div>
+                  {/if}
                   
                   <!-- Reactions -->
                   {#if Object.keys(message.reactions).length > 0}
@@ -760,26 +942,34 @@
       </div>
       
       <div class="border-t bg-white p-4">
-        <form onsubmit={handleSendMessage}>
-          <div class="flex gap-2">
-            <textarea
-              bind:value={messageInput}
-              onkeydown={handleKeyDown}
-              placeholder="Message #{channels.find(c => c.id === currentChannel)?.name || currentChannel}"
-              disabled={sendingMessage}
-              class="flex-1 rounded-md border border-gray-300 px-4 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed resize-none"
-              rows="1"
-            ></textarea>
+        <form onsubmit={handleSendMessage} class="relative">
+          <FileUpload
+            bind:attachments={attachments}
+            onAttachmentsChange={(newAttachments) => {
+              attachments = newAttachments;
+            }}
+          />
+          <div class="flex gap-2 items-end">
+            <div class="flex-1">
+              <textarea
+                bind:value={messageInput}
+                onkeydown={handleKeyDown}
+                placeholder="Message #{channels.find(c => c.id === currentChannel)?.name || currentChannel}"
+                disabled={sendingMessage}
+                class="w-full rounded-md border border-gray-300 px-4 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 disabled:cursor-not-allowed resize-none"
+                rows="1"
+              ></textarea>
+            </div>
             <button
               type="submit"
-              disabled={sendingMessage || !messageInput.trim()}
+              disabled={sendingMessage || (!messageInput.trim() && attachments.length === 0)}
               class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {sendingMessage ? 'Sending...' : 'Send'}
             </button>
           </div>
           <p class="text-xs text-gray-500 mt-1">
-            Press Enter to send, Shift+Enter for new line
+            Press Enter to send, Shift+Enter for new line. Drag & drop or paste files to attach.
           </p>
         </form>
       </div>
@@ -804,6 +994,22 @@
     onClose={closeEmojiPicker}
   />
 {/if}
+
+<!-- Channel Modal -->
+<ChannelModal
+  bind:isOpen={showChannelModal}
+  bind:mode={channelModalMode}
+  bind:channel={selectedChannel}
+  onSuccess={handleChannelModalSuccess}
+  onDelete={handleChannelDelete}
+/>
+
+<!-- Image Modal -->
+<ImageModal
+  bind:isOpen={showImageModal}
+  bind:imageUrl={imageModalUrl}
+  bind:filename={imageModalFilename}
+/>
 
 <style>
   :global(.prose) {

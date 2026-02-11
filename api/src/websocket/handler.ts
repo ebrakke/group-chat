@@ -349,6 +349,39 @@ export class WebSocketHandler {
   }
 
   /**
+   * Broadcast channel created event
+   */
+  broadcastChannelCreated(channel: any): void {
+    const wsMessage: WebSocketMessage = {
+      type: 'channel.created',
+      channel,
+    };
+    this.broadcast(wsMessage);
+  }
+
+  /**
+   * Broadcast channel updated event
+   */
+  broadcastChannelUpdated(channel: any): void {
+    const wsMessage: WebSocketMessage = {
+      type: 'channel.updated',
+      channel,
+    };
+    this.broadcast(wsMessage);
+  }
+
+  /**
+   * Broadcast channel deleted event
+   */
+  broadcastChannelDeleted(channelId: string): void {
+    const wsMessage: WebSocketMessage = {
+      type: 'channel.deleted',
+      channelId,
+    };
+    this.broadcast(wsMessage);
+  }
+
+  /**
    * Close all connections
    */
   closeAll(): void {

@@ -197,3 +197,109 @@ export async function removeReaction(messageId: string, emoji: string): Promise<
     throw new Error(error.error || 'Failed to remove reaction');
   }
 }
+
+// Upload API
+
+export interface UploadResult {
+  url: string;
+  sha256: string;
+  size: number;
+  mimeType: string;
+  filename: string;
+}
+
+export async function uploadFile(file: File, onProgress?: (percent: number) => void): Promise<UploadResult> {
+  const token = localStorage.getItem('token');
+  const formData = new FormData();
+  formData.append('file', file);
+  
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    
+    // Track upload progress
+    if (onProgress) {
+      xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable) {
+          const percent = Math.round((e.loaded / e.total) * 100);
+          onProgress(percent);
+        }
+      });
+    }
+    
+    xhr.addEventListener('load', () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          const result = JSON.parse(xhr.responseText);
+          resolve(result);
+        } catch (err) {
+          reject(new Error('Invalid response from server'));
+        }
+      } else {
+        try {
+          const error = JSON.parse(xhr.responseText);
+          reject(new Error(error.error || 'Upload failed'));
+        } catch {
+          reject(new Error(`Upload failed with status ${xhr.status}`));
+        }
+      }
+    });
+    
+    xhr.addEventListener('error', () => {
+      reject(new Error('Network error during upload'));
+    });
+    
+    xhr.addEventListener('abort', () => {
+      reject(new Error('Upload cancelled'));
+    });
+    
+    xhr.open('POST', `${API_URL}/api/v1/upload`);
+    if (token) {
+      xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    }
+    xhr.send(formData);
+  });
+}
+
+// Channel management API
+
+export async function createChannel(id: string, name: string, description: string): Promise<Channel> {
+  const response = await fetch(`${API_URL}/api/v1/channels`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ id, name, description }),
+  });
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to create channel');
+  }
+  
+  return response.json();
+}
+
+export async function updateChannel(id: string, name: string, description: string): Promise<Channel> {
+  const response = await fetch(`${API_URL}/api/v1/channels/${id}`, {
+    method: 'PATCH',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ name, description }),
+  });
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to update channel');
+  }
+  
+  return response.json();
+}
+
+export async function deleteChannel(id: string): Promise<void> {
+  const response = await fetch(`${API_URL}/api/v1/channels/${id}`, {
+    method: 'DELETE',
+    headers: getAuthHeaders(),
+  });
+  
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Failed to delete channel');
+  }
+}

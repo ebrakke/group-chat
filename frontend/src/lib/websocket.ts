@@ -10,6 +10,9 @@ export type WebSocketEventType =
   | 'thread.new'
   | 'reaction.added'
   | 'reaction.removed'
+  | 'channel.created'
+  | 'channel.updated'
+  | 'channel.deleted'
   | 'authenticated' 
   | 'error';
 

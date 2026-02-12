@@ -1,8 +1,8 @@
 FROM node:22-alpine AS build
 WORKDIR /app
-COPY api/package*.json ./
+COPY package*.json ./
 RUN npm ci
-COPY api/ .
+COPY . .
 RUN npm run build
 
 FROM node:22-alpine

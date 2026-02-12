@@ -2,7 +2,7 @@ services:
   caddy:
     image: caddy:2-alpine
     ports:
-      - "3001:3000"
+      - "3002:3000"
     volumes:
       - ./Caddyfile.dev:/etc/caddy/Caddyfile:ro
       - dev-caddy-data:/data

@@ -103,6 +103,7 @@ app.get('/health', (c) => c.json({ status: 'ok' }));
 
 // API routes
 const api = new Hono();
+api.get('/health', (c) => c.json({ status: 'ok' })); // Health check at /api/v1/health
 api.route('/auth', authRoutes);
 api.route('/channels', channelRoutes);
 api.route('/messages', messageRoutes);

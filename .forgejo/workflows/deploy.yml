@@ -75,6 +75,11 @@ jobs:
           npm ci
           npx playwright install --with-deps chromium
 
+      - name: Install Docker CLI
+        run: |
+          apt-get update
+          apt-get install -y docker.io docker-compose-v2
+
       - name: Start development environment
         run: |
           # Start services using docker-compose.dev.yml

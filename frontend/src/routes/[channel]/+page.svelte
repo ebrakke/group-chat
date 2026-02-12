@@ -15,6 +15,12 @@
   // Initialize from data.messages to ensure correct initial state
   let messages = $state<Message[]>(data.messages);
   
+  // Reset messages when channel changes (data.channel.id is the key indicator)
+  $effect(() => {
+    // When data.messages changes (new channel loaded), reset local state
+    messages = data.messages;
+  });
+  
   // Local UI state
   let messageInput = $state('');
   let sendingMessage = $state(false);

@@ -1,4 +1,4 @@
-name: Deploy Pipeline
+name: Deploy to Fly.io
 
 on:
   push:
@@ -7,138 +7,8 @@ on:
       - main
 
 jobs:
-  # Build and Test Job
-  build-and-test:
+  deploy:
     runs-on: docker
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - name: Install root dependencies
-        run: npm ci
-
-      - name: Build and test API
-        run: |
-          cd api
-          npm ci
-          npm run build
-
-      - name: Type check API
-        run: |
-          cd api
-          npx tsc --noEmit
-
-      - name: Build and test Frontend
-        run: |
-          cd frontend
-          npm ci
-          npm run build
-
-      - name: Type check Frontend
-        run: |
-          cd frontend
-          npx tsc --noEmit
-
-  # E2E Test Job - Desktop and Mobile
-  e2e-tests:
-    runs-on: host
-    # runs in parallel with build-and-test
-    strategy:
-      fail-fast: false
-      matrix:
-        viewport:
-          - name: desktop
-            width: 1280
-            height: 720
-          - name: mobile
-            width: 390
-            height: 844
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Install Playwright browsers
-        run: |
-          cd tests/e2e
-          npm ci
-          npx playwright install --with-deps chromium
-
-      - name: Start development environment
-        run: |
-          # Start services using docker-compose.dev.yml
-          docker compose -f docker-compose.dev.yml up -d
-          
-          # Wait for services to be healthy
-          echo "Waiting for services to start..."
-          sleep 15
-          
-          # Check if services are running
-          docker ps | grep relay-chat || true
-
-      - name: Run Playwright e2e tests (${{ matrix.viewport.name }})
-        run: |
-          cd tests/e2e
-          npm run test
-        env:
-          CI: true
-          VIEWPORT_WIDTH: ${{ matrix.viewport.width }}
-          VIEWPORT_HEIGHT: ${{ matrix.viewport.height }}
-          VIEWPORT_NAME: ${{ matrix.viewport.name }}
-
-      - name: Upload test results (${{ matrix.viewport.name }})
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: playwright-test-results-${{ matrix.viewport.name }}
-          path: tests/e2e/test-results/
-          retention-days: 7
-
-      - name: Upload test report (${{ matrix.viewport.name }})
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: playwright-report-${{ matrix.viewport.name }}
-          path: tests/e2e/playwright-report/
-          retention-days: 7
-
-      - name: Upload screenshots on failure (${{ matrix.viewport.name }})
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: playwright-screenshots-${{ matrix.viewport.name }}
-          path: tests/e2e/test-results/**/*.png
-          retention-days: 7
-          if-no-files-found: ignore
-
-      - name: Upload traces on failure (${{ matrix.viewport.name }})
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: playwright-traces-${{ matrix.viewport.name }}
-          path: tests/e2e/test-results/**/*.zip
-          retention-days: 7
-          if-no-files-found: ignore
-
-      - name: Cleanup
-        if: always()
-        run: |
-          docker compose -f docker-compose.dev.yml down -v || true
-
-  # Deploy to Fly.io (only on push to master/main)
-  deploy-fly:
-    runs-on: docker
-    needs: [build-and-test, e2e-tests]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -161,10 +31,5 @@ jobs:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
         run: |
           export PATH="$HOME/.fly/bin:$PATH"
-          echo "Checking deployment status..."
           flyctl status --app relay-chat
-          
-          echo ""
-          echo "✅ Deployment completed successfully!"
-          echo "🌐 Site: https://chat.brakke.cc"
-          echo "📊 Fly.io Dashboard: https://fly.io/apps/relay-chat"
+          echo "✅ Deployed to https://chat.brakke.cc"

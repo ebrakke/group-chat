@@ -587,12 +587,12 @@
 </script>
 
 {#if loading}
-  <div class="flex min-h-screen items-center justify-center">
+  <div class="flex min-h-dvh items-center justify-center">
     <p class="text-gray-600">Loading...</p>
   </div>
 {:else if isFirstUser}
   <!-- First user signup form -->
-  <div class="flex min-h-screen items-center justify-center bg-gray-50">
+  <div class="flex min-h-dvh items-center justify-center bg-gray-50">
     <div class="w-full max-w-sm space-y-6 rounded-lg bg-white p-8 shadow-md">
       <div class="text-center">
         <h1 class="text-3xl font-bold text-gray-900">Welcome to Relay Chat</h1>
@@ -665,7 +665,7 @@
   </div>
 {:else}
   <!-- Main chat interface -->
-  <div class="flex h-screen bg-gray-50">
+  <div class="flex h-dvh bg-gray-50">
     <!-- Mobile backdrop -->
     {#if sidebarOpen}
       <div 

@@ -1,9 +1,9 @@
 FROM golang:1.24-alpine AS build
 RUN apk add --no-cache gcc musl-dev sqlite-dev
 WORKDIR /app
-COPY go.mod go.sum ./
+COPY relay/go.mod relay/go.sum ./
 RUN go mod download
-COPY . .
+COPY relay/ .
 RUN CGO_ENABLED=1 go build -o relay .
 
 FROM alpine:3.20

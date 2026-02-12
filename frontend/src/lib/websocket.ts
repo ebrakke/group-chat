@@ -6,11 +6,15 @@ import { browser } from '$app/environment';
 // In dev/SSR, use environment variable
 function getWebSocketUrl(): string {
   if (browser && typeof window !== 'undefined') {
+    // Check for runtime-configured WS URL first
+    if (env.PUBLIC_WS_URL) {
+      return env.PUBLIC_WS_URL;
+    }
+    // Default: derive from current host
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const host = window.location.host;
-    return `${protocol}//${host}/ws`;
+    return `${protocol}//${window.location.host}/ws`;
   }
-  return env.PUBLIC_WS_URL || import.meta.env.VITE_WS_URL || 'ws://localhost:4000/ws';
+  return 'ws://localhost:4000/ws';
 }
 
 const WS_URL = getWebSocketUrl();

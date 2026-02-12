@@ -6,6 +6,19 @@ services:
     environment:
       - VITE_API_URL=
       - VITE_WS_URL=/ws
+      - RELAY_URL=ws://relay:3334
+    volumes:
+      # Mount source for hot-reload during development (no rebuild needed)
+      - ./frontend/src:/app/src:ro
+      - ./frontend/static:/app/static:ro
+    depends_on:
+      - api
+
+  api:
+    build: ./api
+    ports:
+      - "4002:4000"
+    environment:
       - DATABASE_PATH=/data/relay-chat.db
       - RELAY_URL=ws://relay:3334
       - BLOSSOM_URL=http://blossom:3000
@@ -16,7 +29,9 @@ services:
       # Stable server keypair - this pubkey must be in ALLOWED_PUBKEYS below
       - SERVER_PRIVKEY=27b272d8c82f77eafa45289ce75ca33be7d90d01eb5462f333d977b1ea8a2503
     volumes:
-      - dev-frontend-data:/data
+      - dev-api-data:/data
+      # Mount source for hot-reload during development
+      - ./api/src:/app/src:ro
     depends_on:
       - relay
 
@@ -41,6 +56,6 @@ services:
       - dev-blossom-data:/app/data
 
 volumes:
-  dev-frontend-data:
+  dev-api-data:
   dev-relay-data:
   dev-blossom-data:

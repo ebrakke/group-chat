@@ -16,6 +16,9 @@ export class APIHelper {
 
   /**
    * Create an invite code (requires admin token)
+   * 
+   * Note: Invites may not be required depending on INVITE_REQUIRED env var.
+   * This method handles both cases gracefully.
    */
   async createInvite(token: string): Promise<string> {
     const response = await this.request.post(`${API_URL}/api/v1/invites`, {
@@ -27,6 +30,10 @@ export class APIHelper {
     
     const data = await response.json();
     if (!response.ok()) {
+      // If we get a 403, the token might be invalid (database was reset)
+      if (response.status() === 403) {
+        throw new Error('INVALID_TOKEN');
+      }
       throw new Error(`Invite creation failed (${response.status()}): ${JSON.stringify(data)}`);
     }
     return data.code;
@@ -110,6 +117,8 @@ export class APIHelper {
 
   /**
    * Signup via API - returns { token, user }
+   * 
+   * Note: inviteCode is optional and only required when INVITE_REQUIRED=true
    */
   async signup(username: string, displayName: string, password: string, inviteCode?: string): Promise<{ token: string; user: any }> {
     const response = await this.request.post(`${API_URL}/api/v1/auth/signup`, {
@@ -117,7 +126,7 @@ export class APIHelper {
         username,
         displayName,
         password,
-        inviteCode,
+        ...(inviteCode ? { inviteCode } : {}),
       },
     });
     
@@ -171,7 +180,68 @@ type RelayFixtures = {
   signupPage: SignupPage;
 };
 
+/**
+ * Bootstrap admin - created once per test run and reused
+ * This is reset to null when the database is reset
+ */
 let bootstrapAdmin: { token: string; username: string; password: string } | null = null;
+
+/**
+ * Helper to ensure we have a valid bootstrap admin
+ * This handles database resets by detecting invalid tokens and recreating the admin
+ */
+async function ensureBootstrapAdmin(api: APIHelper): Promise<{ token: string; username: string; password: string }> {
+  // If we don't have a bootstrap admin yet, create one
+  if (!bootstrapAdmin) {
+    const username = generateUsername('bootstrap');
+    const password = 'adminpass123';
+    const displayName = 'Bootstrap Admin';
+    
+    const { token } = await api.signup(username, displayName, password);
+    bootstrapAdmin = { token, username, password };
+    console.log('✓ Created bootstrap admin');
+    return bootstrapAdmin;
+  }
+  
+  // Verify the bootstrap admin is still valid by trying to create an invite
+  try {
+    await api.createInvite(bootstrapAdmin.token);
+    // Token is still valid
+    return bootstrapAdmin;
+  } catch (error: any) {
+    // If token is invalid (403), database was reset - recreate bootstrap admin
+    if (error.message === 'INVALID_TOKEN') {
+      console.log('⚠️  Bootstrap admin token invalid (database reset detected)');
+      const username = generateUsername('bootstrap');
+      const password = 'adminpass123';
+      const displayName = 'Bootstrap Admin';
+      
+      const { token } = await api.signup(username, displayName, password);
+      bootstrapAdmin = { token, username, password };
+      console.log('✓ Recreated bootstrap admin after database reset');
+      return bootstrapAdmin;
+    }
+    
+    // If invite creation failed for other reasons (e.g., invites not required), token is still valid
+    return bootstrapAdmin;
+  }
+}
+
+/**
+ * Helper to create an invite code, handling the case where invites are not required
+ */
+async function createInviteIfRequired(api: APIHelper, token: string): Promise<string | undefined> {
+  try {
+    return await api.createInvite(token);
+  } catch (error: any) {
+    // If invite creation fails and it's not an invalid token, invites might not be required
+    if (error.message !== 'INVALID_TOKEN') {
+      console.log('Note: Invite creation failed, continuing without invite code (likely INVITE_REQUIRED=false)');
+      return undefined;
+    }
+    throw error; // Re-throw INVALID_TOKEN errors
+  }
+}
 
 export const test = base.extend<RelayFixtures>({
   auth: async ({ page }, use) => {
@@ -186,39 +256,31 @@ export const test = base.extend<RelayFixtures>({
 
   /**
    * Admin user fixture - first user (has admin privileges)
+   * 
+   * Creates a fresh browser context with an authenticated admin user.
+   * The user is logged in via UI to ensure proper session state.
    */
   adminUser: async ({ browser, api }, use) => {
+    // Ensure we have a valid bootstrap admin
+    const bootstrap = await ensureBootstrapAdmin(api);
+    
     // Create a new context for the admin user
     const context = await browser.newContext();
     const page = await context.newPage();
-    
-    const username = generateUsername('admin');
-    const displayName = `Admin ${Date.now()}`;
-    const password = 'adminpass123';
 
-    // First user doesn't need an invite code
-    if (!bootstrapAdmin) {
-      const { token: bootstrapToken } = await api.signup(username, displayName, password);
-      bootstrapAdmin = { token: bootstrapToken, username, password };
-    }
-
-    // For subsequent users, we need an invite
-    let token = bootstrapAdmin.token;
-    let user = { id: 'admin', username, displayName, role: 'admin', nostrPubkey: '' };
-    
     // Login via UI to ensure frontend session state is established
     const loginPage = new LoginPage(page);
     await loginPage.goto();
-    await loginPage.login(bootstrapAdmin.username, bootstrapAdmin.password);
+    await loginPage.login(bootstrap.username, bootstrap.password);
     await page.waitForURL(BASE_URL + '/', { timeout: 10000 });
 
     const userContext: UserContext = {
       page,
-      token,
-      user,
+      token: bootstrap.token,
+      user: { id: 'admin', username: bootstrap.username, displayName: 'Bootstrap Admin', role: 'admin', nostrPubkey: '' },
       api,
-      username: bootstrapAdmin.username,
-      password: bootstrapAdmin.password,
+      username: bootstrap.username,
+      password: bootstrap.password,
     };
 
     await use(userContext);
@@ -229,20 +291,18 @@ export const test = base.extend<RelayFixtures>({
 
   /**
    * Member user fixture - signs up via invite
+   * 
+   * Creates a fresh browser context with an authenticated member user.
+   * Handles invite creation if required by the environment.
    */
   memberUser: async ({ browser, api }, use) => {
-    // Ensure bootstrap admin exists first
-    if (!bootstrapAdmin) {
-      const bootstrapUsername = generateUsername('bootstrap');
-      const bootstrapPassword = 'adminpass123';
-      const { token: bootstrapToken } = await api.signup(bootstrapUsername, 'Bootstrap Admin', bootstrapPassword);
-      bootstrapAdmin = { token: bootstrapToken, username: bootstrapUsername, password: bootstrapPassword };
-    }
+    // Ensure bootstrap admin exists and is valid
+    const bootstrap = await ensureBootstrapAdmin(api);
     
-    // Generate invite from bootstrap admin
-    const inviteCode = await api.createInvite(bootstrapAdmin.token);
+    // Generate invite from bootstrap admin (only if required)
+    const inviteCode = await createInviteIfRequired(api, bootstrap.token);
 
-    // Now create member with invite
+    // Now create member with invite (if provided)
     const context = await browser.newContext();
     const page = await context.newPage();
     
@@ -275,23 +335,21 @@ export const test = base.extend<RelayFixtures>({
 
   /**
    * Two users fixture - admin and member in separate contexts
+   * 
+   * Useful for testing interactions between users (e.g., DMs, mentions).
+   * Both users are in separate browser contexts with independent sessions.
    */
   twoUsers: async ({ browser, api }, use) => {
-    // Create admin
+    // Ensure bootstrap admin exists and is valid
+    const bootstrap = await ensureBootstrapAdmin(api);
+    
+    // Create first user (will be admin)
     const adminContext = await browser.newContext();
     const adminPage = await adminContext.newPage();
     
     const adminUsername = generateUsername('admin');
     const adminPassword = 'adminpass123';
-
-    if (!bootstrapAdmin) {
-      const bootstrapUsername = generateUsername('bootstrap');
-      const bootstrapPassword = 'adminpass123';
-      const { token: bootstrapToken } = await api.signup(bootstrapUsername, 'Bootstrap Admin', bootstrapPassword);
-      bootstrapAdmin = { token: bootstrapToken, username: bootstrapUsername, password: bootstrapPassword };
-    }
-
-    const adminInvite = await api.createInvite(bootstrapAdmin.token);
+    const adminInvite = await createInviteIfRequired(api, bootstrap.token);
     const { token: adminToken, user: adminUser } = await api.signup(adminUsername, 'Admin User', adminPassword, adminInvite);
 
     const adminLoginPage = new LoginPage(adminPage);
@@ -299,9 +357,10 @@ export const test = base.extend<RelayFixtures>({
     await adminLoginPage.login(adminUsername, adminPassword);
     await adminPage.waitForURL(BASE_URL + '/', { timeout: 10000 });
 
-    // Create invite and member
-    const inviteCode = await api.createInvite(adminToken);
+    // Create invite for member (from the new admin user)
+    const inviteCode = await createInviteIfRequired(api, adminToken);
     
+    // Create second user (member)
     const memberContext = await browser.newContext();
     const memberPage = await memberContext.newPage();
     

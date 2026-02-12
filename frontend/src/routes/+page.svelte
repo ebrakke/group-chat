@@ -11,6 +11,7 @@
   import { formatTimestamp, getInitials, formatFileSize, isImage } from '$lib/utils/formatting';
   import { renderMarkdown } from '$lib/utils/markdown';
   import { SCROLL_THRESHOLD } from '$lib/utils/constants';
+  import { showError, showSuccess } from '$lib/stores/notifications';
   
   let loading = $state(true);
   let isFirstUser = $state(false);
@@ -377,7 +378,7 @@
       // Message will be added via WebSocket event
     } catch (err: any) {
       console.error('Failed to send message:', err);
-      alert('Failed to send message: ' + (err.message || 'Unknown error'));
+      showError('Failed to send message: ' + (err.message || 'Unknown error'));
       messageInput = content !== '📎 Attachment' ? content : ''; // Restore message
       attachments = messageAttachments; // Restore attachments
     } finally {
@@ -428,7 +429,7 @@
       cancelEdit();
       // Message will be updated via WebSocket
     } catch (err: any) {
-      alert('Failed to edit message: ' + (err.message || 'Unknown error'));
+      showError('Failed to edit message: ' + (err.message || 'Unknown error'));
     }
   }
   
@@ -439,7 +440,7 @@
       await deleteMessage(messageId);
       // Message will be removed via WebSocket
     } catch (err: any) {
-      alert('Failed to delete message: ' + (err.message || 'Unknown error'));
+      showError('Failed to delete message: ' + (err.message || 'Unknown error'));
     }
   }
   
@@ -479,7 +480,7 @@
       // Reaction will be added via WebSocket
     } catch (err: any) {
       console.error('Failed to add reaction:', err);
-      alert('Failed to add reaction: ' + (err.message || 'Unknown error'));
+      showError('Failed to add reaction: ' + (err.message || 'Unknown error'));
     }
   }
   
@@ -499,7 +500,7 @@
       // Reaction will be updated via WebSocket
     } catch (err: any) {
       console.error('Failed to toggle reaction:', err);
-      alert('Failed to toggle reaction: ' + (err.message || 'Unknown error'));
+      showError('Failed to toggle reaction: ' + (err.message || 'Unknown error'));
     }
   }
   

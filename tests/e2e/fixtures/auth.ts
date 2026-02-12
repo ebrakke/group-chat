@@ -1,7 +1,7 @@
 import { test as base, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
-const API_URL = process.env.VITE_API_URL || 'http://localhost:4002';
+const API_URL = process.env.VITE_API_URL || 'http://localhost:3002';
 const BASE_URL = 'http://localhost:3002';
 
 let bootstrapAdmin: { username: string; password: string } | null = null;

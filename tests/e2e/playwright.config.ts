@@ -30,6 +30,7 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 1 : 1, // Single worker to avoid race conditions
+  globalSetup: './tests/global-setup.ts', // Reset database before tests
   reporter: [
     ['html', { outputFolder: 'playwright-report', open: 'never' }],
     ['list'],

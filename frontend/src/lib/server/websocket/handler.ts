@@ -1,7 +1,7 @@
 import { WebSocket } from 'ws';
 import { getUserByToken } from '$lib/server/lib/users.js';
 import { NostrClient } from '$lib/server/nostr/client.js';
-import { Event } from 'nostr-tools';
+import type { Event } from 'nostr-tools';
 import { getDb } from '$lib/server/db/schema.js';
 
 interface AuthenticatedWebSocket extends WebSocket {

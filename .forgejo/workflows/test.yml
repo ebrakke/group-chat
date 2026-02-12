@@ -48,7 +48,7 @@ jobs:
   # E2E Test Job - Desktop and Mobile
   e2e-tests:
     runs-on: host
-    needs: build-and-test
+    # runs in parallel with build-and-test
     strategy:
       fail-fast: false
       matrix:

@@ -29,8 +29,9 @@ export async function POST({ request }: RequestEvent) {
     // Check if this is the first user
     const isFirstUser = !hasUsers();
 
-    // If not first user, validate invite code
-    if (!isFirstUser) {
+    // If invite-only mode is enabled, require/validate invite codes for non-first users
+    const invitesRequired = process.env.REQUIRE_INVITE_CODE === 'true';
+    if (!isFirstUser && invitesRequired) {
       if (!inviteCode) {
         return json({ error: 'Invite code required' }, { status: 400 });
       }
@@ -44,8 +45,8 @@ export async function POST({ request }: RequestEvent) {
     const role = isFirstUser ? 'admin' : 'member';
     const user = await createUser(username, password, displayName, role);
 
-    // Increment invite use count if not first user
-    if (!isFirstUser && inviteCode) {
+    // Increment invite use count only when invite-only mode is enabled
+    if (!isFirstUser && invitesRequired && inviteCode) {
       useInvite(inviteCode);
     }
 
@@ -77,6 +78,10 @@ export async function POST({ request }: RequestEvent) {
     // Create session
     const session = createSession(user.id);
 
+    // Set token in cookie for server-side auth
+    const headers = new Headers();
+    headers.append('Set-Cookie', `token=${session.token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000`);
+
     return json({
       token: session.token,
       user: {
@@ -86,7 +91,7 @@ export async function POST({ request }: RequestEvent) {
         nostrPubkey: user.nostrPubkey,
         role: user.role,
       },
-    }, { status: 201 });
+    }, { status: 201, headers });
   } catch (err: any) {
     console.error('Signup error:', err);
     return json({ error: err.message || 'Signup failed' }, { status: 500 });

@@ -1,22 +1,22 @@
 import { error } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
-import { getChannel } from '$lib/server/lib/channels';
+import { getChannelByName } from '$lib/server/lib/channels';
 import { getMessages } from '$lib/server/lib/messages';
 
 export const load: PageServerLoad = async ({ params, parent }) => {
-  const channelId = params.channel;
+  const channelName = params.channel;
   
   // Get parent data (user, token, channels)
   const { user } = await parent();
   
-  // Validate channel exists
-  const channel = getChannel(channelId);
+  // Validate channel exists by name
+  const channel = getChannelByName(channelName);
   if (!channel) {
-    throw error(404, `Channel "${channelId}" not found`);
+    throw error(404, `Channel "${channelName}" not found`);
   }
   
-  // Load messages
-  const messages = await getMessages(channelId);
+  // Load messages using the channel ID
+  const messages = await getMessages(channel.id);
   
   return {
     channel,

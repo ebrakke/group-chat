@@ -11,13 +11,14 @@
   
   let { data }: { data: PageData } = $props();
   
-  // URL-derived state
-  const channelId = $derived($page.params.channel);
-  
   // Server-loaded data
   let messages = $state(data.messages);
   const channel = data.channel;
   const user = data.user;
+  
+  // Use the actual channel ID from the loaded data, not the URL param (which is the name)
+  const channelId = $derived(channel.id);
+  const channelName = $derived($page.params.channel);
   
   // Local UI state
   let messageInput = $state('');
@@ -158,7 +159,7 @@
   }
   
   function openThread(messageId: string) {
-    goto(`/${channelId}/thread/${messageId}`);
+    goto(`/${channelName}/thread/${messageId}`);
   }
   
   function canEdit(message: Message): boolean {
@@ -321,6 +322,7 @@
     bind:this={messagesContainer}
     onscroll={handleScroll}
     class="flex-1 overflow-y-auto p-3 md:p-6 space-y-3 md:space-y-4"
+    data-testid="message-list"
   >
     {#if messages.length === 0}
       <div class="text-center text-gray-500">

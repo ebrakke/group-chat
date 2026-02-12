@@ -25,6 +25,10 @@ export async function POST({ request }: RequestEvent) {
 
     const session = createSession(user.id);
 
+    // Set token in cookie for server-side auth
+    const headers = new Headers();
+    headers.append('Set-Cookie', `token=${session.token}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000`);
+
     return json({
       token: session.token,
       user: {
@@ -34,7 +38,7 @@ export async function POST({ request }: RequestEvent) {
         nostrPubkey: user.nostrPubkey,
         role: user.role,
       },
-    });
+    }, { headers });
   } catch (err: any) {
     console.error('Login error:', err);
     return json({ error: err.message || 'Login failed' }, { status: 500 });

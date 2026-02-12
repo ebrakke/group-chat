@@ -8,7 +8,7 @@
   
   let { data }: { data: PageData } = $props();
   
-  const channelId = $derived($page.params.channel);
+  const channelName = $derived($page.params.channel);
   const threadId = $derived($page.params.threadId);
   
   let replies = $state(data.replies);
@@ -38,7 +38,7 @@
   });
   
   function closeThread() {
-    goto(`/${channelId}`);
+    goto(`/${channelName}`);
   }
   
   async function handleSendReply(e: SubmitEvent) {
@@ -116,7 +116,7 @@
   </header>
   
   <!-- Thread content -->
-  <div class="flex-1 overflow-y-auto p-4 space-y-4">
+  <div class="flex-1 overflow-y-auto p-4 space-y-4" data-testid="message-list">
     <!-- Parent message -->
     <div class="bg-gray-50 p-4 rounded-lg border">
       <p class="text-xs text-gray-500 mb-2 uppercase font-semibold">Original message</p>

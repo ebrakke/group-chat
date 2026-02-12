@@ -20,8 +20,8 @@
     onCreateChannel 
   }: Props = $props();
   
-  function switchChannel(channelId: string) {
-    goto(`/${channelId}`);
+  function switchChannel(channelName: string) {
+    goto(`/${channelName}`);
     // Close sidebar on mobile after navigation
     if (window.innerWidth < 768) {
       onToggle();
@@ -86,9 +86,9 @@
     </div>
     {#each channels as channel}
       <button
-        onclick={() => switchChannel(channel.id)}
+        onclick={() => switchChannel(channel.name)}
         class="block w-full text-left px-3 py-2 rounded-md text-sm transition-colors
-               {currentChannel === channel.id 
+               {currentChannel === channel.name 
                  ? 'bg-blue-100 text-blue-900 font-medium' 
                  : 'text-gray-700 hover:bg-gray-100'}"
       >

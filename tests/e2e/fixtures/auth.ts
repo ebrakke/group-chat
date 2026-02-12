@@ -4,6 +4,8 @@ import type { Page } from '@playwright/test';
 const API_URL = process.env.VITE_API_URL || 'http://localhost:4002';
 const BASE_URL = 'http://localhost:3002';
 
+let bootstrapAdmin: { username: string; password: string } | null = null;
+
 /**
  * Auth helper functions for managing user sessions
  */
@@ -15,16 +17,23 @@ export class AuthHelper {
    */
   async signup(username: string, displayName: string, password: string) {
     await this.page.goto(BASE_URL);
-    
-    // Fill signup form
-    await this.page.fill('#username', username);
-    await this.page.fill('#displayName', displayName);
-    await this.page.fill('#password', password);
-    
-    // Submit form
-    await this.page.click('button[type="submit"]');
-    
-    // Wait for redirect to main chat (successful signup)
+
+    const hasFirstUserSignup = await this.page.locator('#displayName').isVisible().catch(() => false);
+
+    if (hasFirstUserSignup) {
+      // First-user signup UI flow
+      await this.page.fill('#username', username);
+      await this.page.fill('#displayName', displayName);
+      await this.page.fill('#password', password);
+      await this.page.click('button[type="submit"]');
+      bootstrapAdmin = { username, password };
+    } else {
+      // Regular user creation via API, then seed auth state
+      const { token, user } = await this.createUserViaAPI(username, displayName, password);
+      await this.setAuthToken(token, user);
+      await this.page.goto(BASE_URL);
+    }
+
     await this.page.waitForURL(BASE_URL + '/');
     await expect(this.page.locator('text=Relay Chat').first()).toBeVisible();
   }
@@ -61,18 +70,62 @@ export class AuthHelper {
   /**
    * Create a user via API (for setting up test users without UI)
    */
-  async createUserViaAPI(username: string, displayName: string, password: string): Promise<string> {
-    const response = await this.page.request.post(`${API_URL}/api/v1/auth/signup`, {
-      data: {
-        username,
-        displayName,
-        password,
-      },
-    });
-    
-    expect(response.ok()).toBeTruthy();
+  async createUserViaAPI(username: string, displayName: string, password: string): Promise<{ token: string; user: any }> {
+    const attempt = async (inviteCode?: string) => {
+      return this.page.request.post(`${API_URL}/api/v1/auth/signup`, {
+        data: {
+          username,
+          displayName,
+          password,
+          inviteCode,
+        },
+      });
+    };
+
+    let response = await attempt();
+
+    if (!response.ok()) {
+      const body = await response.text();
+
+      // If invites are required in this environment, create one with bootstrap admin and retry
+      if (response.status() === 400 && body.includes('Invite code required') && bootstrapAdmin) {
+        const loginResp = await this.page.request.post(`${API_URL}/api/v1/auth/login`, {
+          data: {
+            username: bootstrapAdmin.username,
+            password: bootstrapAdmin.password,
+          },
+        });
+
+        if (!loginResp.ok()) {
+          throw new Error(`Bootstrap admin login failed (${loginResp.status()}): ${await loginResp.text()}`);
+        }
+
+        const loginData = await loginResp.json();
+        const inviteResp = await this.page.request.post(`${API_URL}/api/v1/invites`, {
+          headers: {
+            Authorization: `Bearer ${loginData.token}`,
+          },
+          data: {
+            maxUses: 10,
+          },
+        });
+
+        if (!inviteResp.ok()) {
+          throw new Error(`Invite creation failed (${inviteResp.status()}): ${await inviteResp.text()}`);
+        }
+
+        const inviteData = await inviteResp.json();
+        response = await attempt(inviteData.code);
+        if (!response.ok()) {
+          throw new Error(`Signup with invite failed (${response.status()}): ${await response.text()}`);
+        }
+      } else {
+        throw new Error(`Signup API failed (${response.status()}): ${body}`);
+      }
+    }
+
     const data = await response.json();
-    return data.token;
+    return { token: data.token, user: data.user };
   }
 
   /**
@@ -105,7 +158,9 @@ export class AuthHelper {
  * Generate unique username with timestamp to avoid collisions
  */
 export function generateUsername(prefix: string = 'user'): string {
-  return `${prefix}_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+  const cleanPrefix = prefix.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 8) || 'user';
+  const suffix = Math.random().toString(36).slice(2, 10); // 8 chars
+  return `${cleanPrefix}_${suffix}`.slice(0, 20);
 }
 
 /**

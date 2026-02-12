@@ -34,9 +34,10 @@ authRoutes.post('/signup', async (c) => {
 
     // Check if this is the first user
     const isFirstUser = !hasUsers();
+    const inviteRequired = process.env.INVITE_REQUIRED === 'true';
 
-    // If not first user, validate invite code
-    if (!isFirstUser) {
+    // If invites are enabled and this is not the first user, validate invite code
+    if (inviteRequired && !isFirstUser) {
       if (!inviteCode) {
         return c.json({ error: 'Invite code required' }, 400);
       }
@@ -50,8 +51,8 @@ authRoutes.post('/signup', async (c) => {
     const role = isFirstUser ? 'admin' : 'member';
     const user = await createUser(username, password, displayName, role);
 
-    // Increment invite use count if not first user
-    if (!isFirstUser && inviteCode) {
+    // Increment invite use count when invite enforcement is enabled
+    if (inviteRequired && !isFirstUser && inviteCode) {
       useInvite(inviteCode);
     }
 

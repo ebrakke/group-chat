@@ -31,7 +31,7 @@ services:
       - BLOSSOM_URL=http://blossom:3000
       - SESSION_SECRET=dev-session-secret-not-for-production
       - KEY_ENCRYPTION_SECRET=dev-key-encryption-secret-not-for-production
-      - INVITE_REQUIRED=true
+      - INVITE_REQUIRED=false
       - MAX_UPLOAD_SIZE=52428800
       # Stable server keypair - this pubkey must be in ALLOWED_PUBKEYS below
       - SERVER_PRIVKEY=27b272d8c82f77eafa45289ce75ca33be7d90d01eb5462f333d977b1ea8a2503

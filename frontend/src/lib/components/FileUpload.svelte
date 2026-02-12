@@ -154,7 +154,7 @@
   ondragover={handleDragOver}
   ondragleave={handleDragLeave}
   ondrop={handleDrop}
-  class="absolute inset-0 {isDragging ? 'bg-blue-50 border-2 border-blue-500 border-dashed' : ''}"
+  class="absolute inset-0 pointer-events-none {isDragging ? 'bg-blue-50 border-2 border-blue-500 border-dashed pointer-events-auto' : ''}"
 ></div>
 
 <!-- Attachment previews -->

@@ -1,5 +1,7 @@
 import { test as base, expect } from '@playwright/test';
 import type { Page, APIRequestContext } from '@playwright/test';
+import fs from 'node:fs';
+import path from 'node:path';
 import { AuthHelper, generateUsername } from './auth';
 import { ChatPage } from '../pages/ChatPage';
 import { LoginPage } from '../pages/LoginPage';
@@ -30,9 +32,13 @@ export class APIHelper {
     
     const data = await response.json();
     if (!response.ok()) {
-      // If we get a 403, the token might be invalid (database was reset)
-      if (response.status() === 403) {
+      // 401 means the session token is invalid/expired (e.g. database reset)
+      if (response.status() === 401) {
         throw new Error('INVALID_TOKEN');
+      }
+      // 403 means token is valid but user is not allowed to create invites
+      if (response.status() === 403) {
+        throw new Error('FORBIDDEN');
       }
       throw new Error(`Invite creation failed (${response.status()}): ${JSON.stringify(data)}`);
     }
@@ -186,44 +192,87 @@ type RelayFixtures = {
  * This is reset to null when the database is reset
  */
 let bootstrapAdmin: { token: string; username: string; password: string } | null = null;
+const BOOTSTRAP_CACHE_FILE = path.resolve(process.cwd(), '.tmp/e2e-bootstrap-admin.json');
+
+function loadBootstrapFromDisk(): { username: string; password: string } | null {
+  try {
+    if (!fs.existsSync(BOOTSTRAP_CACHE_FILE)) return null;
+    const raw = fs.readFileSync(BOOTSTRAP_CACHE_FILE, 'utf-8');
+    const parsed = JSON.parse(raw);
+    if (parsed?.username && parsed?.password) {
+      return { username: parsed.username, password: parsed.password };
+    }
+  } catch {
+    // ignore cache read errors
+  }
+  return null;
+}
+
+function saveBootstrapToDisk(username: string, password: string) {
+  fs.mkdirSync(path.dirname(BOOTSTRAP_CACHE_FILE), { recursive: true });
+  fs.writeFileSync(BOOTSTRAP_CACHE_FILE, JSON.stringify({ username, password }), 'utf-8');
+}
 
 /**
  * Helper to ensure we have a valid bootstrap admin
  * This handles database resets by detecting invalid tokens and recreating the admin
  */
 async function ensureBootstrapAdmin(api: APIHelper): Promise<{ token: string; username: string; password: string }> {
-  // If we don't have a bootstrap admin yet, create one
+  // If in-memory cache is empty (e.g. worker restart), try restoring credentials from disk
+  if (!bootstrapAdmin) {
+    const cached = loadBootstrapFromDisk();
+    if (cached) {
+      try {
+        const token = await api.login(cached.username, cached.password);
+        bootstrapAdmin = { token, username: cached.username, password: cached.password };
+        console.log('✓ Restored bootstrap admin from cache');
+      } catch {
+        // Cache is stale, continue to create a new bootstrap user
+      }
+    }
+  }
+
+  // If we still don't have a bootstrap admin yet, create one
   if (!bootstrapAdmin) {
     const username = generateUsername('bootstrap');
     const password = 'adminpass123';
     const displayName = 'Bootstrap Admin';
-    
+
     const { token } = await api.signup(username, displayName, password);
     bootstrapAdmin = { token, username, password };
+    saveBootstrapToDisk(username, password);
     console.log('✓ Created bootstrap admin');
     return bootstrapAdmin;
   }
-  
-  // Verify the bootstrap admin is still valid by trying to create an invite
+
+  // Verify the bootstrap admin token is still valid by trying to create an invite
   try {
     await api.createInvite(bootstrapAdmin.token);
-    // Token is still valid
     return bootstrapAdmin;
   } catch (error: any) {
-    // If token is invalid (403), database was reset - recreate bootstrap admin
+    // If token is invalid (e.g. DB reset), re-login using cached credentials
     if (error.message === 'INVALID_TOKEN') {
+      try {
+        const token = await api.login(bootstrapAdmin.username, bootstrapAdmin.password);
+        bootstrapAdmin = { ...bootstrapAdmin, token };
+        return bootstrapAdmin;
+      } catch {
+        // login failed, likely DB reset wiped user
+      }
+
       console.log('⚠️  Bootstrap admin token invalid (database reset detected)');
       const username = generateUsername('bootstrap');
       const password = 'adminpass123';
       const displayName = 'Bootstrap Admin';
-      
+
       const { token } = await api.signup(username, displayName, password);
       bootstrapAdmin = { token, username, password };
+      saveBootstrapToDisk(username, password);
       console.log('✓ Recreated bootstrap admin after database reset');
       return bootstrapAdmin;
     }
-    
-    // If invite creation failed for other reasons (e.g., invites not required), token is still valid
+
+    // If invite creation failed for other reasons (e.g. FORBIDDEN/INVITE_REQUIRED=false), keep token
     return bootstrapAdmin;
   }
 }
@@ -273,7 +322,7 @@ export const test = base.extend<RelayFixtures>({
     const loginPage = new LoginPage(page);
     await loginPage.goto();
     await loginPage.login(bootstrap.username, bootstrap.password);
-    await page.waitForURL(BASE_URL + '/', { timeout: 10000 });
+    await page.waitForURL(BASE_URL + '/general', { timeout: 10000 });
 
     const userContext: UserContext = {
       page,
@@ -317,7 +366,7 @@ export const test = base.extend<RelayFixtures>({
     const loginPage = new LoginPage(page);
     await loginPage.goto();
     await loginPage.login(username, password);
-    await page.waitForURL(BASE_URL + '/', { timeout: 10000 });
+    await page.waitForURL(BASE_URL + '/general', { timeout: 10000 });
 
     const userContext: UserContext = {
       page,
@@ -356,7 +405,7 @@ export const test = base.extend<RelayFixtures>({
     const adminLoginPage = new LoginPage(adminPage);
     await adminLoginPage.goto();
     await adminLoginPage.login(adminUsername, adminPassword);
-    await adminPage.waitForURL(BASE_URL + '/', { timeout: 10000 });
+    await adminPage.waitForURL(BASE_URL + '/general', { timeout: 10000 });
 
     // Create invite for member (from the new admin user)
     const inviteCode = await createInviteIfRequired(api, adminToken);
@@ -372,7 +421,7 @@ export const test = base.extend<RelayFixtures>({
     const memberLoginPage = new LoginPage(memberPage);
     await memberLoginPage.goto();
     await memberLoginPage.login(memberUsername, memberPassword);
-    await memberPage.waitForURL(BASE_URL + '/', { timeout: 10000 });
+    await memberPage.waitForURL(BASE_URL + '/general', { timeout: 10000 });
 
     const adminUserContext: UserContext = {
       page: adminPage,

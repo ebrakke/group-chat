@@ -3,8 +3,9 @@ import type { PageServerLoad } from './$types';
 import { getChannelByName } from '$lib/server/lib/channels';
 import { getMessages } from '$lib/server/lib/messages';
 
-export const load: PageServerLoad = async ({ params, parent }) => {
+export const load: PageServerLoad = async ({ params, parent, url }) => {
   const channelName = params.channel;
+  console.log('LOAD RUNNING FOR:', params.channel, 'URL:', url.pathname);
   
   // Get parent data (user, token, channels)
   const { user } = await parent();

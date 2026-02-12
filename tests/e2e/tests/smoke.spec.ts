@@ -29,7 +29,7 @@ test.describe.serial('Smoke Tests - Critical Happy Path', () => {
     await page.locator('#password').fill(password);
     await page.getByRole('button', { name: /create/i }).click();
 
-    await expect(page.getByText('# general')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: '# general' })).toBeVisible({ timeout: 10000 });
   });
 
   test('Login page shows expected fields and Sign in button', async ({ page }) => {
@@ -47,6 +47,6 @@ test.describe.serial('Smoke Tests - Critical Happy Path', () => {
     await page.locator('#password').fill(password);
     await page.getByRole('button', { name: /sign in/i }).click();
 
-    await expect(page.getByText('# general')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: '# general' })).toBeVisible({ timeout: 10000 });
   });
 });

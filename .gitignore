@@ -8,6 +8,11 @@ frontend/build/
 api/dist/
 relay/relay
 
+# Test outputs
+test-results/
+playwright-report/
+test-image.png
+
 # Data
 *.db
 *.db-journal

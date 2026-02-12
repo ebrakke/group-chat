@@ -1,10 +1,41 @@
 import { test as base, expect } from '@playwright/test';
 import type { Page } from '@playwright/test';
+import { execFileSync } from 'child_process';
+import path from 'path';
 
-const API_URL = process.env.VITE_API_URL || 'http://localhost:3002';
-const BASE_URL = 'http://localhost:3002';
+const BASE_URL = process.env.E2E_BASE_URL || 'http://localhost:3002';
+const API_URL = process.env.E2E_API_URL || BASE_URL;
 
 let bootstrapAdmin: { username: string; password: string } | null = null;
+
+async function resetDatabaseForTest() {
+  const resetScriptContent = `const Database = require('better-sqlite3'); const db = new Database('/app/relay-chat.db'); const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(r => r.name); const deleteOrder = ['message_reactions', 'thread_replies', 'messages', 'invites', 'sessions', 'users']; db.pragma('foreign_keys = OFF'); for (const name of deleteOrder) { if (tables.includes(name)) db.prepare('DELETE FROM ' + name).run(); } db.pragma('foreign_keys = ON');`;
+
+  try {
+    const repoRoot = path.resolve(__dirname, '../../..');
+    const composeFile = path.join(repoRoot, 'docker-compose.dev.yml');
+    
+    execFileSync(
+      'docker',
+      [
+        'compose',
+        '-f',
+        composeFile,
+        'exec',
+        '-T',
+        'frontend',
+        'node',
+        '-e',
+        resetScriptContent,
+      ],
+      { stdio: 'pipe' }
+    );
+  } catch (err: any) {
+    console.error('[TEST] Failed to reset database:', err.message);
+  }
+
+  bootstrapAdmin = null;
+}
 
 /**
  * Auth helper functions for managing user sessions
@@ -30,12 +61,49 @@ export class AuthHelper {
     } else {
       // Regular user creation via API, then seed auth state
       const { token, user } = await this.createUserViaAPI(username, displayName, password);
+      if (!bootstrapAdmin) {
+        bootstrapAdmin = { username, password };
+      }
       await this.setAuthToken(token, user);
       await this.page.goto(BASE_URL);
     }
 
     await this.page.waitForURL(BASE_URL + '/');
     await expect(this.page.locator('text=Relay Chat').first()).toBeVisible();
+
+    const token = await this.page.evaluate(() => localStorage.getItem('token'));
+    if (token) {
+      await this.ensureGeneralChannel(token);
+      await this.page.reload();
+      await this.page.waitForURL(BASE_URL + '/');
+      await this.page.waitForLoadState('networkidle');
+    }
+  }
+
+  async ensureGeneralChannel(token: string) {
+    const channelsResp = await this.page.request.get(`${API_URL}/api/v1/channels`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (!channelsResp.ok()) return;
+
+    const channels = await channelsResp.json();
+    const hasGeneral = Array.isArray(channels) && channels.some((c: any) => c.name === 'general');
+
+    if (!hasGeneral) {
+      await this.page.request.post(`${API_URL}/api/v1/channels`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        data: {
+          id: 'general',
+          name: 'general',
+          description: 'General discussion',
+        },
+      });
+    }
   }
 
   /**
@@ -178,6 +246,12 @@ export const test = base.extend<AuthFixtures>({
   },
 
   authenticatedPage: async ({ page, auth }, use) => {
+    // Reset database for this test
+    await resetDatabaseForTest();
+    
+    // Wait for database reset to complete
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
     // Create a fresh user and log in
     const username = generateUsername('test');
     const displayName = `Test User ${Date.now()}`;

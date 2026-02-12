@@ -4,17 +4,8 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - API_URL=http://api:4000
       - PUBLIC_API_URL=https://chat.brakke.cc/api/v1
       - PUBLIC_WS_URL=wss://chat.brakke.cc/ws
-    depends_on:
-      - api
-
-  api:
-    build: ./api
-    ports:
-      - "4000:4000"
-    environment:
       - DATABASE_PATH=/data/relay-chat.db
       - RELAY_URL=ws://relay:3334
       - BLOSSOM_URL=http://blossom:3335
@@ -25,7 +16,7 @@ services:
       # Stable server keypair - this pubkey must be in ALLOWED_PUBKEYS below
       - SERVER_PRIVKEY=27b272d8c82f77eafa45289ce75ca33be7d90d01eb5462f333d977b1ea8a2503
     volumes:
-      - api-data:/data
+      - frontend-data:/data
     depends_on:
       - relay
 
@@ -50,6 +41,6 @@ services:
       - blossom-data:/app/data
 
 volumes:
-  api-data:
+  frontend-data:
   relay-data:
   blossom-data:

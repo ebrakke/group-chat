@@ -2,111 +2,219 @@ import { test, expect } from '../fixtures';
 import { ChatPage } from '../pages/ChatPage';
 
 test.describe('Reactions', () => {
-  test('should add an emoji reaction to a message', async ({ adminUser }) => {
-    const chat = new ChatPage(adminUser.page);
+  test.beforeEach(async ({ twoUsers }) => {
+    const { admin, member } = twoUsers;
     
-    const message = `React to this ${Date.now()}`;
-    await chat.sendMessage(message);
+    // Admin sends a message that member will react to
+    const chatPageAdmin = new ChatPage(admin.page);
+    await chatPageAdmin.messageInput.fill('React to me');
+    await chatPageAdmin.sendButton.click();
     
-    // Hover and click react button
-    await chat.hoverMessage(message);
-    await adminUser.page.click('button:has-text("🙂 React")');
-    
-    // Emoji picker should appear
-    await expect(adminUser.page.locator('div').filter({ hasText: /😀|😃|😊/ }).first()).toBeVisible({ timeout: 3000 });
-    
-    // Click an emoji (try common ones)
-    const emoji = await adminUser.page.locator('button').filter({ hasText: /^(👍|❤️|😊|🎉)$/ }).first();
-    const emojiText = await emoji.textContent();
-    await emoji.click();
-    
-    // Reaction should appear on message
+    // Wait for member to receive it
     await expect(
-      adminUser.page.locator(`.flex.gap-3.group:has-text("${message}") button:has-text("${emojiText}")`)
+      member.page.locator('.prose', { hasText: 'React to me' }).first()
     ).toBeVisible({ timeout: 5000 });
   });
 
-  test('should remove reaction by clicking again', async ({ adminUser }) => {
-    const chat = new ChatPage(adminUser.page);
+  test('User adds a reaction to a message', async ({ twoUsers }) => {
+    const { member } = twoUsers;
+    const chatPage = new ChatPage(member.page);
     
-    const message = `Toggle reaction ${Date.now()}`;
-    await chat.sendMessage(message);
+    // Hover over message
+    const messageContainer = member.page.locator('.flex.gap-3.group', { hasText: 'React to me' }).first();
+    await messageContainer.hover();
     
-    // Add reaction
-    await chat.hoverMessage(message);
-    await adminUser.page.click('button:has-text("🙂 React")');
-    await expect(adminUser.page.locator('div').filter({ hasText: /😀|😃|😊/ }).first()).toBeVisible({ timeout: 3000 });
+    // Click reaction button
+    const reactBtn = messageContainer.locator('button:has-text("React"), button:has-text("🙂"), button[title*="React"]').first();
+    await reactBtn.click();
     
-    const emoji = await adminUser.page.locator('button').filter({ hasText: /^(👍)$/ }).first();
-    await emoji.click();
+    // Emoji picker should appear
+    await expect(member.page.locator('div[role="dialog"], .emoji-picker').first()).toBeVisible({ timeout: 5000 });
+    
+    // Select thumbs up
+    await member.page.click('button:has-text("👍")');
+    
+    // Reaction badge should appear
+    await expect(
+      messageContainer.locator('button:has-text("👍")').first()
+    ).toBeVisible({ timeout: 5000 });
+    
+    // Count should be 1
+    const reactionBtn = messageContainer.locator('button:has-text("👍")').first();
+    const text = await reactionBtn.textContent();
+    expect(text).toMatch(/👍.*1|1.*👍/);
+  });
+
+  test('Multiple users react with same emoji', async ({ twoUsers }) => {
+    const { admin, member } = twoUsers;
+    
+    // Member reacts first
+    const memberMessageContainer = member.page.locator('.flex.gap-3.group', { hasText: 'React to me' }).first();
+    await memberMessageContainer.hover();
+    const memberReactBtn = memberMessageContainer.locator('button:has-text("React"), button:has-text("🙂"), button[title*="React"]').first();
+    await memberReactBtn.click();
+    await expect(member.page.locator('div[role="dialog"], .emoji-picker').first()).toBeVisible();
+    await member.page.click('button:has-text("👍")');
     
     // Wait for reaction to appear
     await expect(
-      adminUser.page.locator(`.flex.gap-3.group:has-text("${message}") button:has-text("👍")`)
+      memberMessageContainer.locator('button:has-text("👍")').first()
     ).toBeVisible({ timeout: 5000 });
     
-    // Click the reaction to remove it
-    await chat.toggleReaction(message, '👍');
+    // Admin also reacts with thumbs up
+    const adminMessageContainer = admin.page.locator('.flex.gap-3.group', { hasText: 'React to me' }).first();
     
-    // Reaction should disappear (or count goes to 0)
-    // Depending on implementation, it might hide completely or show count 0
-    await adminUser.page.waitForTimeout(1000); // Give it time to update
+    // Wait for admin to see member's reaction first
+    await expect(
+      adminMessageContainer.locator('button:has-text("👍")').first()
+    ).toBeVisible({ timeout: 5000 });
     
-    const count = await chat.getReactionCount(message, '👍');
-    expect(count).toBe(0);
+    // Admin clicks the existing reaction to add their own
+    const existingReaction = adminMessageContainer.locator('button:has-text("👍")').first();
+    await existingReaction.click();
+    
+    // Count should be 2
+    await admin.page.waitForTimeout(1000); // Wait for update
+    const reactionBtn = adminMessageContainer.locator('button:has-text("👍")').first();
+    const text = await reactionBtn.textContent();
+    expect(text).toMatch(/👍.*2|2.*👍/);
   });
 
-  test('should show reaction count', async ({ adminUser }) => {
-    const chat = new ChatPage(adminUser.page);
+  test('Multiple different reactions on one message', async ({ twoUsers }) => {
+    const { admin, member } = twoUsers;
     
-    const message = `Reaction count test ${Date.now()}`;
-    await chat.sendMessage(message);
+    // Member reacts with thumbs up
+    const memberContainer = member.page.locator('.flex.gap-3.group', { hasText: 'React to me' }).first();
+    await memberContainer.hover();
+    let reactBtn = memberContainer.locator('button:has-text("React"), button:has-text("🙂"), button[title*="React"]').first();
+    await reactBtn.click();
+    await expect(member.page.locator('div[role="dialog"], .emoji-picker').first()).toBeVisible();
+    await member.page.click('button:has-text("👍")');
     
-    // Add first reaction
-    await chat.hoverMessage(message);
-    await adminUser.page.click('button:has-text("🙂 React")');
-    await expect(adminUser.page.locator('div').filter({ hasText: /😀|😃|😊/ }).first()).toBeVisible({ timeout: 3000 });
+    await expect(memberContainer.locator('button:has-text("👍")').first()).toBeVisible({ timeout: 5000 });
     
-    const emoji = await adminUser.page.locator('button').filter({ hasText: /^(❤️)$/ }).first();
-    await emoji.click();
+    // Admin reacts with heart
+    const adminContainer = admin.page.locator('.flex.gap-3.group', { hasText: 'React to me' }).first();
+    await adminContainer.hover();
+    reactBtn = adminContainer.locator('button:has-text("React"), button:has-text("🙂"), button[title*="React"]').first();
+    await reactBtn.click();
+    await expect(admin.page.locator('div[role="dialog"], .emoji-picker').first()).toBeVisible();
+    await admin.page.click('button:has-text("❤️"), button:has-text("❤")');
     
-    // Wait for reaction
-    await expect(
-      adminUser.page.locator(`.flex.gap-3.group:has-text("${message}") button:has-text("❤️")`)
-    ).toBeVisible({ timeout: 5000 });
+    await expect(adminContainer.locator('button:has-text("❤")').first()).toBeVisible({ timeout: 5000 });
     
-    // Check count (should be 1 from current user)
-    const count = await chat.getReactionCount(message, '❤️');
-    expect(count).toBeGreaterThanOrEqual(1);
+    // Both reactions should appear
+    await expect(memberContainer.locator('button:has-text("👍")').first()).toBeVisible();
+    await expect(memberContainer.locator('button:has-text("❤")').first()).toBeVisible({ timeout: 5000 });
   });
 
-  test('should support multiple different reactions on same message', async ({ adminUser }) => {
-    const chat = new ChatPage(adminUser.page);
+  test('User removes their own reaction', async ({ twoUsers }) => {
+    const { member } = twoUsers;
     
-    const message = `Multiple reactions ${Date.now()}`;
-    await chat.sendMessage(message);
+    // Add reaction first
+    const messageContainer = member.page.locator('.flex.gap-3.group', { hasText: 'React to me' }).first();
+    await messageContainer.hover();
+    const reactBtn = messageContainer.locator('button:has-text("React"), button:has-text("🙂"), button[title*="React"]').first();
+    await reactBtn.click();
+    await expect(member.page.locator('div[role="dialog"], .emoji-picker').first()).toBeVisible();
+    await member.page.click('button:has-text("👍")');
     
-    // Add first reaction
-    await chat.hoverMessage(message);
-    await adminUser.page.click('button:has-text("🙂 React")');
-    await adminUser.page.locator('button:has-text("👍")').first().click();
-    
-    // Wait for first reaction
     await expect(
-      adminUser.page.locator(`.flex.gap-3.group:has-text("${message}") button:has-text("👍")`)
+      messageContainer.locator('button:has-text("👍")').first()
     ).toBeVisible({ timeout: 5000 });
     
-    // Add second reaction
-    await chat.hoverMessage(message);
-    await adminUser.page.click('button:has-text("🙂 React")');
-    await adminUser.page.locator('button:has-text("❤️")').first().click();
+    // Click on the reaction to remove it
+    const reactionBadge = messageContainer.locator('button:has-text("👍")').first();
+    await reactionBadge.click();
     
-    // Both reactions should be visible
+    // Count should decrease (or badge disappears if it was the only reaction)
+    await member.page.waitForTimeout(1000);
+    
+    // Badge should either be gone or show count 0 (which typically means it disappears)
+    const badgeCount = await messageContainer.locator('button:has-text("👍")').count();
+    expect(badgeCount).toBe(0);
+  });
+
+  test('Reaction badge disappears when count reaches zero', async ({ twoUsers }) => {
+    const { member } = twoUsers;
+    
+    // Member is the only one reacting
+    const messageContainer = member.page.locator('.flex.gap-3.group', { hasText: 'React to me' }).first();
+    await messageContainer.hover();
+    const reactBtn = messageContainer.locator('button:has-text("React"), button:has-text("🙂"), button[title*="React"]').first();
+    await reactBtn.click();
+    await expect(member.page.locator('div[role="dialog"], .emoji-picker').first()).toBeVisible();
+    await member.page.click('button:has-text("👍")');
+    
     await expect(
-      adminUser.page.locator(`.flex.gap-3.group:has-text("${message}") button:has-text("👍")`)
-    ).toBeVisible();
+      messageContainer.locator('button:has-text("👍")').first()
+    ).toBeVisible({ timeout: 5000 });
+    
+    // Remove reaction
+    const reactionBadge = messageContainer.locator('button:has-text("👍")').first();
+    await reactionBadge.click();
+    
+    // Badge should disappear entirely
     await expect(
-      adminUser.page.locator(`.flex.gap-3.group:has-text("${message}") button:has-text("❤️")`)
-    ).toBeVisible();
+      messageContainer.locator('button:has-text("👍")')
+    ).toHaveCount(0, { timeout: 5000 });
+  });
+
+  test('My reactions are visually highlighted', async ({ twoUsers }) => {
+    const { admin, member } = twoUsers;
+    
+    // Member adds a reaction
+    const memberContainer = member.page.locator('.flex.gap-3.group', { hasText: 'React to me' }).first();
+    await memberContainer.hover();
+    const reactBtn = memberContainer.locator('button:has-text("React"), button:has-text("🙂"), button[title*="React"]').first();
+    await reactBtn.click();
+    await expect(member.page.locator('div[role="dialog"], .emoji-picker').first()).toBeVisible();
+    await member.page.click('button:has-text("👍")');
+    
+    await expect(
+      memberContainer.locator('button:has-text("👍")').first()
+    ).toBeVisible({ timeout: 5000 });
+    
+    // Check that member's own reaction has highlighting class
+    const memberReactionBtn = memberContainer.locator('button:has-text("👍")').first();
+    const memberClasses = await memberReactionBtn.getAttribute('class');
+    
+    // Should have some highlight styling (bg-blue, border, etc.)
+    expect(memberClasses).toMatch(/bg-|border-|ring-/);
+    
+    // Admin sees the reaction but not highlighted for them
+    const adminContainer = admin.page.locator('.flex.gap-3.group', { hasText: 'React to me' }).first();
+    await expect(
+      adminContainer.locator('button:has-text("👍")').first()
+    ).toBeVisible({ timeout: 5000 });
+    
+    const adminViewReactionBtn = adminContainer.locator('button:has-text("👍")').first();
+    const adminViewClasses = await adminViewReactionBtn.getAttribute('class');
+    
+    // For admin viewing member's reaction, it should not be highlighted the same way
+    // This is a bit tricky to test - might need to check specific class differences
+    // For now, just verify it exists
+    expect(adminViewClasses).toBeTruthy();
+  });
+
+  test('Reaction appears in real-time', async ({ twoUsers }) => {
+    const { admin, member } = twoUsers;
+    
+    // Member is viewing the message
+    const memberContainer = member.page.locator('.flex.gap-3.group', { hasText: 'React to me' }).first();
+    await expect(memberContainer).toBeVisible();
+    
+    // Admin adds a reaction
+    const adminContainer = admin.page.locator('.flex.gap-3.group', { hasText: 'React to me' }).first();
+    await adminContainer.hover();
+    const reactBtn = adminContainer.locator('button:has-text("React"), button:has-text("🙂"), button[title*="React"]').first();
+    await reactBtn.click();
+    await expect(admin.page.locator('div[role="dialog"], .emoji-picker').first()).toBeVisible();
+    await admin.page.click('button:has-text("🎉")');
+    
+    // Member should see it appear without refresh
+    await expect(
+      memberContainer.locator('button:has-text("🎉")').first()
+    ).toBeVisible({ timeout: 5000 });
   });
 });

@@ -37,7 +37,7 @@ We use a pull request (PR) based development flow to ensure code quality and sta
    ```
 
 5. **Open a Pull Request**
-   - Go to the repository on Forgejo/GitHub
+   - Go to the repository on Forgejo (forge.brakke.cc/erik/relay-chat)
    - Click "New Pull Request"
    - Select your branch and target `master` or `main`
    - Fill out the PR description with:

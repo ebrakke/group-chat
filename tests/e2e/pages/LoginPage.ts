@@ -19,7 +19,7 @@ export class LoginPage {
     this.usernameInput = page.locator('#username, input[name="username"]');
     this.passwordInput = page.locator('#password, input[name="password"]');
     this.loginButton = page.locator('button[type="submit"]');
-    this.errorMessage = page.locator('.text-red-500, .error, [role="alert"]');
+    this.errorMessage = page.locator('.text-red-500, .text-red-800, .error, [role="alert"]');
     this.signupLink = page.locator('a:has-text("Sign up"), a:has-text("Create account")');
   }
 

@@ -23,7 +23,7 @@ export class SignupPage {
     this.passwordInput = page.locator('#password, input[name="password"]');
     this.inviteCodeInput = page.locator('#inviteCode, input[name="inviteCode"]');
     this.signupButton = page.locator('button[type="submit"]');
-    this.errorMessage = page.locator('.text-red-500, .error, [role="alert"]');
+    this.errorMessage = page.locator('.text-red-500, .text-red-800, .error, [role="alert"]');
     this.loginLink = page.locator('a:has-text("Log in"), a:has-text("Sign in")');
   }
 
@@ -31,7 +31,7 @@ export class SignupPage {
    * Navigate to signup page
    */
   async goto(inviteCode?: string) {
-    const url = inviteCode ? `${BASE_URL}/signup?invite=${inviteCode}` : `${BASE_URL}/signup`;
+    const url = inviteCode ? `${BASE_URL}/invite/${inviteCode}` : `${BASE_URL}`;
     await this.page.goto(url);
     await expect(this.usernameInput).toBeVisible();
   }

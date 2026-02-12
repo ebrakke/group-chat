@@ -77,8 +77,11 @@ jobs:
 
       - name: Install Docker CLI
         run: |
-          apt-get update
-          apt-get install -y docker.io docker-compose-v2
+          apt-get update && apt-get install -y docker.io
+          # Install docker compose plugin
+          mkdir -p /usr/local/lib/docker/cli-plugins
+          curl -SL "https://github.com/docker/compose/releases/latest/download/docker-compose-linux-$(uname -m)" -o /usr/local/lib/docker/cli-plugins/docker-compose
+          chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
 
       - name: Start development environment
         run: |

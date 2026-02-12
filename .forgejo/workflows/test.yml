@@ -22,21 +22,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'
-
-      - name: Install root dependencies
-        run: npm ci
-
-      - name: Build and test API
-        run: |
-          cd api
-          npm ci
-          npm run build
-
-      - name: Type check API
-        run: |
-          cd api
-          npx tsc --noEmit
 
       - name: Build and test Frontend
         run: |
@@ -48,6 +33,16 @@ jobs:
         run: |
           cd frontend
           npx tsc --noEmit
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Build relay backend
+        run: |
+          cd relay
+          go build -o relay .
 
   # E2E Smoke Tests - Desktop and Mobile viewports in one run
   e2e-tests:

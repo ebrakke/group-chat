@@ -2,7 +2,7 @@ import { defineConfig, devices } from '@playwright/test';
 
 /**
  * Playwright configuration for Relay Chat e2e tests
- * Targets the dev environment running on ports 3002 (frontend) and 4002 (API)
+ * Targets the dev environment running on port 3002 (frontend with integrated API)
  * 
  * Supports viewport configuration via environment variables:
  * - VIEWPORT_WIDTH, VIEWPORT_HEIGHT: Custom viewport size

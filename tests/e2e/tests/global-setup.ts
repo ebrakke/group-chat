@@ -17,7 +17,7 @@ async function globalSetup() {
   
   try {
     // Reset the frontend database by removing it and restarting the container
-    await exec(`docker compose -f docker-compose.dev.yml exec -T frontend rm -f /app/relay-chat.db /app/relay-chat.db-shm /app/relay-chat.db-wal`, { cwd: repoRoot });
+    await exec(`docker compose -f docker-compose.dev.yml exec -T frontend rm -f /data/relay-chat.db /data/relay-chat.db-shm /data/relay-chat.db-wal`, { cwd: repoRoot });
     console.log('  ✓ Removed database files');
     
     // Restart frontend container to initialize with fresh database

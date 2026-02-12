@@ -4,16 +4,13 @@ A self-hosted, private group chat app built on Nostr infrastructure. Think "Slac
 
 ## Tech Stack
 
-**Frontend:**
+**Frontend & API:**
 - SvelteKit + Svelte 5 (runes)
+- SvelteKit API routes (server-side endpoints)
 - Tailwind CSS
 - TypeScript
-
-**Backend:**
-- Hono (API server)
 - better-sqlite3 (SQLite)
 - nostr-tools (Nostr protocol)
-- TypeScript
 
 **Infrastructure:**
 - khatru29 (NIP-29 group relay, Go)
@@ -23,7 +20,7 @@ A self-hosted, private group chat app built on Nostr infrastructure. Think "Slac
 ## Running Locally
 
 ```bash
-# Start all services (frontend, api, relay, blossom)
+# Start all services (frontend with API, relay, blossom)
 docker-compose -f docker-compose.dev.yml up -d
 
 # View logs
@@ -34,12 +31,11 @@ docker-compose -f docker-compose.dev.yml down
 ```
 
 Services will be available at:
-- Frontend: http://localhost:3000
-- API: http://localhost:4000
-- Relay: ws://localhost:3334
-- Blossom: http://localhost:3335
+- App (Frontend + API): http://localhost:3002
+- Relay: ws://localhost:3336
+- Blossom: http://localhost:3337
 
-**First run:** Visit http://localhost:3000 to create the first admin account (no invite required).
+**First run:** Visit http://localhost:3002 to create the first admin account (no invite required).
 
 ## Deploying to Fly.io
 
@@ -76,12 +72,27 @@ We use a PR-based workflow. See [CONTRIBUTING.md](./CONTRIBUTING.md) for guideli
 
 ```
 relay-chat/
-├── api/           # Hono API server (TypeScript)
-├── frontend/      # SvelteKit frontend (Svelte 5)
+├── frontend/      # SvelteKit app (frontend + API routes)
+│   ├── src/routes/        # Pages and UI components
+│   ├── src/routes/api/    # API endpoints (SvelteKit server routes)
+│   └── src/lib/server/    # Server-side utilities and database
 ├── relay/         # khatru29 relay (Go) - NIP-29 group relay
+├── tests/e2e/     # Playwright end-to-end tests
 ├── docs/          # Documentation
-└── fly.toml       # Fly.io deployment config
+└── fly.toml       # Fly.io deployment config (unified app)
 ```
+
+## Architecture
+
+Relay Chat uses a **unified SvelteKit architecture**:
+- **Frontend**: Svelte 5 components with runes for reactive state
+- **API**: SvelteKit server routes in `/frontend/src/routes/api/`
+- **WebSocket**: Handled through SvelteKit endpoints
+- **Database**: SQLite with better-sqlite3
+- **Nostr Relay**: Separate khatru29 Go service for NIP-29 groups
+- **File Storage**: Separate Blossom server
+
+This unified approach eliminates the need for a separate API server while maintaining clean separation between client and server code.
 
 ## Documentation
 

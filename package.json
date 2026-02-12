@@ -1,7 +1,0 @@
-{
-  "dependencies": {
-    "form-data": "^4.0.5",
-    "node-fetch": "^2.7.0",
-    "ws": "^8.19.0"
-  }
-}

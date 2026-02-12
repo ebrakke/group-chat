@@ -1,10 +1,12 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { onMount } from 'svelte';
+  import type { User, Invite } from '$lib/types/api';
+  import { showSuccess, showError } from '$lib/stores/notifications';
   
   let loading = $state(true);
-  let user: any = $state(null);
-  let invites: any[] = $state([]);
+  let user: User | null = $state(null);
+  let invites: Invite[] = $state([]);
   let generatingInvite = $state(false);
   let error = $state('');
   
@@ -124,11 +126,10 @@
       const baseUrl = window.location.origin;
       const inviteUrl = `${baseUrl}/invite/${code}`;
       await navigator.clipboard.writeText(inviteUrl);
-      // Show success feedback (could be enhanced with a toast notification)
-      alert('Invite link copied to clipboard!');
+      showSuccess('Invite link copied to clipboard!');
     } catch (err) {
       console.error('Failed to copy:', err);
-      alert('Failed to copy invite link. Please try again.');
+      showError('Failed to copy invite link. Please try again.');
     }
   }
 </script>

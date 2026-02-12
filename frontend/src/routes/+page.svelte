@@ -1,7 +1,6 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { onMount, onDestroy } from 'svelte';
-  import { marked } from 'marked';
   import { fetchChannels, fetchMessages, sendMessage, editMessage, deleteMessage, fetchCurrentUser, checkHasUsers, addReaction, removeReaction, type Message, type Channel, type User, type UploadResult } from '$lib/api';
   import { ChatWebSocket } from '$lib/websocket';
   import ThreadPanel from '$lib/components/ThreadPanel.svelte';
@@ -9,6 +8,10 @@
   import FileUpload from '$lib/components/FileUpload.svelte';
   import ChannelModal from '$lib/components/ChannelModal.svelte';
   import ImageModal from '$lib/components/ImageModal.svelte';
+  import { formatTimestamp, getInitials, formatFileSize, isImage } from '$lib/utils/formatting';
+  import { renderMarkdown } from '$lib/utils/markdown';
+  import { SCROLL_THRESHOLD } from '$lib/utils/constants';
+  import { showError, showSuccess } from '$lib/stores/notifications';
   
   let loading = $state(true);
   let isFirstUser = $state(false);
@@ -316,16 +319,6 @@
     showImageModal = true;
   }
   
-  function formatFileSize(bytes: number): string {
-    if (bytes < 1024) return bytes + ' B';
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-  }
-  
-  function isImage(mimeType: string): boolean {
-    return mimeType.startsWith('image/');
-  }
-  
   async function loadChannelMessages() {
     if (!currentChannel) return;
     
@@ -375,7 +368,7 @@
       // Message will be added via WebSocket event
     } catch (err: any) {
       console.error('Failed to send message:', err);
-      alert('Failed to send message: ' + (err.message || 'Unknown error'));
+      showError('Failed to send message: ' + (err.message || 'Unknown error'));
       messageInput = content !== '📎 Attachment' ? content : ''; // Restore message
       attachments = messageAttachments; // Restore attachments
     } finally {
@@ -402,7 +395,7 @@
     if (!messagesContainer) return;
     
     const { scrollTop, scrollHeight, clientHeight } = messagesContainer;
-    const isAtBottom = scrollHeight - scrollTop - clientHeight < 100;
+    const isAtBottom = scrollHeight - scrollTop - clientHeight < SCROLL_THRESHOLD;
     
     shouldAutoScroll = isAtBottom;
     showScrollButton = !isAtBottom;
@@ -426,7 +419,7 @@
       cancelEdit();
       // Message will be updated via WebSocket
     } catch (err: any) {
-      alert('Failed to edit message: ' + (err.message || 'Unknown error'));
+      showError('Failed to edit message: ' + (err.message || 'Unknown error'));
     }
   }
   
@@ -437,7 +430,7 @@
       await deleteMessage(messageId);
       // Message will be removed via WebSocket
     } catch (err: any) {
-      alert('Failed to delete message: ' + (err.message || 'Unknown error'));
+      showError('Failed to delete message: ' + (err.message || 'Unknown error'));
     }
   }
   
@@ -447,27 +440,6 @@
   
   function canDelete(message: Message): boolean {
     return user?.id === message.author.id || user?.role === 'admin';
-  }
-  
-  function formatTimestamp(timestamp: string): string {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const isToday = date.toDateString() === now.toDateString();
-    
-    if (isToday) {
-      return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-    } else {
-      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' +
-        date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-    }
-  }
-  
-  function renderMarkdown(content: string): string {
-    return marked(content, { breaks: true }) as string;
-  }
-  
-  function getInitials(name: string): string {
-    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   }
   
   // Thread functions
@@ -498,7 +470,7 @@
       // Reaction will be added via WebSocket
     } catch (err: any) {
       console.error('Failed to add reaction:', err);
-      alert('Failed to add reaction: ' + (err.message || 'Unknown error'));
+      showError('Failed to add reaction: ' + (err.message || 'Unknown error'));
     }
   }
   
@@ -518,7 +490,7 @@
       // Reaction will be updated via WebSocket
     } catch (err: any) {
       console.error('Failed to toggle reaction:', err);
-      alert('Failed to toggle reaction: ' + (err.message || 'Unknown error'));
+      showError('Failed to toggle reaction: ' + (err.message || 'Unknown error'));
     }
   }
   

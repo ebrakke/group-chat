@@ -1,6 +1,7 @@
 <script lang="ts">
-  import { marked } from 'marked';
   import { fetchThread, replyInThread, type Message } from '$lib/api';
+  import { formatTimestamp, getInitials } from '$lib/utils/formatting';
+  import { renderMarkdown } from '$lib/utils/markdown';
   
   interface Props {
     messageId: string;
@@ -68,27 +69,6 @@
       e.preventDefault();
       handleSendReply(e);
     }
-  }
-  
-  function formatTimestamp(timestamp: string): string {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const isToday = date.toDateString() === now.toDateString();
-    
-    if (isToday) {
-      return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-    } else {
-      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' +
-        date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-    }
-  }
-  
-  function renderMarkdown(content: string): string {
-    return marked(content, { breaks: true }) as string;
-  }
-  
-  function getInitials(name: string): string {
-    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   }
   
   // Export function to add new reply (called from parent)

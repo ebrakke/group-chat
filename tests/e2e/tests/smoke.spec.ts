@@ -1,7 +1,6 @@
 import { test, expect } from '@playwright/test';
 
 const BASE_URL = 'http://localhost:3002';
-const API_URL = 'http://localhost:4002';
 
 test.describe.serial('Smoke Tests - Critical Happy Path', () => {
   let username: string;
@@ -10,11 +9,6 @@ test.describe.serial('Smoke Tests - Critical Happy Path', () => {
   test.beforeAll(() => {
     username = `smoke_${Date.now()}`;
     password = 'TestPass123!';
-  });
-
-  test('Health check — API is running', async ({ request }) => {
-    const response = await request.get(`${API_URL}/api/v1/health`);
-    expect(response.ok()).toBeTruthy();
   });
 
   test('Signup page shows expected welcome form', async ({ page }) => {
@@ -35,7 +29,7 @@ test.describe.serial('Smoke Tests - Critical Happy Path', () => {
     await page.locator('#password').fill(password);
     await page.getByRole('button', { name: /create/i }).click();
 
-    await expect(page.getByText('# general')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: '# general' })).toBeVisible({ timeout: 10000 });
   });
 
   test('Login page shows expected fields and Sign in button', async ({ page }) => {
@@ -53,6 +47,6 @@ test.describe.serial('Smoke Tests - Critical Happy Path', () => {
     await page.locator('#password').fill(password);
     await page.getByRole('button', { name: /sign in/i }).click();
 
-    await expect(page.getByText('# general')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: '# general' })).toBeVisible({ timeout: 10000 });
   });
 });

@@ -78,7 +78,7 @@ jobs:
       - name: Run Playwright smoke tests
         run: |
           cd tests/e2e
-          npx playwright test tests/smoke.spec.ts
+          npm run test:ci
         env:
           CI: true
 

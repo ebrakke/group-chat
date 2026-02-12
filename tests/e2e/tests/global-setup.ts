@@ -1,18 +1,22 @@
 import { exec as execCallback } from 'child_process';
 import { promisify } from 'util';
+import path from 'path';
 
 const exec = promisify(execCallback);
 
 async function globalSetup() {
   console.log('🧹 Cleaning up test environment...');
   
+  // Detect repo root: in CI it's cwd, locally it might be different
+  const repoRoot = process.env.CI ? process.cwd() : path.resolve(__dirname, '../../..');
+  
   try {
     // Reset the frontend database by removing it and restarting the container
-    await exec('cd /root/.openclaw/workspace-acid_burn/relay-chat && docker compose -f docker-compose.dev.yml exec -T frontend rm -f /app/relay-chat.db /app/relay-chat.db-shm /app/relay-chat.db-wal');
+    await exec(`docker compose -f docker-compose.dev.yml exec -T frontend rm -f /app/relay-chat.db /app/relay-chat.db-shm /app/relay-chat.db-wal`, { cwd: repoRoot });
     console.log('  ✓ Removed database files');
     
     // Restart frontend container to initialize with fresh database
-    await exec('cd /root/.openclaw/workspace-acid_burn/relay-chat && docker compose -f docker-compose.dev.yml restart frontend');
+    await exec(`docker compose -f docker-compose.dev.yml restart frontend`, { cwd: repoRoot });
     console.log('  ✓ Restarted frontend container');
     
     // Wait for the service to be ready

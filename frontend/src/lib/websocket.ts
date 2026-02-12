@@ -17,8 +17,6 @@ function getWebSocketUrl(): string {
   return 'ws://localhost:4000/ws';
 }
 
-const WS_URL = getWebSocketUrl();
-
 export type WebSocketEventType = 
   | 'message.new' 
   | 'message.updated' 
@@ -65,7 +63,8 @@ export class ChatWebSocket {
       return;
     }
 
-    const url = this.token ? `${WS_URL}?token=${encodeURIComponent(this.token)}` : WS_URL;
+    const wsUrl = getWebSocketUrl();
+    const url = this.token ? `${wsUrl}?token=${encodeURIComponent(this.token)}` : wsUrl;
     
     try {
       this.ws = new WebSocket(url);

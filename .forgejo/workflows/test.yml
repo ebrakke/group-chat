@@ -59,57 +59,21 @@ jobs:
           - name: mobile
             width: 390
             height: 844
-    container:
-      image: docker:25-dind
-      options: --privileged
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Docker
-        run: |
-          # Start Docker daemon in background
-          dockerd-entrypoint.sh &
-          
-          # Wait for Docker to be ready
-          timeout=30
-          while [ $timeout -gt 0 ]; do
-            if docker info >/dev/null 2>&1; then
-              echo "Docker is ready"
-              break
-            fi
-            echo "Waiting for Docker to start..."
-            sleep 1
-            timeout=$((timeout - 1))
-          done
-          
-          if [ $timeout -eq 0 ]; then
-            echo "Docker failed to start"
-            exit 1
-          fi
-
-      - name: Install Node.js
-        run: |
-          # Install Node.js in the DinD container
-          apk add --no-cache nodejs npm
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
 
       - name: Install Playwright dependencies
         run: |
           cd tests/e2e
           npm ci
-          
-          # Install Playwright browsers with system dependencies
-          apk add --no-cache \
-            chromium \
-            nss \
-            freetype \
-            harfbuzz \
-            ca-certificates \
-            ttf-freefont
-          
-          # Set Playwright to use system Chromium
-          export PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
-          export PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium-browser
+          npx playwright install --with-deps chromium
 
       - name: Start development environment
         run: |
@@ -132,8 +96,6 @@ jobs:
           VIEWPORT_WIDTH: ${{ matrix.viewport.width }}
           VIEWPORT_HEIGHT: ${{ matrix.viewport.height }}
           VIEWPORT_NAME: ${{ matrix.viewport.name }}
-          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-          PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH: /usr/bin/chromium-browser
 
       - name: Upload test results (${{ matrix.viewport.name }})
         if: always()

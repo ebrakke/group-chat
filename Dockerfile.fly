@@ -16,7 +16,7 @@ RUN npm run build
 FROM node:22-alpine
 WORKDIR /app
 
-# Create /data directory for SQLite database
+# Create /data directory for SQLite database with proper permissions
 RUN mkdir -p /data && chown -R node:node /data
 
 # Copy build artifacts
@@ -33,8 +33,9 @@ USER node
 # Expose Fly's expected port
 EXPOSE 8080
 
-# Set PORT for the application
+# Environment variables
 ENV PORT=8080
+ENV DATABASE_PATH=/data/relay-chat.db
 
 # Start the custom server
 CMD ["node", "server.js"]

@@ -1,5 +1,9 @@
 name: Test Pipeline
 
+concurrency:
+  group: test-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
 on:
   pull_request:
     branches:

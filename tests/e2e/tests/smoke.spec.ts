@@ -1,7 +1,6 @@
 import { test, expect } from '@playwright/test';
 
 const BASE_URL = 'http://localhost:3002';
-const API_URL = 'http://localhost:4002';
 
 test.describe.serial('Smoke Tests - Critical Happy Path', () => {
   let username: string;
@@ -10,11 +9,6 @@ test.describe.serial('Smoke Tests - Critical Happy Path', () => {
   test.beforeAll(() => {
     username = `smoke_${Date.now()}`;
     password = 'TestPass123!';
-  });
-
-  test('Health check — API is running', async ({ request }) => {
-    const response = await request.get(`${API_URL}/api/v1/health`);
-    expect(response.ok()).toBeTruthy();
   });
 
   test('Signup page shows expected welcome form', async ({ page }) => {

@@ -47,7 +47,7 @@ jobs:
 
   # E2E Test Job - Desktop and Mobile
   e2e-tests:
-    runs-on: docker
+    runs-on: host
     needs: build-and-test
     strategy:
       fail-fast: false
@@ -74,14 +74,6 @@ jobs:
           cd tests/e2e
           npm ci
           npx playwright install --with-deps chromium
-
-      - name: Install Docker CLI
-        run: |
-          apt-get update && apt-get install -y docker.io
-          # Install docker compose plugin
-          mkdir -p /usr/local/lib/docker/cli-plugins
-          curl -SL "https://github.com/docker/compose/releases/latest/download/docker-compose-linux-$(uname -m)" -o /usr/local/lib/docker/cli-plugins/docker-compose
-          chmod +x /usr/local/lib/docker/cli-plugins/docker-compose
 
       - name: Start development environment
         run: |

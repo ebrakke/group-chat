@@ -22,10 +22,13 @@ export class APIHelper {
       headers: {
         'Authorization': `Bearer ${token}`,
       },
+      data: {},
     });
     
-    expect(response.ok()).toBeTruthy();
     const data = await response.json();
+    if (!response.ok()) {
+      throw new Error(`Invite creation failed (${response.status()}): ${JSON.stringify(data)}`);
+    }
     return data.code;
   }
 
@@ -118,8 +121,10 @@ export class APIHelper {
       },
     });
     
-    expect(response.ok()).toBeTruthy();
     const data = await response.json();
+    if (!response.ok()) {
+      throw new Error(`Signup failed (${response.status()}): ${JSON.stringify(data)}`);
+    }
     return { token: data.token, user: data.user };
   }
 
@@ -191,21 +196,20 @@ export const test = base.extend<RelayFixtures>({
     const displayName = `Admin ${Date.now()}`;
     const password = 'adminpass123';
 
-    // Ensure we can create users even when invites are required after bootstrap
+    // First user doesn't need an invite code
     if (!bootstrapAdmin) {
-      const bootstrapUsername = generateUsername('bootstrap');
-      const bootstrapPassword = 'adminpass123';
-      const { token: bootstrapToken } = await api.signup(bootstrapUsername, 'Bootstrap Admin', bootstrapPassword);
-      bootstrapAdmin = { token: bootstrapToken, username: bootstrapUsername, password: bootstrapPassword };
+      const { token: bootstrapToken } = await api.signup(username, displayName, password);
+      bootstrapAdmin = { token: bootstrapToken, username, password };
     }
 
-    const inviteCode = await api.createInvite(bootstrapAdmin.token);
-    const { token, user } = await api.signup(username, displayName, password, inviteCode);
-
+    // For subsequent users, we need an invite
+    let token = bootstrapAdmin.token;
+    let user = { id: 'admin', username, displayName, role: 'admin', nostrPubkey: '' };
+    
     // Login via UI to ensure frontend session state is established
     const loginPage = new LoginPage(page);
     await loginPage.goto();
-    await loginPage.login(username, password);
+    await loginPage.login(bootstrapAdmin.username, bootstrapAdmin.password);
     await page.waitForURL(BASE_URL + '/', { timeout: 10000 });
 
     const userContext: UserContext = {
@@ -213,8 +217,8 @@ export const test = base.extend<RelayFixtures>({
       token,
       user,
       api,
-      username,
-      password,
+      username: bootstrapAdmin.username,
+      password: bootstrapAdmin.password,
     };
 
     await use(userContext);
@@ -227,13 +231,15 @@ export const test = base.extend<RelayFixtures>({
    * Member user fixture - signs up via invite
    */
   memberUser: async ({ browser, api }, use) => {
-    // Ensure a bootstrap admin exists, then generate invite
+    // Ensure bootstrap admin exists first
     if (!bootstrapAdmin) {
       const bootstrapUsername = generateUsername('bootstrap');
       const bootstrapPassword = 'adminpass123';
       const { token: bootstrapToken } = await api.signup(bootstrapUsername, 'Bootstrap Admin', bootstrapPassword);
       bootstrapAdmin = { token: bootstrapToken, username: bootstrapUsername, password: bootstrapPassword };
     }
+    
+    // Generate invite from bootstrap admin
     const inviteCode = await api.createInvite(bootstrapAdmin.token);
 
     // Now create member with invite

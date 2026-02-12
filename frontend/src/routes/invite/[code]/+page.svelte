@@ -14,7 +14,7 @@
   let inviteValid = $state(false);
   let workspaceName = $state('');
   
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+  const API_URL = import.meta.env.VITE_API_URL || '';
   
   onMount(async () => {
     // Validate invite code

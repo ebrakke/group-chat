@@ -64,7 +64,7 @@
   let signupError = $state('');
   let signingUp = $state(false);
   
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+  const API_URL = import.meta.env.VITE_API_URL || '';
   
   onMount(async () => {
     // Check if user is authenticated

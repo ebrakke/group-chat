@@ -6,7 +6,7 @@
   let error = $state('');
   let loading = $state(false);
   
-  const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000';
+  const API_URL = import.meta.env.VITE_API_URL || '';
   
   async function handleLogin(e: SubmitEvent) {
     e.preventDefault();

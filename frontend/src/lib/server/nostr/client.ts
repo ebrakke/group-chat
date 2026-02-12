@@ -1,5 +1,5 @@
 import WebSocket from 'ws';
-import { SimplePool, Event, EventTemplate, finalizeEvent, nip42 } from 'nostr-tools';
+import { SimplePool, finalizeEvent, nip42, type Event, type EventTemplate } from 'nostr-tools';
 
 export interface NostrClientConfig {
   relayUrl: string;

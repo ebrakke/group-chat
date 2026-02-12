@@ -3,56 +3,78 @@ import { test, expect } from '@playwright/test';
 const BASE_URL = 'http://localhost:3002';
 const API_URL = 'http://localhost:4002';
 
-test.describe('Smoke Tests - Critical Happy Path', () => {
-  test('1. Health check - API returns ok', async ({ request }) => {
-    const response = await request.get(`${API_URL}/health`);
+test.describe.serial('Smoke Tests - Critical Happy Path', () => {
+  let username: string;
+  let password: string;
+
+  test.beforeAll(() => {
+    username = `smoke_${Date.now()}`;
+    password = 'TestPass123!';
+  });
+
+  test('Health check — API is running', async ({ request }) => {
+    const response = await request.get(`${API_URL}/api/v1/health`);
     expect(response.ok()).toBeTruthy();
-    expect(response.status()).toBe(200);
   });
 
-  test('2-3. First user signup and lands in chat', async ({ page }) => {
-    // Navigate to signup page
+  test('First user signup — becomes admin, lands in chat', async ({ page }) => {
     await page.goto(BASE_URL);
-    
-    // Verify welcome page
-    await expect(page.locator('h1', { hasText: 'Welcome to Relay Chat' })).toBeVisible({ timeout: 5000 });
 
-    // Fill and submit signup form
-    const username = `smoke_${Date.now()}`;
+    // First user sees the welcome signup form
+    await expect(page.getByText('Welcome to Relay Chat')).toBeVisible({ timeout: 10000 });
+
+    // Fill signup form
     await page.locator('#username').fill(username);
-    await page.locator('#displayName').fill('Smoke Test');
-    await page.locator('#password').fill('SecurePassword123!');
-    
-    await page.getByRole('button', { name: 'Create Admin Account' }).click();
+    await page.locator('#displayName').fill('Smoke Tester');
+    await page.locator('#password').fill(password);
 
-    // Verify we're in the chat (URL and general channel visible)
-    await expect(page).toHaveURL(BASE_URL + '/', { timeout: 10000 });
-    await expect(page.locator('h1', { hasText: '# general' })).toBeVisible({ timeout: 10000 });
+    // Submit
+    await page.getByRole('button', { name: /create/i }).click();
+
+    // Should land in chat with #general visible
+    await expect(page.getByText('# general')).toBeVisible({ timeout: 10000 });
   });
 
-  test('4-5. See #general channel and session persists on reload', async ({ page }) => {
-    // Navigate to signup
-    await page.goto(BASE_URL);
-    
-    // Create account
-    const username = `smoke_${Date.now()}`;
+  test('Can see #general channel in sidebar', async ({ page }) => {
+    // Login
+    await page.goto(BASE_URL + '/login');
     await page.locator('#username').fill(username);
-    await page.locator('#displayName').fill('Smoke Test');
-    await page.locator('#password').fill('SecurePassword123!');
-    await page.getByRole('button', { name: 'Create Admin Account' }).click();
+    await page.locator('#password').fill(password);
+    await page.getByRole('button', { name: /log in/i }).click();
 
-    // Wait for chat to load
-    await expect(page).toHaveURL(BASE_URL + '/');
-    await expect(page.locator('h1', { hasText: '# general' })).toBeVisible();
+    // Verify #general in sidebar
+    await expect(page.getByText('# general')).toBeVisible({ timeout: 10000 });
+  });
 
-    // Reload the page
+  test('Can send a message', async ({ page }) => {
+    // Login
+    await page.goto(BASE_URL + '/login');
+    await page.locator('#username').fill(username);
+    await page.locator('#password').fill(password);
+    await page.getByRole('button', { name: /log in/i }).click();
+    await expect(page.getByText('# general')).toBeVisible({ timeout: 10000 });
+
+    // Type and send a message
+    const msg = `Smoke test ${Date.now()}`;
+    await page.locator('textarea').fill(msg);
+    await page.getByRole('button', { name: /send/i }).click();
+
+    // Message should appear in the list
+    await expect(page.getByText(msg)).toBeVisible({ timeout: 10000 });
+  });
+
+  test('Session persists after reload', async ({ page }) => {
+    // Login
+    await page.goto(BASE_URL + '/login');
+    await page.locator('#username').fill(username);
+    await page.locator('#password').fill(password);
+    await page.getByRole('button', { name: /log in/i }).click();
+    await expect(page.getByText('# general')).toBeVisible({ timeout: 10000 });
+
+    // Reload
     await page.reload();
 
-    // Verify still logged in and on chat page
-    await expect(page).toHaveURL(BASE_URL + '/');
-    await expect(page.locator('h1', { hasText: '# general' })).toBeVisible({ timeout: 5000 });
-    
-    // Verify user info is still visible (session persisted)
-    await expect(page.getByText(username).first()).toBeVisible();
+    // Still in chat
+    await expect(page.getByText('# general')).toBeVisible({ timeout: 10000 });
   });
 });

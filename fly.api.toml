@@ -1,0 +1,46 @@
+# fly.toml - relay-chat-api
+app = "relay-chat-api"
+primary_region = "iad"
+
+[build]
+  dockerfile = "api/Dockerfile"
+
+[env]
+  PORT = "4000"
+  DATABASE_PATH = "/data/relay-chat.db"
+  RELAY_URL = "ws://relay-chat-relay.flycast:3334"
+  BLOSSOM_URL = "http://relay-chat-blossom.flycast:3000"
+  FRONTEND_URL = "http://relay-chat-frontend.flycast:8080"
+  PUBLIC_URL = "https://chat.brakke.cc"
+  INVITE_REQUIRED = "true"
+  MAX_UPLOAD_SIZE = "52428800"
+
+# Secrets to set via `fly secrets set`:
+# SESSION_SECRET=<random-64-char-string>
+# KEY_ENCRYPTION_SECRET=<random-64-char-string>
+# SERVER_PRIVKEY=<nostr-private-key-hex>
+
+[http_service]
+  internal_port = 4000
+  force_https = false
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+  [[http_service.checks]]
+    interval = "15s"
+    timeout = "5s"
+    grace_period = "10s"
+    method = "GET"
+    path = "/health"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
+  cpus = 1
+
+[mounts]
+  source = "api_data"
+  destination = "/data"
+  initial_size = "1gb"

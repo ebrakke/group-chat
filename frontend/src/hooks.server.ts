@@ -1,15 +1,15 @@
 import type { Handle } from '@sveltejs/kit';
 
-const API_URL = process.env.API_URL || 'http://api:4000';
+// Fly.io uses .flycast internal DNS for service-to-service communication
+const API_URL = process.env.API_URL || 'http://relay-chat-api.flycast:4000';
 
 export const handle: Handle = async ({ event, resolve }) => {
   const { url, request } = event;
 
-  // Proxy API requests
+  // Proxy API requests to internal API service
   if (url.pathname.startsWith('/api/')) {
     const targetUrl = `${API_URL}${url.pathname}${url.search}`;
     
-    // Forward all headers except host
     const headers = new Headers(request.headers);
     headers.delete('host');
     headers.delete('connection');
@@ -17,13 +17,13 @@ export const handle: Handle = async ({ event, resolve }) => {
     const proxyRequest = new Request(targetUrl, {
       method: request.method,
       headers,
-      body: request.method !== 'GET' && request.method !== 'HEAD' ? await request.arrayBuffer() : undefined,
+      body: request.method !== 'GET' && request.method !== 'HEAD' 
+        ? await request.arrayBuffer() 
+        : undefined,
     });
     
     try {
       const response = await fetch(proxyRequest);
-      
-      // Create response with appropriate headers
       const responseHeaders = new Headers(response.headers);
       responseHeaders.delete('connection');
       
@@ -41,18 +41,29 @@ export const handle: Handle = async ({ event, resolve }) => {
     }
   }
 
-  // For WebSocket upgrade requests on /ws path
+  // Proxy WebSocket upgrade requests to API service
   if (url.pathname === '/ws') {
-    // SvelteKit doesn't handle WebSocket upgrades in hooks, 
-    // but we need to handle this at the reverse proxy level (nginx/caddy)
-    // or use a separate WebSocket endpoint
-    // For now, return an error to guide proper configuration
-    return new Response('WebSocket upgrade must be handled by reverse proxy', {
-      status: 426,
-      headers: { 'Upgrade': 'WebSocket' },
+    const targetUrl = `${API_URL}/ws${url.search}`;
+    
+    // Forward WebSocket upgrade to API service
+    const headers = new Headers(request.headers);
+    headers.delete('host');
+    
+    const wsRequest = new Request(targetUrl, {
+      method: request.method,
+      headers,
+      duplex: 'half',
     });
+    
+    try {
+      return await fetch(wsRequest);
+    } catch (error) {
+      console.error('WebSocket proxy error:', error);
+      return new Response('WebSocket upgrade failed', {
+        status: 502,
+      });
+    }
   }
 
-  // Continue with normal SvelteKit rendering
   return resolve(event);
 };

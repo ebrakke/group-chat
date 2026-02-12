@@ -1,7 +1,6 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { onMount, onDestroy } from 'svelte';
-  import { marked } from 'marked';
   import { fetchChannels, fetchMessages, sendMessage, editMessage, deleteMessage, fetchCurrentUser, checkHasUsers, addReaction, removeReaction, type Message, type Channel, type User, type UploadResult } from '$lib/api';
   import { ChatWebSocket } from '$lib/websocket';
   import ThreadPanel from '$lib/components/ThreadPanel.svelte';
@@ -9,6 +8,9 @@
   import FileUpload from '$lib/components/FileUpload.svelte';
   import ChannelModal from '$lib/components/ChannelModal.svelte';
   import ImageModal from '$lib/components/ImageModal.svelte';
+  import { formatTimestamp, getInitials, formatFileSize, isImage } from '$lib/utils/formatting';
+  import { renderMarkdown } from '$lib/utils/markdown';
+  import { SCROLL_THRESHOLD } from '$lib/utils/constants';
   
   let loading = $state(true);
   let isFirstUser = $state(false);
@@ -402,7 +404,7 @@
     if (!messagesContainer) return;
     
     const { scrollTop, scrollHeight, clientHeight } = messagesContainer;
-    const isAtBottom = scrollHeight - scrollTop - clientHeight < 100;
+    const isAtBottom = scrollHeight - scrollTop - clientHeight < SCROLL_THRESHOLD;
     
     shouldAutoScroll = isAtBottom;
     showScrollButton = !isAtBottom;
@@ -447,27 +449,6 @@
   
   function canDelete(message: Message): boolean {
     return user?.id === message.author.id || user?.role === 'admin';
-  }
-  
-  function formatTimestamp(timestamp: string): string {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const isToday = date.toDateString() === now.toDateString();
-    
-    if (isToday) {
-      return date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-    } else {
-      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' ' +
-        date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-    }
-  }
-  
-  function renderMarkdown(content: string): string {
-    return marked(content, { breaks: true }) as string;
-  }
-  
-  function getInitials(name: string): string {
-    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   }
   
   // Thread functions

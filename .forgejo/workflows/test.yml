@@ -47,7 +47,9 @@ jobs:
 
   # E2E Test Job - Desktop and Mobile
   e2e-tests:
-    runs-on: host
+    runs-on: docker
+    container:
+      image: docker:latest
     needs: build-and-test
     strategy:
       fail-fast: false
@@ -60,20 +62,19 @@ jobs:
             width: 390
             height: 844
     steps:
+      - name: Install dependencies
+        run: |
+          apk add --no-cache nodejs npm git chromium nss freetype harfbuzz ca-certificates ttf-freefont
+
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
 
       - name: Install Playwright dependencies
         run: |
           cd tests/e2e
           npm ci
-          npx playwright install --with-deps chromium
+        env:
+          PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH: /usr/bin/chromium-browser
 
       - name: Start development environment
         run: |
@@ -96,6 +97,7 @@ jobs:
           VIEWPORT_WIDTH: ${{ matrix.viewport.width }}
           VIEWPORT_HEIGHT: ${{ matrix.viewport.height }}
           VIEWPORT_NAME: ${{ matrix.viewport.name }}
+          PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH: /usr/bin/chromium-browser
 
       - name: Upload test results (${{ matrix.viewport.name }})
         if: always()

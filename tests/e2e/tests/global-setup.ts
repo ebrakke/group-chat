@@ -5,10 +5,15 @@ import path from 'path';
 const exec = promisify(execCallback);
 
 async function globalSetup() {
+  // In CI, docker-compose starts fresh (down -v + up --build), so no cleanup needed
+  if (process.env.CI) {
+    console.log('🧹 CI detected — skipping local cleanup (fresh containers)');
+    return;
+  }
+
   console.log('🧹 Cleaning up test environment...');
   
-  // Detect repo root: in CI it's cwd, locally it might be different
-  const repoRoot = process.env.CI ? process.cwd() : path.resolve(__dirname, '../../..');
+  const repoRoot = path.resolve(__dirname, '../../..');
   
   try {
     // Reset the frontend database by removing it and restarting the container

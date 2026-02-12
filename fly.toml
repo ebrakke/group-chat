@@ -1,0 +1,51 @@
+# Unified Relay Chat app (Frontend + API + Caddy)
+app = "relay-chat"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile.fly"
+
+[env]
+  # API configuration
+  PORT = "4000"
+  DATABASE_PATH = "/data/relay-chat.db"
+  RELAY_URL = "ws://relay-chat-relay.internal:3334"
+  BLOSSOM_URL = "http://relay-chat-blossom.internal:3000"
+  PUBLIC_URL = "https://chat.brakke.cc"
+  INVITE_REQUIRED = "true"
+  MAX_UPLOAD_SIZE = "52428800"
+  
+  # Frontend configuration
+  API_URL = "http://localhost:4000"
+  VITE_API_URL = ""
+  VITE_WS_URL = "/ws"
+
+# Secrets to set via `fly secrets set`:
+# SESSION_SECRET=<random-64-char-string>
+# KEY_ENCRYPTION_SECRET=<random-64-char-string>
+# SERVER_PRIVKEY=<nostr-private-key-hex>
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+  [[http_service.checks]]
+    interval = "15s"
+    timeout = "5s"
+    grace_period = "10s"
+    method = "GET"
+    path = "/health"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
+  cpus = 1
+
+[mounts]
+  source = "relay_chat_data"
+  destination = "/data"
+  initial_size = "1gb"

@@ -1,0 +1,47 @@
+# Multi-stage build for unified Relay Chat app (Frontend + API + Caddy)
+FROM node:22-alpine AS build-frontend
+WORKDIR /app/frontend
+COPY frontend/package*.json ./
+RUN npm ci
+COPY frontend/ .
+ARG VITE_API_URL=""
+ENV VITE_API_URL=${VITE_API_URL}
+RUN npm run build
+
+FROM node:22-alpine AS build-api
+WORKDIR /app/api
+COPY api/package*.json ./
+RUN npm ci
+COPY api/ .
+RUN npm run build
+
+# Final runtime image
+FROM node:22-alpine
+WORKDIR /app
+
+# Install Caddy
+RUN apk add --no-cache caddy
+
+# Create /data directory for SQLite database
+RUN mkdir -p /data && chown -R node:node /data
+
+# Copy frontend build
+COPY --from=build-frontend /app/frontend/build ./frontend/build
+COPY --from=build-frontend /app/frontend/package*.json ./frontend/
+RUN cd frontend && npm ci --omit=dev
+
+# Copy API build
+COPY --from=build-api /app/api/dist ./api/dist
+COPY --from=build-api /app/api/package*.json ./api/
+RUN cd api && npm ci --omit=dev
+
+# Copy Caddyfile and start script
+COPY Caddyfile.fly /etc/caddy/Caddyfile
+COPY start.sh /app/start.sh
+RUN chmod +x /app/start.sh
+
+# Expose Fly's expected port
+EXPOSE 8080
+
+# Run everything via start script
+CMD ["/app/start.sh"]

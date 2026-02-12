@@ -1,0 +1,24 @@
+:8080 {
+	# WebSocket upgrade for /ws
+	@websocket {
+		path /ws
+		header Connection *Upgrade*
+		header Upgrade websocket
+	}
+	reverse_proxy @websocket localhost:4000
+
+	# API routes
+	handle /api/* {
+		reverse_proxy localhost:4000
+	}
+
+	# Health check (pass through to API)
+	handle /health {
+		reverse_proxy localhost:4000
+	}
+
+	# Everything else goes to frontend
+	handle {
+		reverse_proxy localhost:3000
+	}
+}

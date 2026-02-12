@@ -1,7 +1,7 @@
 import type { Handle } from '@sveltejs/kit';
 
-// Fly.io uses .flycast internal DNS for service-to-service communication
-const API_URL = process.env.API_URL || 'http://relay-chat-api.flycast:4000';
+// In unified deployment, API runs on localhost:4000 (same container)
+const API_URL = process.env.API_URL || 'http://localhost:4000';
 
 export const handle: Handle = async ({ event, resolve }) => {
   const { url, request } = event;

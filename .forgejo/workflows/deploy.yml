@@ -151,8 +151,6 @@ jobs:
       - name: Install flyctl
         run: |
           curl -L https://fly.io/install.sh | sh
-          echo "$HOME/.fly/bin" >> $GITHUB_PATH
-          # Also add to current PATH for this step
           export PATH="$HOME/.fly/bin:$PATH"
           flyctl version
 

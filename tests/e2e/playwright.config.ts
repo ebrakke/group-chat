@@ -3,7 +3,27 @@ import { defineConfig, devices } from '@playwright/test';
 /**
  * Playwright configuration for Relay Chat e2e tests
  * Targets the dev environment running on ports 3002 (frontend) and 4002 (API)
+ * 
+ * Supports viewport configuration via environment variables:
+ * - VIEWPORT_WIDTH, VIEWPORT_HEIGHT: Custom viewport size
+ * - VIEWPORT_NAME: desktop or mobile (for CI matrix testing)
  */
+
+// Determine viewport configuration from environment variables
+const viewportWidth = process.env.VIEWPORT_WIDTH ? parseInt(process.env.VIEWPORT_WIDTH) : 1280;
+const viewportHeight = process.env.VIEWPORT_HEIGHT ? parseInt(process.env.VIEWPORT_HEIGHT) : 720;
+const viewportName = process.env.VIEWPORT_NAME || 'desktop';
+
+// Configure device emulation for mobile viewport
+const isMobile = viewportName === 'mobile';
+const deviceConfig = isMobile ? {
+  ...devices['iPhone 12'],
+  viewport: { width: viewportWidth, height: viewportHeight },
+} : {
+  ...devices['Desktop Chrome'],
+  viewport: { width: viewportWidth, height: viewportHeight },
+};
+
 export default defineConfig({
   testDir: './tests',
   fullyParallel: false, // Run tests serially to avoid database conflicts
@@ -25,8 +45,8 @@ export default defineConfig({
 
   projects: [
     {
-      name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      name: `chromium-${viewportName}`,
+      use: deviceConfig,
     },
   ],
 

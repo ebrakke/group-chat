@@ -5,6 +5,10 @@ on:
     branches:
       - master
       - main
+  pull_request:
+    branches:
+      - master
+      - main
 
 jobs:
   # Build and Test Job
@@ -45,10 +49,20 @@ jobs:
           cd frontend
           npx tsc --noEmit
 
-  # E2E Test Job
+  # E2E Test Job - Desktop and Mobile
   e2e-tests:
     runs-on: docker
     needs: build-and-test
+    strategy:
+      fail-fast: false
+      matrix:
+        viewport:
+          - name: desktop
+            width: 1280
+            height: 720
+          - name: mobile
+            width: 390
+            height: 844
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -76,39 +90,60 @@ jobs:
           # Check if services are running
           docker ps | grep relay-chat || true
 
-      - name: Run Playwright e2e tests
+      - name: Run Playwright e2e tests (${{ matrix.viewport.name }})
         run: |
           cd tests/e2e
           npm run test
         env:
           CI: true
+          VIEWPORT_WIDTH: ${{ matrix.viewport.width }}
+          VIEWPORT_HEIGHT: ${{ matrix.viewport.height }}
+          VIEWPORT_NAME: ${{ matrix.viewport.name }}
 
-      - name: Upload test results
+      - name: Upload test results (${{ matrix.viewport.name }})
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-test-results
+          name: playwright-test-results-${{ matrix.viewport.name }}
           path: tests/e2e/test-results/
           retention-days: 7
 
-      - name: Upload test report
+      - name: Upload test report (${{ matrix.viewport.name }})
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report
+          name: playwright-report-${{ matrix.viewport.name }}
           path: tests/e2e/playwright-report/
           retention-days: 7
+
+      - name: Upload screenshots on failure (${{ matrix.viewport.name }})
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-screenshots-${{ matrix.viewport.name }}
+          path: tests/e2e/test-results/**/*.png
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Upload traces on failure (${{ matrix.viewport.name }})
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-traces-${{ matrix.viewport.name }}
+          path: tests/e2e/test-results/**/*.zip
+          retention-days: 7
+          if-no-files-found: ignore
 
       - name: Cleanup
         if: always()
         run: |
           docker compose -f docker-compose.dev.yml down -v || true
 
-  # Deploy to Fly.io
+  # Deploy to Fly.io (only on push to master/main, not on PRs)
   deploy-fly:
     runs-on: docker
     needs: e2e-tests
-    if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main')
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

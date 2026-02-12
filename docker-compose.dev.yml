@@ -1,8 +1,19 @@
 services:
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "3001:3000"
+    volumes:
+      - ./Caddyfile.dev:/etc/caddy/Caddyfile:ro
+      - dev-caddy-data:/data
+      - dev-caddy-config:/config
+    depends_on:
+      - frontend
+      - api
+    restart: unless-stopped
+
   frontend:
     build: ./frontend
-    ports:
-      - "3002:3000"
     environment:
       - API_URL=http://api:4000
       - VITE_API_URL=
@@ -53,3 +64,5 @@ volumes:
   dev-api-data:
   dev-relay-data:
   dev-blossom-data:
+  dev-caddy-data:
+  dev-caddy-config:

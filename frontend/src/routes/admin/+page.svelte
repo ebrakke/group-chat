@@ -1,10 +1,11 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { onMount } from 'svelte';
+  import type { User, Invite } from '$lib/types/api';
   
   let loading = $state(true);
-  let user: any = $state(null);
-  let invites: any[] = $state([]);
+  let user: User | null = $state(null);
+  let invites: Invite[] = $state([]);
   let generatingInvite = $state(false);
   let error = $state('');
   

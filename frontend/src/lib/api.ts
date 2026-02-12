@@ -1,36 +1,9 @@
+import type { User, Message, Channel, ThreadResponse, UploadResult, HasUsersResponse } from './types/api';
+
 const API_URL = import.meta.env.VITE_API_URL || '';
 
-export interface User {
-  id: string;
-  username: string;
-  displayName: string;
-  nostrPubkey: string;
-  role: 'admin' | 'member';
-}
-
-export interface Message {
-  id: string;
-  channelId: string;
-  author: {
-    id: string;
-    username: string;
-    displayName: string;
-    nostrPubkey: string;
-  };
-  content: string;
-  attachments: any[];
-  reactions: Record<string, string[]>;
-  threadCount: number;
-  createdAt: string;
-  editedAt: string | null;
-}
-
-export interface Channel {
-  id: string;
-  name: string;
-  description: string;
-  memberCount: number;
-}
+// Re-export types for convenience
+export type { User, Message, Channel, ThreadResponse, UploadResult } from './types/api';
 
 function getAuthHeaders(): HeadersInit {
   const token = localStorage.getItem('token');
@@ -69,7 +42,7 @@ export async function fetchMessages(channelId: string, limit: number = 50, befor
   return response.json();
 }
 
-export async function sendMessage(channelId: string, content: string, attachments?: any[]): Promise<Message> {
+export async function sendMessage(channelId: string, content: string, attachments?: UploadResult[]): Promise<Message> {
   const response = await fetch(`${API_URL}/api/v1/channels/${channelId}/messages`, {
     method: 'POST',
     headers: getAuthHeaders(),
@@ -132,16 +105,11 @@ export async function checkHasUsers(): Promise<boolean> {
     return true;
   }
   
-  const data = await response.json();
+  const data: HasUsersResponse = await response.json();
   return data.hasUsers;
 }
 
 // Thread API
-
-export interface ThreadResponse {
-  root: Message;
-  replies: Message[];
-}
 
 export async function fetchThread(messageId: string): Promise<ThreadResponse> {
   const response = await fetch(`${API_URL}/api/v1/messages/${messageId}/thread`, {
@@ -199,14 +167,6 @@ export async function removeReaction(messageId: string, emoji: string): Promise<
 }
 
 // Upload API
-
-export interface UploadResult {
-  url: string;
-  sha256: string;
-  size: number;
-  mimeType: string;
-  filename: string;
-}
 
 export async function uploadFile(file: File, onProgress?: (percent: number) => void): Promise<UploadResult> {
   const token = localStorage.getItem('token');

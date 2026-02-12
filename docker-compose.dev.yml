@@ -1,18 +1,21 @@
 services:
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.dev
     ports:
-      - "3002:3000"
+      - "3002:5173"
     environment:
       - VITE_API_URL=
-      - VITE_WS_URL=/ws
       - RELAY_URL=ws://relay:3334
     volumes:
-      # Mount source for hot-reload during development (no rebuild needed)
-      - ./frontend/src:/app/src:ro
-      - ./frontend/static:/app/static:ro
+      - ./frontend/src:/app/src
+      - ./frontend/static:/app/static
+      - ./frontend/svelte.config.js:/app/svelte.config.js
+      - ./frontend/vite.config.ts:/app/vite.config.ts
+      - ./frontend/tsconfig.json:/app/tsconfig.json
     depends_on:
-      - api
+      - relay
 
   api:
     build: ./api

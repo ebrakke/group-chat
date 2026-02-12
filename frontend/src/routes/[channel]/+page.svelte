@@ -11,14 +11,9 @@
   
   let { data }: { data: PageData } = $props();
   
-  // Server-loaded data
-  let messages = $state(data.messages);
-  const channel = data.channel;
-  const user = data.user;
-  
-  // Use the actual channel ID from the loaded data, not the URL param (which is the name)
-  const channelId = $derived(channel.id);
-  const channelName = $derived($page.params.channel);
+  // Messages state - needs to be mutable for WebSocket updates
+  // Initialize from data.messages to ensure correct initial state
+  let messages = $state<Message[]>(data.messages);
   
   // Local UI state
   let messageInput = $state('');
@@ -48,9 +43,13 @@
   let showMessageActions: string | null = $state(null);
   
   // Subscribe to WebSocket events for this channel
+  // Re-subscribes when channel changes (cleanup runs automatically)
   $effect(() => {
+    // Capture channelId to ensure effect re-runs when it changes
+    const currentChannelId = data.channel.id;
+    
     const handleNewMessage = (event: any) => {
-      if (event.message?.channelId === channelId) {
+      if (event.message?.channelId === currentChannelId) {
         messages = [...messages, event.message];
         if (shouldAutoScroll) {
           setTimeout(scrollToBottom, 100);
@@ -89,7 +88,7 @@
     websocket.on('reaction.added', handleReaction);
     websocket.on('reaction.removed', handleReaction);
     
-    // Cleanup when channel changes
+    // Cleanup when channel changes or component unmounts
     return () => {
       websocket.off('message.new', handleNewMessage);
       websocket.off('message.updated', handleUpdatedMessage);
@@ -138,7 +137,7 @@
     attachments = [];
     
     try {
-      await sendMessage(channelId, content, currentAttachments);
+      await sendMessage(data.channel.id, content, currentAttachments);
       // Message will be added via WebSocket
     } catch (err: any) {
       console.error('Failed to send message:', err);
@@ -159,15 +158,15 @@
   }
   
   function openThread(messageId: string) {
-    goto(`/${channelName}/thread/${messageId}`);
+    goto(`/${$page.params.channel}/thread/${messageId}`);
   }
   
   function canEdit(message: Message): boolean {
-    return message.author.id === user?.id;
+    return message.author.id === data.user?.id;
   }
   
   function canDelete(message: Message): boolean {
-    return message.author.id === user?.id || user?.role === 'admin';
+    return message.author.id === data.user?.id || data.user?.role === 'admin';
   }
   
   function startEdit(message: Message) {
@@ -230,9 +229,9 @@
   
   async function handleReactionClick(messageId: string, emoji: string) {
     const message = messages.find(m => m.id === messageId);
-    if (!message || !user) return;
+    if (!message || !data.user) return;
     
-    const hasReacted = message.reactions[emoji]?.includes(user.id);
+    const hasReacted = message.reactions[emoji]?.includes(data.user.id);
     
     try {
       if (hasReacted) {
@@ -290,6 +289,7 @@
   }
 </script>
 
+{#key $page.url.pathname}
 <div class="flex flex-col h-full">
   <!-- Header -->
   <header class="border-b bg-white px-4 md:px-6 py-3 md:py-4">
@@ -308,10 +308,10 @@
       
       <div class="flex-1 min-w-0">
         <h1 class="text-base md:text-lg font-semibold text-gray-900 truncate">
-          # {channel.name}
+          # {data.channel.name}
         </h1>
         <p class="text-sm text-gray-500 truncate hidden md:block">
-          {channel.description}
+          {data.channel.description}
         </p>
       </div>
     </div>
@@ -408,7 +408,7 @@
                   {#each Object.entries(message.reactions) as [emoji, userIds]}
                     <button
                       onclick={() => handleReactionClick(message.id, emoji)}
-                      class="inline-flex items-center gap-1 px-2 py-1 rounded-full text-sm border transition-colors {userIds.includes(user?.id || '') ? 'bg-blue-100 border-blue-300 text-blue-900' : 'bg-gray-100 border-gray-300 text-gray-700 hover:bg-gray-200'}"
+                      class="inline-flex items-center gap-1 px-2 py-1 rounded-full text-sm border transition-colors {userIds.includes(data.user?.id || '') ? 'bg-blue-100 border-blue-300 text-blue-900' : 'bg-gray-100 border-gray-300 text-gray-700 hover:bg-gray-200'}"
                     >
                       <span>{emoji}</span>
                       <span class="text-xs font-medium">{userIds.length}</span>
@@ -490,7 +490,7 @@
           <textarea
             bind:value={messageInput}
             onkeydown={handleKeyDown}
-            placeholder="Message #{channel.name}"
+            placeholder="Message #{data.channel.name}"
             disabled={sendingMessage}
             class="w-full rounded-md border border-gray-300 px-3 md:px-4 py-2.5 md:py-2 text-base shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100 resize-none"
             rows="1"
@@ -507,6 +507,7 @@
     </form>
   </div>
 </div>
+{/key}
 
 <!-- Emoji Picker -->
 {#if showEmojiPicker}

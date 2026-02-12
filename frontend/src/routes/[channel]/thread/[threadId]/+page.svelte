@@ -8,21 +8,22 @@
   
   let { data }: { data: PageData } = $props();
   
-  const channelName = $derived($page.params.channel);
-  const threadId = $derived($page.params.threadId);
-  
-  let replies = $state(data.replies);
-  const parentMessage = data.parentMessage;
-  const user = data.user;
+  // Replies state - needs to be mutable for WebSocket updates
+  // Initialize from data.replies to ensure correct initial state
+  let replies = $state<any[]>(data.replies);
   
   let replyInput = $state('');
   let sendingReply = $state(false);
   let alsoSendToChannel = $state(false);
   
   // Subscribe to new thread replies
+  // Re-subscribes when threadId changes (cleanup runs automatically)
   $effect(() => {
+    // Capture threadId to ensure effect re-runs when it changes
+    const currentThreadId = $page.params.threadId;
+    
     const handleThreadReply = (event: any) => {
-      if (event.parentId === threadId && event.message) {
+      if (event.parentId === currentThreadId && event.message) {
         // Avoid duplicates
         if (!replies.find(r => r.id === event.message.id)) {
           replies = [...replies, event.message];
@@ -38,7 +39,7 @@
   });
   
   function closeThread() {
-    goto(`/${channelName}`);
+    goto(`/${$page.params.channel}`);
   }
   
   async function handleSendReply(e: SubmitEvent) {
@@ -53,7 +54,7 @@
     replyInput = '';
     
     try {
-      await replyInThread(threadId, content, alsoSendToChannel);
+      await replyInThread($page.params.threadId, content, alsoSendToChannel);
       alsoSendToChannel = false;
       // Reply will be added via WebSocket
     } catch (err: any) {
@@ -100,6 +101,7 @@
   }
 </script>
 
+{#key $page.url.pathname}
 <div class="flex flex-col h-full bg-white">
   <!-- Header -->
   <header class="border-b p-4 flex items-center gap-2">
@@ -123,16 +125,16 @@
       <div class="flex gap-3">
         <div class="flex-shrink-0">
           <div class="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white text-sm font-medium">
-            {getInitials(parentMessage.author.displayName)}
+            {getInitials(data.parentMessage.author.displayName)}
           </div>
         </div>
         <div class="flex-1">
           <div class="flex items-baseline gap-2 mb-1">
-            <span class="font-semibold text-gray-900">{parentMessage.author.displayName}</span>
-            <span class="text-xs text-gray-500">{formatTimestamp(parentMessage.createdAt)}</span>
+            <span class="font-semibold text-gray-900">{data.parentMessage.author.displayName}</span>
+            <span class="text-xs text-gray-500">{formatTimestamp(data.parentMessage.createdAt)}</span>
           </div>
           <div class="prose prose-sm max-w-none text-gray-800">
-            {@html renderMarkdown(parentMessage.content)}
+            {@html renderMarkdown(data.parentMessage.content)}
           </div>
         </div>
       </div>
@@ -200,6 +202,7 @@
     </form>
   </div>
 </div>
+{/key}
 
 <style>
   :global(.prose) {

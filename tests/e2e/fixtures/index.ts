@@ -48,6 +48,7 @@ export class APIHelper {
         'Authorization': `Bearer ${token}`,
       },
       data: {
+        id: name, // Use name as ID (channel IDs should match names for path-based routing)
         name,
         description: description || `Channel ${name}`,
       },

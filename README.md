@@ -21,13 +21,13 @@ A self-hosted, private group chat app built on Nostr infrastructure. Think "Slac
 
 ```bash
 # Start all services (frontend with API, relay, blossom)
-docker-compose -f docker-compose.dev.yml up -d
+docker compose -f docker-compose.dev.yml up -d --build
 
 # View logs
-docker-compose -f docker-compose.dev.yml logs -f
+docker compose -f docker-compose.dev.yml logs -f
 
 # Stop services
-docker-compose -f docker-compose.dev.yml down
+docker compose -f docker-compose.dev.yml down
 ```
 
 Services will be available at:

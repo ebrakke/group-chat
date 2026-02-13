@@ -20,8 +20,7 @@ Comprehensive documentation for the end-to-end testing framework for Relay Chat.
 ## Overview
 
 The Relay Chat e2e test suite uses **Playwright** to test the full application stack:
-- **Frontend** (SvelteKit) on port 3002
-- **API** (Express + SQLite) on port 4002  
+- **App** (SvelteKit frontend + API routes) on port 3002 (`/api/v1/*`)
 - **Relay** (Nostr relay) on port 3336
 - **Blossom** (file storage) on port 3337
 
@@ -71,16 +70,16 @@ Tests verify the complete user experience, from signup to real-time messaging.
 ### Database Management
 
 **Location:**  
-- Container: `api`  
+- Container: `frontend`  
 - Path: `/data/relay-chat.db`  
-- Volume: `dev-api-data`
+- Volume: `dev-frontend-data`
 
 **Reset Strategy:**  
 1. `global-setup.ts` runs before all tests
-2. Deletes database files from the API container
-3. Restarts the API container
-4. Waits for health check to pass
-5. Tests run with fresh database
+2. Deletes database files from the **frontend** container
+3. Restarts the frontend container
+4. Waits for `/api/v1/health` to respond
+5. Tests run with a fresh database
 
 **Bootstrap Admin:**  
 - First user created has admin privileges
@@ -96,14 +95,14 @@ Tests verify the complete user experience, from signup to real-time messaging.
 
 ```bash
 # Start the dev environment
-cd /root/.openclaw/workspace-acid_burn/relay-chat
+cd ../..
 docker compose -f docker-compose.dev.yml up -d
 
 # Verify services are running
 docker compose -f docker-compose.dev.yml ps
 
 # Check API health
-curl http://localhost:4002/api/v1/health
+curl http://localhost:3002/api/v1/health
 ```
 
 ### Install Test Dependencies
@@ -549,7 +548,7 @@ jobs:
       
       - name: Wait for services
         run: |
-          timeout 60 bash -c 'until curl -f http://localhost:4002/api/v1/health; do sleep 2; done'
+          timeout 60 bash -c 'until curl -f http://localhost:3002/api/v1/health; do sleep 2; done'
       
       - name: Install test dependencies
         run: |

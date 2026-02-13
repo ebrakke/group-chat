@@ -5,7 +5,7 @@
  * Tests: signup, send message, fetch messages
  */
 
-const API_URL = process.argv[2] || 'http://localhost:4002';
+const API_URL = process.argv[2] || 'http://localhost:3002';
 
 const colors = {
   reset: '\x1b[0m',

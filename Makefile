@@ -1,16 +1,16 @@
-.PHONY: dev dev-down dev-reset prod prod-down prod-reset test test-e2e help
+.PHONY: dev dev-down dev-reset prod prod-down prod-reset test test-prod test-e2e help
 
 # Default target
 help:
 	@echo "Relay Chat - Development & Production Commands"
 	@echo ""
 	@echo "Development Commands:"
-	@echo "  make dev         - Start dev stack (ports 3002/4002)"
+	@echo "  make dev         - Start dev stack (ports 3002/3336/3337)"
 	@echo "  make dev-down    - Stop dev stack"
 	@echo "  make dev-reset   - Stop dev stack and wipe volumes"
 	@echo ""
 	@echo "Production Commands:"
-	@echo "  make prod        - Build and start production stack (ports 3000/4000)"
+	@echo "  make prod        - Build and start production stack (ports 3000/3334/3335)"
 	@echo "  make prod-down   - Stop production stack"
 	@echo "  make prod-reset  - Stop production stack and wipe volumes"
 	@echo ""
@@ -49,12 +49,12 @@ prod-reset:
 
 # Testing
 test:
-	@echo "🧪 Running messaging verification against dev stack (port 4002)..."
-	@node test-messaging.js http://localhost:4002
+	@echo "🧪 Running messaging verification against dev stack (http://localhost:3002)..."
+	@node test-messaging.js http://localhost:3002
 
 test-prod:
-	@echo "🧪 Running messaging verification against production stack (port 4000)..."
-	@node test-messaging.js http://localhost:4000
+	@echo "🧪 Running messaging verification against production stack (http://localhost:3000)..."
+	@node test-messaging.js http://localhost:3000
 
 test-e2e:
 	@echo "🎭 Running Playwright e2e tests..."

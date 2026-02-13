@@ -12,7 +12,7 @@ import { ChatPage } from '../fixtures/chat';
  * - Thread replies display correctly in chronological order
  */
 
-const API_URL = process.env.VITE_API_URL || 'http://localhost:4002';
+const API_URL = process.env.VITE_API_URL || 'http://localhost:3002';
 
 test.describe('Thread API Endpoint', () => {
   test('should load thread panel without errors', async ({ authenticatedPage }) => {

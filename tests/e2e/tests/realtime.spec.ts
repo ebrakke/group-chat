@@ -1,7 +1,7 @@
 import { test, expect, generateUsername } from '../fixtures';
 import { ChatPage } from '../pages/ChatPage';
 
-const API_URL = process.env.VITE_API_URL || 'http://localhost:4002';
+const API_URL = process.env.VITE_API_URL || 'http://localhost:3002';
 
 test.describe('Real-time Updates', () => {
   test('WebSocket connects on page load', async ({ memberUser }) => {

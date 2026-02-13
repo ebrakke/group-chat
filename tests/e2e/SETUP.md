@@ -11,7 +11,7 @@
 
 2. **Start the dev environment** (in a separate terminal):
    ```bash
-   cd /root/.openclaw/workspace-acid_burn/relay-chat
+   cd ../..
    make dev
    ```
 
@@ -33,11 +33,12 @@ tests/e2e/
 │   ├── auth.ts          # Auth helpers (signup, login, logout, tokens)
 │   └── chat.ts          # Chat page object model
 ├── tests/
-│   ├── 01-auth.spec.ts      # Authentication tests
-│   ├── 02-channels.spec.ts  # Channel navigation tests
-│   ├── 03-messaging.spec.ts # Messaging CRUD tests
-│   ├── 04-threads.spec.ts   # Thread reply tests
-│   └── 05-reactions.spec.ts # Emoji reaction tests
+│   ├── 01-smoke.spec.ts     # Smoke tests (fast sanity checks)
+│   ├── auth.spec.ts         # Authentication tests
+│   ├── channels.spec.ts     # Channel management tests
+│   ├── messaging.spec.ts    # Messaging CRUD tests
+│   ├── threads.spec.ts      # Threads / replies tests
+│   └── reactions.spec.ts    # Emoji reaction tests
 ├── package.json         # Playwright dependencies
 ├── playwright.config.ts # Playwright configuration
 ├── tsconfig.json        # TypeScript config
@@ -58,7 +59,7 @@ tests/e2e/
 ### Running Specific Tests
 ```bash
 # Run only auth tests
-npm test -- 01-auth.spec.ts
+npm test -- auth.spec.ts
 
 # Run with UI (interactive mode)
 npm run test:ui
@@ -67,7 +68,7 @@ npm run test:ui
 npm run test:headed
 
 # Debug a specific test
-npm run test:debug -- 03-messaging.spec.ts
+npm run test:debug -- messaging.spec.ts
 ```
 
 ### Writing New Tests
@@ -136,7 +137,7 @@ npx playwright install --with-deps chromium
 
 **Tests timeout:**
 - Check dev stack is running: `docker ps`
-- Verify ports: `curl http://localhost:3002` and `curl http://localhost:4002`
+- Verify ports: `curl http://localhost:3002` and `curl http://localhost:3002/api/v1/health`
 - Increase timeout in `playwright.config.ts`
 
 **Database conflicts:**

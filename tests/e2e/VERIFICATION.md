@@ -88,7 +88,7 @@
 
 - [x] **Makefile target added**: `make test-e2e`
 - [x] **Help text updated** in Makefile
-- [x] **Targets dev environment**: ports 3002 & 4002
+- [x] **Targets dev environment**: app on port 3002
 - [x] **No conflicts** with existing test commands
 
 ## 🧪 Pre-Flight Check

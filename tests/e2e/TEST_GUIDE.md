@@ -12,7 +12,7 @@ docker compose -f docker-compose.dev.yml up -d --build
 
 # Wait for services to be ready
 curl http://localhost:3002  # Frontend
-curl http://localhost:4002/health  # API
+curl http://localhost:3002/api/v1/health  # API routes
 ```
 
 ### Run All Tests
@@ -363,7 +363,7 @@ jobs:
       - name: Wait for services
         run: |
           timeout 60 bash -c 'until curl -s http://localhost:3002; do sleep 2; done'
-          timeout 60 bash -c 'until curl -s http://localhost:4002/health; do sleep 2; done'
+          timeout 60 bash -c 'until curl -s http://localhost:3002/api/v1/health; do sleep 2; done'
       
       - name: Install dependencies
         working-directory: tests/e2e

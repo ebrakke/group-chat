@@ -78,7 +78,7 @@ npm test -- tests/auth.spec.ts  # Single file
 - ⚠️ Forgejo push failed (network issue - can sync manually)
 
 **Environment:**
-- ✅ Dev environment running (frontend :3002, API :4002)
+- ✅ Dev environment running (app :3002)
 - ✅ Dependencies installed (Playwright, TypeScript)
 - ✅ Framework verified (verify-setup.sh passed)
 - ⏳ Chromium install in progress (run manually if needed)

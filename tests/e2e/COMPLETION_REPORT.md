@@ -188,7 +188,7 @@ Total: ~3000 lines of code + ~1500 lines of docs
 Framework verified with `verify-setup.sh`:
 - ✅ Dependencies installed (Playwright, TypeScript)
 - ✅ File structure complete (19 files)
-- ✅ Dev environment running (frontend :3002, API :4002)
+- ✅ Dev environment running (app :3002)
 - ✅ Test execution works (Playwright runs, captures artifacts)
 
 ## Usage

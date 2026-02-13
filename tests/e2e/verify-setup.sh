@@ -48,7 +48,7 @@ echo ""
 echo "🌐 Checking dev environment..."
 
 FRONTEND_UP=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3002 || echo "000")
-API_UP=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:4002/health || echo "000")
+API_UP=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:3002/api/v1/health || echo "000")
 
 if [ "$FRONTEND_UP" = "200" ]; then
     echo "✅ Frontend is running (http://localhost:3002)"
@@ -58,10 +58,10 @@ else
 fi
 
 if [ "$API_UP" = "200" ]; then
-    echo "✅ API is running (http://localhost:4002)"
+    echo "✅ API routes are responding (http://localhost:3002/api/v1/health)"
 else
-    echo "⚠️  API not responding (expected 200, got $API_UP)"
-    echo "   Run: docker compose -f ../../docker-compose.dev.yml up -d"
+    echo "⚠️  API routes not responding (expected 200, got $API_UP)"
+    echo "   Run: docker compose -f ../../docker-compose.dev.yml up -d --build"
 fi
 
 # Check file structure
@@ -82,7 +82,7 @@ REQUIRED_FILES=(
     "tests/reactions.spec.ts"
     "tests/channels.spec.ts"
     "tests/realtime.spec.ts"
-    "tests/files.spec.ts"
+    "tests/file-uploads.spec.ts"
     "playwright.config.ts"
     "package.json"
     "README.md"

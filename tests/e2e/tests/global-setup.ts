@@ -12,13 +12,11 @@ const exec = promisify(execCallback);
  * Architecture Note:
  * - The frontend is a SvelteKit app that includes its own database and API routes
  * - Client-side requests go to the frontend (port 3002) which has /api/v1/* endpoints
- * - The database is in the frontend container at /app/relay-chat.db
- * - The separate "api" container (port 4002) exists but isn't used in this branch
+ * - The database is in the frontend container at /data/relay-chat.db
  * 
  * Database location:
  * - Container: frontend
- * - Path: /app/relay-chat.db (created at runtime, not in build/)
- * - Not in a volume (ephemeral across container restarts)
+ * - Path: /data/relay-chat.db (in mounted volume)
  * 
  * Reset strategy:
  * - Delete the database files from the frontend container
@@ -38,10 +36,9 @@ async function globalSetup() {
   
   try {
     // Reset the database by removing it from the frontend container
-    // The database is created at runtime in /app/ (not /app/build/)
     console.log('  → Removing database files from frontend container...');
     await exec(
-      `docker compose -f docker-compose.dev.yml exec -T frontend sh -c "rm -f /app/relay-chat.db /app/relay-chat.db-shm /app/relay-chat.db-wal /app/build/relay-chat.db /app/build/relay-chat.db-shm /app/build/relay-chat.db-wal"`, 
+      `docker compose -f docker-compose.dev.yml exec -T frontend rm -f /data/relay-chat.db /data/relay-chat.db-shm /data/relay-chat.db-wal`, 
       { cwd: repoRoot }
     );
     console.log('  ✓ Removed database files');

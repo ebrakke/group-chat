@@ -8,6 +8,7 @@ services:
     environment:
       - VITE_API_URL=
       - RELAY_URL=ws://relay:3334
+      - SERVER_PRIVKEY=27b272d8c82f77eafa45289ce75ca33be7d90d01eb5462f333d977b1ea8a2503
     volumes:
       - ./frontend/src:/app/src
       - ./frontend/static:/app/static

@@ -1,5 +1,5 @@
 import { test as base, expect } from '@playwright/test';
-import type { Page, APIRequestContext } from '@playwright/test';
+import type { Page, APIRequestContext, BrowserContext } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { AuthHelper, generateUsername } from './auth';
@@ -99,7 +99,7 @@ export class APIHelper {
    * Send a thread reply via API
    */
   async sendThreadReply(token: string, messageId: string, content: string) {
-    const response = await this.request.post(`${API_URL}/api/v1/messages/${messageId}/replies`, {
+    const response = await this.request.post(`${API_URL}/api/v1/messages/${messageId}/thread`, {
       headers: {
         'Authorization': `Bearer ${token}`,
       },
@@ -213,6 +213,29 @@ function saveBootstrapToDisk(username: string, password: string) {
   fs.writeFileSync(BOOTSTRAP_CACHE_FILE, JSON.stringify({ username, password }), 'utf-8');
 }
 
+async function establishSession(context: BrowserContext, page: Page, token: string, user: any) {
+  await context.addCookies([
+    {
+      name: 'token',
+      value: token,
+      domain: 'localhost',
+      path: '/',
+      sameSite: 'Lax',
+    },
+  ]);
+
+  await page.addInitScript(({ token, user }) => {
+    localStorage.setItem('token', token);
+    localStorage.setItem('user', JSON.stringify(user));
+  }, { token, user });
+
+  await page.goto(`${BASE_URL}/general`);
+  await page.waitForURL(/\/general/, { timeout: 10000 });
+  await expect(page.locator('textarea[placeholder*="Message"], textarea').first()).toBeVisible({ timeout: 10000 });
+  // Prevent hydration races where early clicks are ignored in freshly loaded pages
+  await page.waitForTimeout(300);
+}
+
 /**
  * Helper to ensure we have a valid bootstrap admin
  * This handles database resets by detecting invalid tokens and recreating the admin
@@ -318,11 +341,12 @@ export const test = base.extend<RelayFixtures>({
     const context = await browser.newContext();
     const page = await context.newPage();
 
-    // Login via UI to ensure frontend session state is established
-    const loginPage = new LoginPage(page);
-    await loginPage.goto();
-    await loginPage.login(bootstrap.username, bootstrap.password);
-    await page.waitForURL(BASE_URL + '/general', { timeout: 10000 });
+    await establishSession(
+      context,
+      page,
+      bootstrap.token,
+      { id: 'admin', username: bootstrap.username, displayName: 'Bootstrap Admin', role: 'admin', nostrPubkey: '' }
+    );
 
     const userContext: UserContext = {
       page,
@@ -362,11 +386,7 @@ export const test = base.extend<RelayFixtures>({
 
     const { token, user } = await api.signup(username, displayName, password, inviteCode);
 
-    // Login via UI to ensure frontend session state is established
-    const loginPage = new LoginPage(page);
-    await loginPage.goto();
-    await loginPage.login(username, password);
-    await page.waitForURL(BASE_URL + '/general', { timeout: 10000 });
+    await establishSession(context, page, token, user);
 
     const userContext: UserContext = {
       page,
@@ -402,10 +422,7 @@ export const test = base.extend<RelayFixtures>({
     const adminInvite = await createInviteIfRequired(api, bootstrap.token);
     const { token: adminToken, user: adminUser } = await api.signup(adminUsername, 'Admin User', adminPassword, adminInvite);
 
-    const adminLoginPage = new LoginPage(adminPage);
-    await adminLoginPage.goto();
-    await adminLoginPage.login(adminUsername, adminPassword);
-    await adminPage.waitForURL(BASE_URL + '/general', { timeout: 10000 });
+    await establishSession(adminContext, adminPage, adminToken, adminUser);
 
     // Create invite for member (from the new admin user)
     const inviteCode = await createInviteIfRequired(api, adminToken);
@@ -418,10 +435,7 @@ export const test = base.extend<RelayFixtures>({
     const memberPassword = 'memberpass123';
     const { token: memberToken, user: memberUser } = await api.signup(memberUsername, 'Member User', memberPassword, inviteCode);
 
-    const memberLoginPage = new LoginPage(memberPage);
-    await memberLoginPage.goto();
-    await memberLoginPage.login(memberUsername, memberPassword);
-    await memberPage.waitForURL(BASE_URL + '/general', { timeout: 10000 });
+    await establishSession(memberContext, memberPage, memberToken, memberUser);
 
     const adminUserContext: UserContext = {
       page: adminPage,

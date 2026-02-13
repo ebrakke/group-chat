@@ -4,7 +4,7 @@
   "description": "End-to-end tests for Relay Chat using Playwright",
   "scripts": {
     "test": "playwright test",
-    "test:ci": "playwright test tests/smoke.spec.ts",
+    "test:ci": "playwright test tests/01-smoke.spec.ts tests/06-critical-path.spec.ts tests/channels.spec.ts tests/messaging.spec.ts tests/threads.spec.ts tests/reactions.spec.ts",
     "test:headed": "playwright test --headed",
     "test:ui": "playwright test --ui",
     "test:debug": "playwright test --debug",

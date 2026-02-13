@@ -17,6 +17,9 @@ services:
       - SERVER_PRIVKEY=27b272d8c82f77eafa45289ce75ca33be7d90d01eb5462f333d977b1ea8a2503
     volumes:
       - dev-frontend-data:/data
+      # Mount source for hot-reload during development (no rebuild needed)
+      - ./frontend/src:/app/src:ro
+      - ./frontend/static:/app/static:ro
     depends_on:
       - relay
 

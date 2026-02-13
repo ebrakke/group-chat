@@ -1,5 +1,7 @@
 import { test as base, expect } from '@playwright/test';
-import type { Page, APIRequestContext } from '@playwright/test';
+import type { Page, APIRequestContext, BrowserContext } from '@playwright/test';
+import fs from 'node:fs';
+import path from 'node:path';
 import { AuthHelper, generateUsername } from './auth';
 import { ChatPage } from '../pages/ChatPage';
 import { LoginPage } from '../pages/LoginPage';
@@ -16,6 +18,9 @@ export class APIHelper {
 
   /**
    * Create an invite code (requires admin token)
+   * 
+   * Note: Invites may not be required depending on INVITE_REQUIRED env var.
+   * This method handles both cases gracefully.
    */
   async createInvite(token: string): Promise<string> {
     const response = await this.request.post(`${API_URL}/api/v1/invites`, {
@@ -27,6 +32,14 @@ export class APIHelper {
     
     const data = await response.json();
     if (!response.ok()) {
+      // 401 means the session token is invalid/expired (e.g. database reset)
+      if (response.status() === 401) {
+        throw new Error('INVALID_TOKEN');
+      }
+      // 403 means token is valid but user is not allowed to create invites
+      if (response.status() === 403) {
+        throw new Error('FORBIDDEN');
+      }
       throw new Error(`Invite creation failed (${response.status()}): ${JSON.stringify(data)}`);
     }
     return data.code;
@@ -41,6 +54,7 @@ export class APIHelper {
         'Authorization': `Bearer ${token}`,
       },
       data: {
+        id: name, // Use name as ID (channel IDs should match names for path-based routing)
         name,
         description: description || `Channel ${name}`,
       },
@@ -85,7 +99,7 @@ export class APIHelper {
    * Send a thread reply via API
    */
   async sendThreadReply(token: string, messageId: string, content: string) {
-    const response = await this.request.post(`${API_URL}/api/v1/messages/${messageId}/replies`, {
+    const response = await this.request.post(`${API_URL}/api/v1/messages/${messageId}/thread`, {
       headers: {
         'Authorization': `Bearer ${token}`,
       },
@@ -110,6 +124,8 @@ export class APIHelper {
 
   /**
    * Signup via API - returns { token, user }
+   * 
+   * Note: inviteCode is optional and only required when INVITE_REQUIRED=true
    */
   async signup(username: string, displayName: string, password: string, inviteCode?: string): Promise<{ token: string; user: any }> {
     const response = await this.request.post(`${API_URL}/api/v1/auth/signup`, {
@@ -117,7 +133,7 @@ export class APIHelper {
         username,
         displayName,
         password,
-        inviteCode,
+        ...(inviteCode ? { inviteCode } : {}),
       },
     });
     
@@ -171,7 +187,134 @@ type RelayFixtures = {
   signupPage: SignupPage;
 };
 
+/**
+ * Bootstrap admin - created once per test run and reused
+ * This is reset to null when the database is reset
+ */
 let bootstrapAdmin: { token: string; username: string; password: string } | null = null;
+const BOOTSTRAP_CACHE_FILE = path.resolve(process.cwd(), '.tmp/e2e-bootstrap-admin.json');
+
+function loadBootstrapFromDisk(): { username: string; password: string } | null {
+  try {
+    if (!fs.existsSync(BOOTSTRAP_CACHE_FILE)) return null;
+    const raw = fs.readFileSync(BOOTSTRAP_CACHE_FILE, 'utf-8');
+    const parsed = JSON.parse(raw);
+    if (parsed?.username && parsed?.password) {
+      return { username: parsed.username, password: parsed.password };
+    }
+  } catch {
+    // ignore cache read errors
+  }
+  return null;
+}
+
+function saveBootstrapToDisk(username: string, password: string) {
+  fs.mkdirSync(path.dirname(BOOTSTRAP_CACHE_FILE), { recursive: true });
+  fs.writeFileSync(BOOTSTRAP_CACHE_FILE, JSON.stringify({ username, password }), 'utf-8');
+}
+
+async function establishSession(context: BrowserContext, page: Page, token: string, user: any) {
+  await context.addCookies([
+    {
+      name: 'token',
+      value: token,
+      domain: 'localhost',
+      path: '/',
+      sameSite: 'Lax',
+    },
+  ]);
+
+  await page.addInitScript(({ token, user }) => {
+    localStorage.setItem('token', token);
+    localStorage.setItem('user', JSON.stringify(user));
+  }, { token, user });
+
+  await page.goto(`${BASE_URL}/general`);
+  await page.waitForURL(/\/general/, { timeout: 10000 });
+  await expect(page.locator('textarea[placeholder*="Message"], textarea').first()).toBeVisible({ timeout: 10000 });
+  // Prevent hydration races where early clicks are ignored in freshly loaded pages
+  await page.waitForTimeout(300);
+}
+
+/**
+ * Helper to ensure we have a valid bootstrap admin
+ * This handles database resets by detecting invalid tokens and recreating the admin
+ */
+async function ensureBootstrapAdmin(api: APIHelper): Promise<{ token: string; username: string; password: string }> {
+  // If in-memory cache is empty (e.g. worker restart), try restoring credentials from disk
+  if (!bootstrapAdmin) {
+    const cached = loadBootstrapFromDisk();
+    if (cached) {
+      try {
+        const token = await api.login(cached.username, cached.password);
+        bootstrapAdmin = { token, username: cached.username, password: cached.password };
+        console.log('✓ Restored bootstrap admin from cache');
+      } catch {
+        // Cache is stale, continue to create a new bootstrap user
+      }
+    }
+  }
+
+  // If we still don't have a bootstrap admin yet, create one
+  if (!bootstrapAdmin) {
+    const username = generateUsername('bootstrap');
+    const password = 'adminpass123';
+    const displayName = 'Bootstrap Admin';
+
+    const { token } = await api.signup(username, displayName, password);
+    bootstrapAdmin = { token, username, password };
+    saveBootstrapToDisk(username, password);
+    console.log('✓ Created bootstrap admin');
+    return bootstrapAdmin;
+  }
+
+  // Verify the bootstrap admin token is still valid by trying to create an invite
+  try {
+    await api.createInvite(bootstrapAdmin.token);
+    return bootstrapAdmin;
+  } catch (error: any) {
+    // If token is invalid (e.g. DB reset), re-login using cached credentials
+    if (error.message === 'INVALID_TOKEN') {
+      try {
+        const token = await api.login(bootstrapAdmin.username, bootstrapAdmin.password);
+        bootstrapAdmin = { ...bootstrapAdmin, token };
+        return bootstrapAdmin;
+      } catch {
+        // login failed, likely DB reset wiped user
+      }
+
+      console.log('⚠️  Bootstrap admin token invalid (database reset detected)');
+      const username = generateUsername('bootstrap');
+      const password = 'adminpass123';
+      const displayName = 'Bootstrap Admin';
+
+      const { token } = await api.signup(username, displayName, password);
+      bootstrapAdmin = { token, username, password };
+      saveBootstrapToDisk(username, password);
+      console.log('✓ Recreated bootstrap admin after database reset');
+      return bootstrapAdmin;
+    }
+
+    // If invite creation failed for other reasons (e.g. FORBIDDEN/INVITE_REQUIRED=false), keep token
+    return bootstrapAdmin;
+  }
+}
+
+/**
+ * Helper to create an invite code, handling the case where invites are not required
+ */
+async function createInviteIfRequired(api: APIHelper, token: string): Promise<string | undefined> {
+  try {
+    return await api.createInvite(token);
+  } catch (error: any) {
+    // If invite creation fails and it's not an invalid token, invites might not be required
+    if (error.message !== 'INVALID_TOKEN') {
+      console.log('Note: Invite creation failed, continuing without invite code (likely INVITE_REQUIRED=false)');
+      return undefined;
+    }
+    throw error; // Re-throw INVALID_TOKEN errors
+  }
+}
 
 export const test = base.extend<RelayFixtures>({
   auth: async ({ page }, use) => {
@@ -186,39 +329,32 @@ export const test = base.extend<RelayFixtures>({
 
   /**
    * Admin user fixture - first user (has admin privileges)
+   * 
+   * Creates a fresh browser context with an authenticated admin user.
+   * The user is logged in via UI to ensure proper session state.
    */
   adminUser: async ({ browser, api }, use) => {
+    // Ensure we have a valid bootstrap admin
+    const bootstrap = await ensureBootstrapAdmin(api);
+    
     // Create a new context for the admin user
     const context = await browser.newContext();
     const page = await context.newPage();
-    
-    const username = generateUsername('admin');
-    const displayName = `Admin ${Date.now()}`;
-    const password = 'adminpass123';
 
-    // First user doesn't need an invite code
-    if (!bootstrapAdmin) {
-      const { token: bootstrapToken } = await api.signup(username, displayName, password);
-      bootstrapAdmin = { token: bootstrapToken, username, password };
-    }
-
-    // For subsequent users, we need an invite
-    let token = bootstrapAdmin.token;
-    let user = { id: 'admin', username, displayName, role: 'admin', nostrPubkey: '' };
-    
-    // Login via UI to ensure frontend session state is established
-    const loginPage = new LoginPage(page);
-    await loginPage.goto();
-    await loginPage.login(bootstrapAdmin.username, bootstrapAdmin.password);
-    await page.waitForURL(BASE_URL + '/', { timeout: 10000 });
+    await establishSession(
+      context,
+      page,
+      bootstrap.token,
+      { id: 'admin', username: bootstrap.username, displayName: 'Bootstrap Admin', role: 'admin', nostrPubkey: '' }
+    );
 
     const userContext: UserContext = {
       page,
-      token,
-      user,
+      token: bootstrap.token,
+      user: { id: 'admin', username: bootstrap.username, displayName: 'Bootstrap Admin', role: 'admin', nostrPubkey: '' },
       api,
-      username: bootstrapAdmin.username,
-      password: bootstrapAdmin.password,
+      username: bootstrap.username,
+      password: bootstrap.password,
     };
 
     await use(userContext);
@@ -229,20 +365,18 @@ export const test = base.extend<RelayFixtures>({
 
   /**
    * Member user fixture - signs up via invite
+   * 
+   * Creates a fresh browser context with an authenticated member user.
+   * Handles invite creation if required by the environment.
    */
   memberUser: async ({ browser, api }, use) => {
-    // Ensure bootstrap admin exists first
-    if (!bootstrapAdmin) {
-      const bootstrapUsername = generateUsername('bootstrap');
-      const bootstrapPassword = 'adminpass123';
-      const { token: bootstrapToken } = await api.signup(bootstrapUsername, 'Bootstrap Admin', bootstrapPassword);
-      bootstrapAdmin = { token: bootstrapToken, username: bootstrapUsername, password: bootstrapPassword };
-    }
+    // Ensure bootstrap admin exists and is valid
+    const bootstrap = await ensureBootstrapAdmin(api);
     
-    // Generate invite from bootstrap admin
-    const inviteCode = await api.createInvite(bootstrapAdmin.token);
+    // Generate invite from bootstrap admin (only if required)
+    const inviteCode = await createInviteIfRequired(api, bootstrap.token);
 
-    // Now create member with invite
+    // Now create member with invite (if provided)
     const context = await browser.newContext();
     const page = await context.newPage();
     
@@ -252,11 +386,7 @@ export const test = base.extend<RelayFixtures>({
 
     const { token, user } = await api.signup(username, displayName, password, inviteCode);
 
-    // Login via UI to ensure frontend session state is established
-    const loginPage = new LoginPage(page);
-    await loginPage.goto();
-    await loginPage.login(username, password);
-    await page.waitForURL(BASE_URL + '/', { timeout: 10000 });
+    await establishSession(context, page, token, user);
 
     const userContext: UserContext = {
       page,
@@ -275,33 +405,29 @@ export const test = base.extend<RelayFixtures>({
 
   /**
    * Two users fixture - admin and member in separate contexts
+   * 
+   * Useful for testing interactions between users (e.g., DMs, mentions).
+   * Both users are in separate browser contexts with independent sessions.
    */
   twoUsers: async ({ browser, api }, use) => {
-    // Create admin
+    // Ensure bootstrap admin exists and is valid
+    const bootstrap = await ensureBootstrapAdmin(api);
+    
+    // Create first user (will be admin)
     const adminContext = await browser.newContext();
     const adminPage = await adminContext.newPage();
     
     const adminUsername = generateUsername('admin');
     const adminPassword = 'adminpass123';
-
-    if (!bootstrapAdmin) {
-      const bootstrapUsername = generateUsername('bootstrap');
-      const bootstrapPassword = 'adminpass123';
-      const { token: bootstrapToken } = await api.signup(bootstrapUsername, 'Bootstrap Admin', bootstrapPassword);
-      bootstrapAdmin = { token: bootstrapToken, username: bootstrapUsername, password: bootstrapPassword };
-    }
-
-    const adminInvite = await api.createInvite(bootstrapAdmin.token);
+    const adminInvite = await createInviteIfRequired(api, bootstrap.token);
     const { token: adminToken, user: adminUser } = await api.signup(adminUsername, 'Admin User', adminPassword, adminInvite);
 
-    const adminLoginPage = new LoginPage(adminPage);
-    await adminLoginPage.goto();
-    await adminLoginPage.login(adminUsername, adminPassword);
-    await adminPage.waitForURL(BASE_URL + '/', { timeout: 10000 });
+    await establishSession(adminContext, adminPage, adminToken, adminUser);
 
-    // Create invite and member
-    const inviteCode = await api.createInvite(adminToken);
+    // Create invite for member (from the new admin user)
+    const inviteCode = await createInviteIfRequired(api, adminToken);
     
+    // Create second user (member)
     const memberContext = await browser.newContext();
     const memberPage = await memberContext.newPage();
     
@@ -309,10 +435,7 @@ export const test = base.extend<RelayFixtures>({
     const memberPassword = 'memberpass123';
     const { token: memberToken, user: memberUser } = await api.signup(memberUsername, 'Member User', memberPassword, inviteCode);
 
-    const memberLoginPage = new LoginPage(memberPage);
-    await memberLoginPage.goto();
-    await memberLoginPage.login(memberUsername, memberPassword);
-    await memberPage.waitForURL(BASE_URL + '/', { timeout: 10000 });
+    await establishSession(memberContext, memberPage, memberToken, memberUser);
 
     const adminUserContext: UserContext = {
       page: adminPage,

@@ -53,11 +53,30 @@ export function listChannels(): Channel[] {
 }
 
 /**
- * Get a single channel
+ * Get a single channel by ID
  */
 export function getChannel(id: string): Channel | null {
   const db = getDb();
   const channel = db.prepare('SELECT * FROM channels WHERE id = ?').get(id) as any;
+  
+  if (!channel) {
+    return null;
+  }
+  
+  return {
+    id: channel.id,
+    name: channel.name,
+    description: channel.description,
+    createdAt: channel.created_at,
+  };
+}
+
+/**
+ * Get a single channel by name
+ */
+export function getChannelByName(name: string): Channel | null {
+  const db = getDb();
+  const channel = db.prepare('SELECT * FROM channels WHERE name = ?').get(name) as any;
   
   if (!channel) {
     return null;

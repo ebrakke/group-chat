@@ -15,6 +15,7 @@ import (
 	"github.com/ebrakke/relay-chat/internal/channels"
 	"github.com/ebrakke/relay-chat/internal/db"
 	"github.com/ebrakke/relay-chat/internal/messages"
+	"github.com/ebrakke/relay-chat/internal/reactions"
 	internalrelay "github.com/ebrakke/relay-chat/internal/relay"
 	"github.com/ebrakke/relay-chat/internal/ws"
 )
@@ -41,6 +42,7 @@ func main() {
 	authSvc := auth.NewService(database)
 	chanSvc := channels.NewService(database)
 	msgSvc := messages.NewService(database)
+	reactSvc := reactions.NewService(database)
 
 	// Ensure #general exists
 	if _, err := chanSvc.EnsureGeneral(); err != nil {
@@ -66,7 +68,7 @@ func main() {
 	}
 
 	// API handler
-	apiHandler := api.New(authSvc, chanSvc, msgSvc, hub)
+	apiHandler := api.New(authSvc, chanSvc, msgSvc, reactSvc, hub)
 
 	// Build mux
 	mux := http.NewServeMux()

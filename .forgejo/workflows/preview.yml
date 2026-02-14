@@ -63,6 +63,23 @@ jobs:
         run: |
           $HOME/.fly/bin/flyctl info --app "$APP" || true
 
+      - name: Wait for app to be healthy
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          BASE_URL="https://${APP}.fly.dev"
+          echo "Waiting for ${BASE_URL} to respond..."
+          for i in $(seq 1 30); do
+            if curl -sf --max-time 5 "${BASE_URL}/api/auth/has-users" >/dev/null 2>&1; then
+              echo "App is healthy!"
+              exit 0
+            fi
+            echo "  attempt $i/30 — retrying in 5s..."
+            sleep 5
+          done
+          echo "App did not become healthy in time"
+          exit 1
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
@@ -107,7 +124,6 @@ jobs:
           FORGE_URL="${FORGEJO_BASE_URL:-https://forge.brakke.cc}"
           EXIT_CODE="${{ steps.smoke.outputs.exit_code }}"
 
-          # Playwright output
           PW_LOG="tests/e2e/playwright-output.log"
           if [ -f "$PW_LOG" ] && [ -s "$PW_LOG" ]; then
             PW_TAIL=$(tail -80 "$PW_LOG")
@@ -115,10 +131,8 @@ jobs:
             PW_TAIL="(no Playwright output captured)"
           fi
 
-          # Fly logs (best-effort)
           FLY_LOGS=$($HOME/.fly/bin/flyctl logs --app "$APP" --no-tail 2>&1 | tail -120) || FLY_LOGS="(could not fetch fly logs)"
 
-          # Build JSON payload safely (python json.dumps for escaping)
           PAYLOAD=$(python3 - <<'PY'
           import json, os
           app=os.environ.get('APP','')
@@ -154,8 +168,6 @@ jobs:
           PY
           )
 
-          # Post comment via Forgejo API
-          # If FORGEJO_TOKEN isn't set, skip commenting (don't fail the workflow on reporting).
           if [ -z "${FORGEJO_TOKEN:-}" ]; then
             echo "FORGEJO_TOKEN not set; skipping PR comment"
             exit 0
@@ -166,4 +178,3 @@ jobs:
             -H "Authorization: token ${FORGEJO_TOKEN}" \
             -H "Content-Type: application/json" \
             -d "$PAYLOAD" || true
-trigger

@@ -1,109 +1,103 @@
 # Relay Chat
 
-A self-hosted, private group chat app built on Nostr infrastructure. Think "Slack for your homelab" — channels, threads, file sharing, and reactions — all running on the open Nostr protocol with no SaaS dependency. Own your data, control your community.
-
-## Tech Stack
-
-**Frontend & API:**
-- SvelteKit + Svelte 5 (runes)
-- SvelteKit API routes (server-side endpoints)
-- Tailwind CSS
-- TypeScript
-- better-sqlite3 (SQLite)
-- nostr-tools (Nostr protocol)
-
-**Infrastructure:**
-- khatru29 (NIP-29 group relay, Go)
-- Blossom (file storage)
-- Docker Compose
-
-## Running Locally
-
-```bash
-# Start all services (frontend with API, relay, blossom)
-docker compose -f docker-compose.dev.yml up -d --build
-
-# View logs
-docker compose -f docker-compose.dev.yml logs -f
-
-# Stop services
-docker compose -f docker-compose.dev.yml down
-```
-
-Services will be available at:
-- App (Frontend + API): http://localhost:3002
-- Relay: ws://localhost:3336
-- Blossom: http://localhost:3337
-
-**First run:** Visit http://localhost:3002 to create the first admin account (no invite required).
-
-## Deploying to Fly.io
-
-```bash
-# Login to Fly
-fly auth login
-
-# Deploy
-fly deploy
-
-# View logs
-fly logs
-
-# Open in browser
-fly open
-```
-
-Make sure `fly.toml` is configured with your app name and secrets are set:
-
-```bash
-fly secrets set SESSION_SECRET=$(openssl rand -hex 32)
-fly secrets set KEY_ENCRYPTION_SECRET=$(openssl rand -hex 32)
-```
-
-## Contributing
-
-We use a PR-based workflow. See [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines on:
-- Creating feature branches
-- Running tests
-- Code review process
-- PR checklist
-
-## Project Structure
-
-```
-relay-chat/
-├── frontend/      # SvelteKit app (frontend + API routes)
-│   ├── src/routes/        # Pages and UI components
-│   ├── src/routes/api/    # API endpoints (SvelteKit server routes)
-│   └── src/lib/server/    # Server-side utilities and database
-├── relay/         # khatru29 relay (Go) - NIP-29 group relay
-├── tests/e2e/     # Playwright end-to-end tests
-├── docs/          # Documentation
-└── fly.toml       # Fly.io deployment config (unified app)
-```
+A self-hosted, private group chat app built on Nostr infrastructure. Single Go binary embedding a NIP-29 relay, JSON API, WebSocket endpoint, and static SPA frontend.
 
 ## Architecture
 
-Relay Chat uses a **unified SvelteKit architecture**:
-- **Frontend**: Svelte 5 components with runes for reactive state
-- **API**: SvelteKit server routes in `/frontend/src/routes/api/`
-- **WebSocket**: Handled through SvelteKit endpoints
-- **Database**: SQLite with better-sqlite3
-- **Nostr Relay**: Separate khatru29 Go service for NIP-29 groups
-- **File Storage**: Separate Blossom server
+```
+cmd/app/main.go          # Entrypoint: stdlib net/http mux
+internal/
+  relay/                  # NIP-29 khatru29 relay (importable package)
+  db/                     # SQLite + numbered migrations (modernc.org/sqlite, pure-Go)
+  auth/                   # Users, sessions, invites (argon2id)
+  channels/               # Channel CRUD + membership
+  api/                    # JSON API handlers (/api/*)
+  ws/                     # WebSocket stub (/ws)
+frontend/                 # Minimal SPA (bun build)
+relay/                    # Original relay entrypoint (preserved)
+archive/                  # Previous SvelteKit frontend + tests (preserved)
+```
 
-This unified approach eliminates the need for a separate API server while maintaining clean separation between client and server code.
+## Routes
 
-## Documentation
+| Path | Handler |
+|------|---------|
+| `/api/*` | JSON API (auth, channels, invites, users) |
+| `/ws` | WebSocket stub |
+| `/relay` | NIP-29 relay (WebSocket) |
+| `/*` | SPA static assets (falls back to index.html) |
 
-- [Development Principles](./docs/development.md) - Core development guidelines
+## Quick Start
 
-## Security
+```bash
+# Build frontend
+cd frontend && bun install && bun run build && cd ..
 
-- Passwords are hashed with bcrypt
-- Nostr private keys are AES-256-GCM encrypted
-- Sessions use 256-bit random tokens (30-day expiry)
-- **IMPORTANT:** Set strong secrets in production!
+# Copy static assets
+cp frontend/dist/* cmd/app/static/
+
+# Run (uses /data by default, override with DATA_DIR)
+DATA_DIR=./tmp go run ./cmd/app/
+
+# Or build and run
+go build -o relay-chat ./cmd/app/
+DATA_DIR=./tmp ./relay-chat
+```
+
+Visit http://localhost:8080. First visitor creates the admin account.
+
+## Dev Commands
+
+```bash
+# Run Go tests
+go test ./internal/...
+
+# Run E2E tests (builds, starts server, runs Playwright)
+./scripts/run-e2e.sh
+
+# Build frontend only
+cd frontend && bun run build
+
+# Build Go binary only
+go build -o relay-chat ./cmd/app/
+```
+
+## Auth System
+
+- **Passwords**: argon2id hashed
+- **Sessions**: HTTP-only cookie, 30-day expiry
+- **Bootstrap**: First user auto-becomes admin
+- **Invites**: Admin creates invite tokens (optional expiry + max uses)
+- **Roles**: `admin` (full control) / `member` (standard access)
+- **Usernames**: Unique forever, immutable; display names are mutable
+
+## API Endpoints
+
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| GET | `/api/health` | - | Health check |
+| GET | `/api/auth/has-users` | - | Check if bootstrap needed |
+| POST | `/api/auth/bootstrap` | - | Create first admin |
+| POST | `/api/auth/login` | - | Login |
+| POST | `/api/auth/logout` | yes | Logout |
+| POST | `/api/auth/signup` | - | Signup with invite code |
+| GET | `/api/auth/me` | yes | Current user |
+| POST | `/api/invites` | admin | Create invite |
+| GET | `/api/invites` | admin | List invites |
+| GET | `/api/channels` | yes | List channels |
+| GET | `/api/users` | admin | List users |
+| POST | `/api/users/{id}/reset-password` | admin | Reset user password |
+
+## Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PORT` | `8080` | HTTP listen port |
+| `DATA_DIR` | `/data` | Directory for SQLite databases |
+| `DATABASE_PATH` | `$DATA_DIR/app.db` | App database path |
+| `RELAY_DATABASE_PATH` | `$DATA_DIR/relay.db` | Relay database path |
+| `RELAY_PRIVKEY` | auto-generated | Relay private key (hex) |
+| `RELAY_DOMAIN` | `localhost` | Relay domain |
 
 ## License
 

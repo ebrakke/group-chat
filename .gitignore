@@ -1,17 +1,15 @@
 # Dependencies
 node_modules/
 .pnpm-store/
+bun.lock
 
 # Build outputs
-frontend/.svelte-kit/
-frontend/build/
-api/dist/
-relay/relay
+frontend/dist/
+relay-chat
 
 # Test outputs
 test-results/
 playwright-report/
-test-image.png
 
 # Data
 *.db
@@ -19,6 +17,7 @@ test-image.png
 *.db-shm
 *.db-wal
 data/
+tmp/
 
 # Environment
 .env

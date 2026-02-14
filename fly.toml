@@ -1,0 +1,38 @@
+app = "relay-chat"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile.fly"
+
+[env]
+  PORT = "8080"
+  DATA_DIR = "/data"
+  # Optional overrides:
+  # DATABASE_PATH = "/data/app.db"
+  # RELAY_DATABASE_PATH = "/data/relay.db"
+  # RELAY_PRIVKEY = "<hex>"
+  # RELAY_DOMAIN = "chat.brakke.cc"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+  [[http_service.checks]]
+    interval = "15s"
+    timeout = "5s"
+    grace_period = "10s"
+    method = "GET"
+    path = "/api/health"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
+  cpus = 1
+
+[mounts]
+  source = "app_data"
+  destination = "/data"

@@ -1,0 +1,101 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: #1a1a2e;
+  color: #eee;
+  min-height: 100vh;
+}
+#app {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 2rem 1rem;
+}
+h1 { margin-bottom: 1.5rem; font-size: 1.5rem; }
+h2 { margin-bottom: 1rem; font-size: 1.2rem; }
+.card {
+  background: #16213e;
+  border-radius: 8px;
+  padding: 1.5rem;
+  margin-bottom: 1rem;
+}
+label {
+  display: block;
+  margin-bottom: 0.25rem;
+  font-size: 0.85rem;
+  color: #aaa;
+}
+input[type="text"], input[type="password"] {
+  width: 100%;
+  padding: 0.5rem;
+  margin-bottom: 0.75rem;
+  border: 1px solid #333;
+  border-radius: 4px;
+  background: #0f3460;
+  color: #eee;
+  font-size: 1rem;
+}
+button {
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: 4px;
+  background: #e94560;
+  color: #fff;
+  font-size: 1rem;
+  cursor: pointer;
+  margin-right: 0.5rem;
+}
+button:hover { background: #c73651; }
+button.secondary {
+  background: #533483;
+}
+button.secondary:hover { background: #3f2768; }
+.error {
+  color: #e94560;
+  margin-bottom: 0.75rem;
+  font-size: 0.9rem;
+}
+.channel-list {
+  list-style: none;
+}
+.channel-list li {
+  padding: 0.75rem;
+  background: #0f3460;
+  border-radius: 4px;
+  margin-bottom: 0.5rem;
+  font-size: 1rem;
+}
+.channel-list li::before {
+  content: "# ";
+  color: #e94560;
+}
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.5rem;
+}
+.topbar .user-info {
+  font-size: 0.85rem;
+  color: #aaa;
+}
+.invite-code {
+  background: #0f3460;
+  padding: 0.5rem;
+  border-radius: 4px;
+  font-family: monospace;
+  word-break: break-all;
+  margin: 0.5rem 0;
+}
+.invite-list {
+  list-style: none;
+  margin-top: 0.5rem;
+}
+.invite-list li {
+  padding: 0.5rem;
+  background: #0f3460;
+  border-radius: 4px;
+  margin-bottom: 0.25rem;
+  font-family: monospace;
+  font-size: 0.85rem;
+}
+.hidden { display: none; }

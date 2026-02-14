@@ -33,3 +33,8 @@ Thumbs.db
 .idea/
 *.swp
 *.swo
+
+# build artifacts
+app
+relay-chat
+

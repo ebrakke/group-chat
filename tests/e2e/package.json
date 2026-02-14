@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "test": "bunx playwright test",
-    "test:headed": "bunx playwright test --headed"
+    "test:headed": "bunx playwright test --headed",
+    "test:smoke": "bunx playwright test tests/prod-smoke.spec.ts"
   },
   "devDependencies": {
     "@playwright/test": "^1.52.0"

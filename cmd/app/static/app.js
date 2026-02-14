@@ -2,6 +2,10 @@
 const app = document.getElementById("app");
 
 let currentUser = null;
+let sessionToken = null;
+let currentChannel = null;
+let openThreadId = null;
+let wsConn = null;
 
 async function api(method, path, body) {
   const opts = { method, headers: { "Content-Type": "application/json" }, credentials: "include" };
@@ -12,21 +16,63 @@ async function api(method, path, body) {
   return data;
 }
 
+// --- WebSocket ---
+
+function connectWS() {
+  if (wsConn) { wsConn.close(); wsConn = null; }
+  const proto = location.protocol === "https:" ? "wss:" : "ws:";
+  let url = `${proto}//${location.host}/ws`;
+  if (sessionToken) url += `?token=${encodeURIComponent(sessionToken)}`;
+  const ws = new WebSocket(url);
+  ws.onmessage = (ev) => {
+    try {
+      const data = JSON.parse(ev.data);
+      handleWSEvent(data);
+    } catch {}
+  };
+  ws.onclose = () => {
+    wsConn = null;
+    setTimeout(() => {
+      if (currentUser) connectWS();
+    }, 3000);
+  };
+  wsConn = ws;
+}
+
+function handleWSEvent(data) {
+  if (data.type === "new_message") {
+    const msg = data.payload;
+    if (currentChannel && msg.channelId === currentChannel.id && !msg.parentId) {
+      appendMessage(msg);
+    }
+  } else if (data.type === "new_reply") {
+    const msg = data.payload;
+    if (openThreadId && msg.parentId === openThreadId) {
+      appendReply(msg);
+    }
+    if (currentChannel && msg.channelId === currentChannel.id) {
+      updateReplyCount(msg.parentId);
+    }
+  }
+}
+
 // --- Screens ---
 
 function renderBootstrap() {
   app.innerHTML = `
-    <h1>Relay Chat Setup</h1>
-    <div class="card">
-      <h2>Create Admin Account</h2>
-      <div id="error" class="error hidden"></div>
-      <label for="username">Username</label>
-      <input type="text" id="username" autocomplete="username">
-      <label for="displayName">Display Name</label>
-      <input type="text" id="displayName">
-      <label for="password">Password</label>
-      <input type="password" id="password" autocomplete="new-password">
-      <button id="submit">Create Admin</button>
+    <div class="auth-container">
+      <h1>Relay Chat Setup</h1>
+      <div class="card">
+        <h2>Create Admin Account</h2>
+        <div id="error" class="error hidden"></div>
+        <label for="username">Username</label>
+        <input type="text" id="username" autocomplete="username">
+        <label for="displayName">Display Name</label>
+        <input type="text" id="displayName">
+        <label for="password">Password</label>
+        <input type="password" id="password" autocomplete="new-password">
+        <button id="submit">Create Admin</button>
+      </div>
     </div>
   `;
   document.getElementById("submit").onclick = async () => {
@@ -39,6 +85,7 @@ function renderBootstrap() {
         displayName: document.getElementById("displayName").value || undefined,
       });
       currentUser = data.user;
+      sessionToken = data.token;
       renderMain();
     } catch (e) {
       errEl.textContent = e.message;
@@ -49,28 +96,30 @@ function renderBootstrap() {
 
 function renderLogin() {
   app.innerHTML = `
-    <h1>Relay Chat</h1>
-    <div class="card">
-      <h2>Login</h2>
-      <div id="error" class="error hidden"></div>
-      <label for="username">Username</label>
-      <input type="text" id="username" autocomplete="username">
-      <label for="password">Password</label>
-      <input type="password" id="password" autocomplete="current-password">
-      <button id="submit">Login</button>
-    </div>
-    <div class="card">
-      <h2>Sign Up (Invite Only)</h2>
-      <div id="signup-error" class="error hidden"></div>
-      <label for="invite-code">Invite Code</label>
-      <input type="text" id="invite-code">
-      <label for="signup-username">Username</label>
-      <input type="text" id="signup-username" autocomplete="username">
-      <label for="signup-display">Display Name</label>
-      <input type="text" id="signup-display">
-      <label for="signup-password">Password</label>
-      <input type="password" id="signup-password" autocomplete="new-password">
-      <button id="signup-submit" class="secondary">Sign Up</button>
+    <div class="auth-container">
+      <h1>Relay Chat</h1>
+      <div class="card">
+        <h2>Login</h2>
+        <div id="error" class="error hidden"></div>
+        <label for="username">Username</label>
+        <input type="text" id="username" autocomplete="username">
+        <label for="password">Password</label>
+        <input type="password" id="password" autocomplete="current-password">
+        <button id="submit">Login</button>
+      </div>
+      <div class="card">
+        <h2>Sign Up (Invite Only)</h2>
+        <div id="signup-error" class="error hidden"></div>
+        <label for="invite-code">Invite Code</label>
+        <input type="text" id="invite-code">
+        <label for="signup-username">Username</label>
+        <input type="text" id="signup-username" autocomplete="username">
+        <label for="signup-display">Display Name</label>
+        <input type="text" id="signup-display">
+        <label for="signup-password">Password</label>
+        <input type="password" id="signup-password" autocomplete="new-password">
+        <button id="signup-submit" class="secondary">Sign Up</button>
+      </div>
     </div>
   `;
 
@@ -83,6 +132,7 @@ function renderLogin() {
         password: document.getElementById("password").value,
       });
       currentUser = data.user;
+      sessionToken = data.token;
       renderMain();
     } catch (e) {
       errEl.textContent = e.message;
@@ -101,6 +151,7 @@ function renderLogin() {
         inviteCode: document.getElementById("invite-code").value,
       });
       currentUser = data.user;
+      sessionToken = data.token;
       renderMain();
     } catch (e) {
       errEl.textContent = e.message;
@@ -110,73 +161,271 @@ function renderLogin() {
 }
 
 async function renderMain() {
-  let channelsHtml = "";
+  connectWS();
+
+  let channelsList = [];
   try {
-    const channels = await api("GET", "/api/channels");
-    if (channels.length > 0) {
-      channelsHtml = `<ul class="channel-list">${channels.map(c => `<li>${esc(c.name)}</li>`).join("")}</ul>`;
-    } else {
-      channelsHtml = `<p style="color:#aaa">No channels yet.</p>`;
-    }
-  } catch {
-    channelsHtml = `<p class="error">Failed to load channels.</p>`;
-  }
+    channelsList = await api("GET", "/api/channels");
+  } catch {}
 
   const adminSection = currentUser && currentUser.role === "admin" ? `
-    <div class="card">
-      <h2>Admin: Create Invite</h2>
-      <div id="invite-error" class="error hidden"></div>
-      <div id="invite-result"></div>
-      <label for="invite-max-uses">Max Uses (optional)</label>
-      <input type="text" id="invite-max-uses" placeholder="e.g. 5">
-      <button id="create-invite">Create Invite</button>
-      <h2 style="margin-top:1rem">Existing Invites</h2>
-      <ul class="invite-list" id="invite-list"></ul>
+    <div class="admin-section">
+      <button id="toggle-admin" class="secondary btn-sm">Admin</button>
+      <div id="admin-panel" class="hidden">
+        <div class="card">
+          <h3>Create Invite</h3>
+          <div id="invite-error" class="error hidden"></div>
+          <div id="invite-result"></div>
+          <button id="create-invite" class="btn-sm">Create Invite</button>
+          <ul class="invite-list" id="invite-list"></ul>
+        </div>
+      </div>
     </div>
   ` : "";
 
   app.innerHTML = `
-    <div class="topbar">
-      <h1>Relay Chat</h1>
-      <div>
-        <span class="user-info">${esc(currentUser.displayName)} (${esc(currentUser.role)})</span>
-        <button id="logout" class="secondary" style="margin-left:0.5rem">Logout</button>
+    <div class="chat-layout">
+      <div class="sidebar">
+        <div class="sidebar-header">
+          <h2>Relay Chat</h2>
+          <div class="user-bar">
+            <span class="user-info">${esc(currentUser.displayName)}</span>
+            <button id="logout" class="secondary btn-sm">Logout</button>
+          </div>
+          ${adminSection}
+        </div>
+        <div class="channel-list-container">
+          <h3>Channels</h3>
+          <ul class="channel-list" id="channel-list">
+            ${channelsList.map(c => `<li data-id="${c.id}" data-name="${esc(c.name)}">${esc(c.name)}</li>`).join("")}
+          </ul>
+        </div>
+      </div>
+      <div class="main-panel">
+        <div id="channel-view" class="channel-view">
+          <div class="channel-header" id="channel-header">Select a channel</div>
+          <div class="message-list" id="message-list"></div>
+          <div class="composer" id="composer" style="display:none">
+            <input type="text" id="msg-input" placeholder="Type a message...">
+            <button id="msg-send">Send</button>
+          </div>
+        </div>
+        <div id="thread-panel" class="thread-panel hidden">
+          <div class="thread-header">
+            <h3>Thread</h3>
+            <button id="close-thread" class="secondary btn-sm">Close</button>
+          </div>
+          <div class="thread-parent" id="thread-parent"></div>
+          <div class="thread-replies" id="thread-replies"></div>
+          <div class="composer">
+            <input type="text" id="reply-input" placeholder="Reply in thread...">
+            <button id="reply-send">Send</button>
+          </div>
+        </div>
       </div>
     </div>
-    <div class="card">
-      <h2>Channels</h2>
-      ${channelsHtml}
-    </div>
-    ${adminSection}
   `;
 
   document.getElementById("logout").onclick = async () => {
     await api("POST", "/api/auth/logout");
     currentUser = null;
+    sessionToken = null;
+    if (wsConn) { wsConn.close(); wsConn = null; }
     renderLogin();
   };
 
+  document.getElementById("channel-list").onclick = (e) => {
+    const li = e.target.closest("li");
+    if (!li) return;
+    const id = parseInt(li.dataset.id, 10);
+    const name = li.dataset.name;
+    selectChannel({ id, name });
+  };
+
+  document.getElementById("msg-send").onclick = sendMessage;
+  document.getElementById("msg-input").onkeydown = (e) => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+  };
+
+  document.getElementById("reply-send").onclick = sendReply;
+  document.getElementById("reply-input").onkeydown = (e) => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendReply(); }
+  };
+
+  document.getElementById("close-thread").onclick = closeThread;
+
   if (currentUser && currentUser.role === "admin") {
-    loadInvites();
+    document.getElementById("toggle-admin").onclick = () => {
+      document.getElementById("admin-panel").classList.toggle("hidden");
+    };
     document.getElementById("create-invite").onclick = async () => {
-      const errEl = document.getElementById("invite-error");
-      errEl.classList.add("hidden");
       try {
-        const maxStr = document.getElementById("invite-max-uses").value;
-        const body = {};
-        if (maxStr) body.maxUses = parseInt(maxStr, 10);
-        const invite = await api("POST", "/api/invites", body);
-        document.getElementById("invite-result").innerHTML = `
-          <div class="invite-code">${invite.code}</div>
-        `;
+        const invite = await api("POST", "/api/invites", {});
+        document.getElementById("invite-result").innerHTML = `<div class="invite-code">${invite.code}</div>`;
         loadInvites();
       } catch (e) {
+        const errEl = document.getElementById("invite-error");
         errEl.textContent = e.message;
         errEl.classList.remove("hidden");
       }
     };
+    loadInvites();
+  }
+
+  const general = channelsList.find(c => c.name === "general");
+  if (general) selectChannel(general);
+}
+
+// --- Channel + Messages ---
+
+async function selectChannel(channel) {
+  currentChannel = channel;
+  openThreadId = null;
+  document.getElementById("thread-panel").classList.add("hidden");
+
+  document.querySelectorAll(".channel-list li").forEach(li => {
+    li.classList.toggle("active", parseInt(li.dataset.id, 10) === channel.id);
+  });
+
+  document.getElementById("channel-header").textContent = `# ${channel.name}`;
+  document.getElementById("composer").style.display = "flex";
+
+  await loadMessages(channel.id);
+  document.getElementById("msg-input").focus();
+}
+
+async function loadMessages(channelId) {
+  const list = document.getElementById("message-list");
+  list.innerHTML = "";
+  try {
+    const msgs = await api("GET", `/api/channels/${channelId}/messages?limit=50`);
+    msgs.reverse().forEach(msg => appendMessage(msg));
+    list.scrollTop = list.scrollHeight;
+  } catch (e) {
+    list.innerHTML = `<div class="error">Failed to load messages</div>`;
   }
 }
+
+function appendMessage(msg) {
+  const list = document.getElementById("message-list");
+  if (!list) return;
+  if (list.querySelector(`[data-msg-id="${msg.id}"]`)) return;
+
+  const div = document.createElement("div");
+  div.className = "message";
+  div.dataset.msgId = msg.id;
+  const replyBtn = `<button class="reply-btn btn-sm secondary" data-msg-id="${msg.id}">Reply${msg.replyCount ? ` (${msg.replyCount})` : ""}</button>`;
+  div.innerHTML = `
+    <div class="msg-header">
+      <strong>${esc(msg.displayName)}</strong>
+      <span class="msg-time">${fmtTime(msg.createdAt)}</span>
+    </div>
+    <div class="msg-body">${esc(msg.content)}</div>
+    <div class="msg-actions">${replyBtn}</div>
+  `;
+  div.querySelector(".reply-btn").onclick = () => openThread(msg.id);
+  list.appendChild(div);
+  list.scrollTop = list.scrollHeight;
+}
+
+function updateReplyCount(parentId) {
+  const msgEl = document.querySelector(`[data-msg-id="${parentId}"]`);
+  if (!msgEl) return;
+  const btn = msgEl.querySelector(".reply-btn");
+  if (!btn) return;
+  const match = btn.textContent.match(/\((\d+)\)/);
+  const count = match ? parseInt(match[1], 10) + 1 : 1;
+  btn.textContent = `Reply (${count})`;
+}
+
+// --- Threads ---
+
+async function openThread(parentId) {
+  openThreadId = parentId;
+  const panel = document.getElementById("thread-panel");
+  panel.classList.remove("hidden");
+
+  const parentEl = document.getElementById("thread-parent");
+  const msgEl = document.querySelector(`[data-msg-id="${parentId}"]`);
+  if (msgEl) {
+    const name = msgEl.querySelector("strong").textContent;
+    const body = msgEl.querySelector(".msg-body").textContent;
+    const time = msgEl.querySelector(".msg-time").textContent;
+    parentEl.innerHTML = `
+      <div class="message">
+        <div class="msg-header"><strong>${esc(name)}</strong><span class="msg-time">${esc(time)}</span></div>
+        <div class="msg-body">${esc(body)}</div>
+      </div>
+    `;
+  }
+
+  await loadReplies(parentId);
+  document.getElementById("reply-input").focus();
+}
+
+async function loadReplies(parentId) {
+  const list = document.getElementById("thread-replies");
+  list.innerHTML = "";
+  try {
+    const replies = await api("GET", `/api/messages/${parentId}/thread?limit=50`);
+    replies.forEach(reply => appendReply(reply));
+    list.scrollTop = list.scrollHeight;
+  } catch {
+    list.innerHTML = `<div class="error">Failed to load replies</div>`;
+  }
+}
+
+function appendReply(reply) {
+  const list = document.getElementById("thread-replies");
+  if (!list) return;
+  if (list.querySelector(`[data-reply-id="${reply.id}"]`)) return;
+
+  const div = document.createElement("div");
+  div.className = "message reply";
+  div.dataset.replyId = reply.id;
+  div.innerHTML = `
+    <div class="msg-header">
+      <strong>${esc(reply.displayName)}</strong>
+      <span class="msg-time">${fmtTime(reply.createdAt)}</span>
+    </div>
+    <div class="msg-body">${esc(reply.content)}</div>
+  `;
+  list.appendChild(div);
+  list.scrollTop = list.scrollHeight;
+}
+
+function closeThread() {
+  openThreadId = null;
+  document.getElementById("thread-panel").classList.add("hidden");
+}
+
+// --- Send ---
+
+async function sendMessage() {
+  const input = document.getElementById("msg-input");
+  const content = input.value.trim();
+  if (!content || !currentChannel) return;
+  input.value = "";
+  try {
+    await api("POST", `/api/channels/${currentChannel.id}/messages`, { content });
+  } catch (e) {
+    input.value = content;
+  }
+}
+
+async function sendReply() {
+  const input = document.getElementById("reply-input");
+  const content = input.value.trim();
+  if (!content || !openThreadId) return;
+  input.value = "";
+  try {
+    await api("POST", `/api/messages/${openThreadId}/reply`, { content });
+  } catch (e) {
+    input.value = content;
+  }
+}
+
+// --- Admin ---
 
 async function loadInvites() {
   try {
@@ -189,10 +438,21 @@ async function loadInvites() {
   } catch {}
 }
 
+// --- Helpers ---
+
 function esc(s) {
   const d = document.createElement("div");
   d.textContent = s || "";
   return d.innerHTML;
+}
+
+function fmtTime(ts) {
+  try {
+    const d = new Date(ts);
+    return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  } catch {
+    return ts;
+  }
 }
 
 // --- Boot ---

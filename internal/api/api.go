@@ -12,16 +12,20 @@ import (
 
 	"github.com/ebrakke/relay-chat/internal/auth"
 	"github.com/ebrakke/relay-chat/internal/channels"
+	"github.com/ebrakke/relay-chat/internal/messages"
+	"github.com/ebrakke/relay-chat/internal/ws"
 )
 
 type Handler struct {
 	auth     *auth.Service
 	channels *channels.Service
+	messages *messages.Service
+	hub      *ws.Hub
 	mux      *http.ServeMux
 }
 
-func New(authSvc *auth.Service, chanSvc *channels.Service) *Handler {
-	h := &Handler{auth: authSvc, channels: chanSvc, mux: http.NewServeMux()}
+func New(authSvc *auth.Service, chanSvc *channels.Service, msgSvc *messages.Service, hub *ws.Hub) *Handler {
+	h := &Handler{auth: authSvc, channels: chanSvc, messages: msgSvc, hub: hub, mux: http.NewServeMux()}
 	h.routes()
 	return h
 }
@@ -47,6 +51,12 @@ func (h *Handler) routes() {
 
 	// Channels
 	h.mux.HandleFunc("GET /api/channels", h.handleListChannels)
+
+	// Messages
+	h.mux.HandleFunc("GET /api/channels/{id}/messages", h.handleListMessages)
+	h.mux.HandleFunc("POST /api/channels/{id}/messages", h.handleCreateMessage)
+	h.mux.HandleFunc("GET /api/messages/{id}/thread", h.handleListThread)
+	h.mux.HandleFunc("POST /api/messages/{id}/reply", h.handleCreateReply)
 
 	// Users
 	h.mux.HandleFunc("GET /api/users", h.handleListUsers)
@@ -262,6 +272,155 @@ func (h *Handler) handleListChannels(w http.ResponseWriter, r *http.Request) {
 		chs = []channels.Channel{}
 	}
 	writeJSON(w, http.StatusOK, chs)
+}
+
+// --- Message handlers ---
+
+func (h *Handler) handleListMessages(w http.ResponseWriter, r *http.Request) {
+	_, err := h.requireAuth(r)
+	if err != nil {
+		writeErr(w, http.StatusUnauthorized, err)
+		return
+	}
+
+	channelID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, errors.New("invalid channel id"))
+		return
+	}
+
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	before, _ := strconv.ParseInt(r.URL.Query().Get("before"), 10, 64)
+
+	msgs, err := h.messages.ListChannel(channelID, limit, before)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	if msgs == nil {
+		msgs = []messages.Message{}
+	}
+	writeJSON(w, http.StatusOK, msgs)
+}
+
+func (h *Handler) handleCreateMessage(w http.ResponseWriter, r *http.Request) {
+	user, err := h.requireAuth(r)
+	if err != nil {
+		writeErr(w, http.StatusUnauthorized, err)
+		return
+	}
+
+	channelID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, errors.New("invalid channel id"))
+		return
+	}
+
+	// Verify channel exists and get name for group ID
+	ch, err := h.channels.GetByID(channelID)
+	if err != nil {
+		writeErr(w, http.StatusNotFound, errors.New("channel not found"))
+		return
+	}
+
+	var req struct {
+		Content string `json:"content"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
+	if strings.TrimSpace(req.Content) == "" {
+		writeErr(w, http.StatusBadRequest, errors.New("content required"))
+		return
+	}
+
+	msg, err := h.messages.Create(channelID, user.ID, req.Content, ch.Name)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	// Broadcast to WebSocket clients
+	h.hub.Broadcast(ws.Event{Type: "new_message", Payload: msg})
+
+	writeJSON(w, http.StatusCreated, msg)
+}
+
+func (h *Handler) handleListThread(w http.ResponseWriter, r *http.Request) {
+	_, err := h.requireAuth(r)
+	if err != nil {
+		writeErr(w, http.StatusUnauthorized, err)
+		return
+	}
+
+	parentID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, errors.New("invalid message id"))
+		return
+	}
+
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	before, _ := strconv.ParseInt(r.URL.Query().Get("before"), 10, 64)
+
+	msgs, err := h.messages.ListThread(parentID, limit, before)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	if msgs == nil {
+		msgs = []messages.Message{}
+	}
+	writeJSON(w, http.StatusOK, msgs)
+}
+
+func (h *Handler) handleCreateReply(w http.ResponseWriter, r *http.Request) {
+	user, err := h.requireAuth(r)
+	if err != nil {
+		writeErr(w, http.StatusUnauthorized, err)
+		return
+	}
+
+	parentID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, errors.New("invalid message id"))
+		return
+	}
+
+	// Look up parent to get channel name for group ID
+	parent, err := h.messages.GetByID(parentID)
+	if err != nil {
+		writeErr(w, http.StatusNotFound, errors.New("parent message not found"))
+		return
+	}
+	ch, err := h.channels.GetByID(parent.ChannelID)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	var req struct {
+		Content string `json:"content"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
+	if strings.TrimSpace(req.Content) == "" {
+		writeErr(w, http.StatusBadRequest, errors.New("content required"))
+		return
+	}
+
+	msg, err := h.messages.CreateReply(parentID, user.ID, req.Content, ch.Name)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	// Broadcast to WebSocket clients
+	h.hub.Broadcast(ws.Event{Type: "new_reply", Payload: msg})
+
+	writeJSON(w, http.StatusCreated, msg)
 }
 
 // --- User handlers ---

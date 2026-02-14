@@ -1,0 +1,190 @@
+package messages
+
+import (
+	"path/filepath"
+	"testing"
+
+	"github.com/ebrakke/relay-chat/internal/db"
+)
+
+func setupTestDB(t *testing.T) *db.DB {
+	t.Helper()
+	d, err := db.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	t.Cleanup(func() { d.Close() })
+
+	// Create test user and channel
+	d.Exec("INSERT INTO users (username, display_name, password_hash, role) VALUES ('alice', 'Alice', 'hash', 'admin')")
+	d.Exec("INSERT INTO users (username, display_name, password_hash, role) VALUES ('bob', 'Bob', 'hash', 'member')")
+	d.Exec("INSERT INTO channels (name) VALUES ('general')")
+	d.Exec("INSERT INTO channel_members (channel_id, user_id) VALUES (1, 1)")
+	d.Exec("INSERT INTO channel_members (channel_id, user_id) VALUES (1, 2)")
+
+	return d
+}
+
+func TestCreateAndGetMessage(t *testing.T) {
+	d := setupTestDB(t)
+	svc := NewService(d)
+
+	msg, err := svc.Create(1, 1, "Hello world", "general")
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if msg.Content != "Hello world" {
+		t.Errorf("content = %q", msg.Content)
+	}
+	if msg.Username != "alice" {
+		t.Errorf("username = %q", msg.Username)
+	}
+	if msg.DisplayName != "Alice" {
+		t.Errorf("displayName = %q", msg.DisplayName)
+	}
+	if msg.ParentID != nil {
+		t.Errorf("parentId should be nil")
+	}
+	if msg.EventID == "" {
+		t.Errorf("eventId should not be empty")
+	}
+
+	// GetByID
+	got, err := svc.GetByID(msg.ID)
+	if err != nil {
+		t.Fatalf("getByID: %v", err)
+	}
+	if got.Content != "Hello world" {
+		t.Errorf("content = %q", got.Content)
+	}
+}
+
+func TestCreateReply(t *testing.T) {
+	d := setupTestDB(t)
+	svc := NewService(d)
+
+	parent, err := svc.Create(1, 1, "Parent message", "general")
+	if err != nil {
+		t.Fatalf("create parent: %v", err)
+	}
+
+	reply, err := svc.CreateReply(parent.ID, 2, "Reply from bob", "general")
+	if err != nil {
+		t.Fatalf("create reply: %v", err)
+	}
+	if reply.ParentID == nil || *reply.ParentID != parent.ID {
+		t.Errorf("parentId = %v, want %d", reply.ParentID, parent.ID)
+	}
+	if reply.Username != "bob" {
+		t.Errorf("username = %q", reply.Username)
+	}
+	if reply.ChannelID != parent.ChannelID {
+		t.Errorf("channelId = %d, want %d", reply.ChannelID, parent.ChannelID)
+	}
+}
+
+func TestCannotReplyToReply(t *testing.T) {
+	d := setupTestDB(t)
+	svc := NewService(d)
+
+	parent, _ := svc.Create(1, 1, "Parent", "general")
+	reply, _ := svc.CreateReply(parent.ID, 2, "Reply", "general")
+
+	_, err := svc.CreateReply(reply.ID, 1, "Nested reply", "general")
+	if err == nil {
+		t.Fatal("expected error when replying to a reply")
+	}
+}
+
+func TestListChannelMessages(t *testing.T) {
+	d := setupTestDB(t)
+	svc := NewService(d)
+
+	// Create messages
+	svc.Create(1, 1, "msg1", "general")
+	svc.Create(1, 2, "msg2", "general")
+	parent, _ := svc.Create(1, 1, "msg3", "general")
+	// Create a reply (should NOT appear in channel list)
+	svc.CreateReply(parent.ID, 2, "reply1", "general")
+
+	msgs, err := svc.ListChannel(1, 50, 0)
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if len(msgs) != 3 {
+		t.Fatalf("count = %d, want 3", len(msgs))
+	}
+	// Newest first
+	if msgs[0].Content != "msg3" {
+		t.Errorf("first = %q, want msg3", msgs[0].Content)
+	}
+	// msg3 should have reply_count=1
+	if msgs[0].ReplyCount != 1 {
+		t.Errorf("replyCount = %d, want 1", msgs[0].ReplyCount)
+	}
+}
+
+func TestListChannelPagination(t *testing.T) {
+	d := setupTestDB(t)
+	svc := NewService(d)
+
+	svc.Create(1, 1, "msg1", "general")
+	svc.Create(1, 1, "msg2", "general")
+	msg3, _ := svc.Create(1, 1, "msg3", "general")
+
+	// Get messages before msg3
+	msgs, err := svc.ListChannel(1, 50, msg3.ID)
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if len(msgs) != 2 {
+		t.Fatalf("count = %d, want 2", len(msgs))
+	}
+}
+
+func TestListThread(t *testing.T) {
+	d := setupTestDB(t)
+	svc := NewService(d)
+
+	parent, _ := svc.Create(1, 1, "Parent", "general")
+	svc.CreateReply(parent.ID, 2, "reply1", "general")
+	svc.CreateReply(parent.ID, 1, "reply2", "general")
+
+	replies, err := svc.ListThread(parent.ID, 50, 0)
+	if err != nil {
+		t.Fatalf("list thread: %v", err)
+	}
+	if len(replies) != 2 {
+		t.Fatalf("count = %d, want 2", len(replies))
+	}
+	// Oldest first
+	if replies[0].Content != "reply1" {
+		t.Errorf("first = %q, want reply1", replies[0].Content)
+	}
+}
+
+func TestGetByIDNotFound(t *testing.T) {
+	d := setupTestDB(t)
+	svc := NewService(d)
+
+	_, err := svc.GetByID(999)
+	if err != ErrNotFound {
+		t.Errorf("err = %v, want ErrNotFound", err)
+	}
+}
+
+func TestNostrEventTags(t *testing.T) {
+	d := setupTestDB(t)
+	svc := NewService(d)
+
+	// Just verify events are created with proper IDs (non-empty 64-char hex)
+	msg, _ := svc.Create(1, 1, "test", "general")
+	if len(msg.EventID) != 64 {
+		t.Errorf("eventId length = %d, want 64", len(msg.EventID))
+	}
+
+	reply, _ := svc.CreateReply(msg.ID, 2, "reply", "general")
+	if len(reply.EventID) != 64 {
+		t.Errorf("reply eventId length = %d, want 64", len(reply.EventID))
+	}
+}

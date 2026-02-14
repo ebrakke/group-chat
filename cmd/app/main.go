@@ -14,6 +14,7 @@ import (
 	"github.com/ebrakke/relay-chat/internal/auth"
 	"github.com/ebrakke/relay-chat/internal/channels"
 	"github.com/ebrakke/relay-chat/internal/db"
+	"github.com/ebrakke/relay-chat/internal/messages"
 	internalrelay "github.com/ebrakke/relay-chat/internal/relay"
 	"github.com/ebrakke/relay-chat/internal/ws"
 )
@@ -39,6 +40,7 @@ func main() {
 	// Services
 	authSvc := auth.NewService(database)
 	chanSvc := channels.NewService(database)
+	msgSvc := messages.NewService(database)
 
 	// Ensure #general exists
 	if _, err := chanSvc.EnsureGeneral(); err != nil {
@@ -53,8 +55,18 @@ func main() {
 		log.Fatalf("Failed to initialize relay: %v", err)
 	}
 
+	// WebSocket hub
+	hub := ws.NewHub()
+	hub.AuthFunc = func(token string) (int64, error) {
+		user, err := authSvc.ValidateSession(token)
+		if err != nil {
+			return 0, err
+		}
+		return user.ID, nil
+	}
+
 	// API handler
-	apiHandler := api.New(authSvc, chanSvc)
+	apiHandler := api.New(authSvc, chanSvc, msgSvc, hub)
 
 	// Build mux
 	mux := http.NewServeMux()
@@ -62,8 +74,8 @@ func main() {
 	// /api/* -> JSON API
 	mux.Handle("/api/", apiHandler)
 
-	// /ws -> websocket stub
-	mux.Handle("/ws", ws.Handler())
+	// /ws -> websocket hub
+	mux.Handle("/ws", hub.Handler())
 
 	// /relay -> NIP-29 relay (websocket)
 	mux.Handle("/relay", relayHandler)

@@ -13,7 +13,7 @@ jobs:
 
       - name: Install flyctl
         run: |
-          apk add --no-cache curl bash tar gzip ca-certificates || true
+          apk add --no-cache curl bash tar gzip ca-certificates jq || true
           curl -L https://fly.io/install.sh | sh
           $HOME/.fly/bin/flyctl version
 
@@ -25,6 +25,7 @@ jobs:
           APP="relay-chat-pr-${PR_NUMBER}"
           echo "app=${APP}" >> $GITHUB_OUTPUT
           echo "APP=${APP}" >> $GITHUB_ENV
+          echo "PR_NUMBER=${PR_NUMBER}" >> $GITHUB_ENV
 
       - name: Ensure preview app exists
         env:
@@ -50,3 +51,69 @@ jobs:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
         run: |
           $HOME/.fly/bin/flyctl info --app "$APP" || true
+
+      - name: Install Node & Playwright
+        run: |
+          apk add --no-cache nodejs npm chromium || true
+          cd tests/e2e && npm ci
+          npx playwright install --with-deps chromium || true
+
+      - name: Run smoke tests
+        id: smoke
+        run: |
+          BASE_URL="https://${APP}.fly.dev"
+          echo "BASE_URL=${BASE_URL}" >> $GITHUB_ENV
+          cd tests/e2e
+          set +e
+          npx playwright test --reporter=list --base-url "$BASE_URL" 2>&1 | tee playwright-output.log
+          EXIT_CODE=$?
+          echo "exit_code=${EXIT_CODE}" >> $GITHUB_OUTPUT
+          exit $EXIT_CODE
+
+      - name: Upload Playwright artifacts
+        if: failure() && steps.smoke.outcome == 'failure'
+        uses: actions/upload-artifact@v3
+        with:
+          name: playwright-results-pr-${{ env.PR_NUMBER }}
+          path: |
+            tests/e2e/test-results/
+            tests/e2e/playwright-report/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Comment failure summary on PR
+        if: failure() && steps.smoke.outcome == 'failure'
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+          FORGEJO_TOKEN: ${{ secrets.FORGEJO_TOKEN }}
+          FORGEJO_BASE_URL: ${{ secrets.FORGEJO_BASE_URL }}
+        run: |
+          FORGE_URL="${FORGEJO_BASE_URL:-https://forge.brakke.cc}"
+          EXIT_CODE="${{ steps.smoke.outputs.exit_code }}"
+
+          # Playwright output
+          PW_LOG="tests/e2e/playwright-output.log"
+          if [ -f "$PW_LOG" ] && [ -s "$PW_LOG" ]; then
+            PW_TAIL=$(tail -80 "$PW_LOG")
+          else
+            PW_TAIL="(no Playwright output captured)"
+          fi
+
+          # Fly logs (best-effort)
+          FLY_LOGS=$($HOME/.fly/bin/flyctl logs --app "$APP" --no-tail 2>&1 | tail -120) || FLY_LOGS="(could not fetch fly logs)"
+
+          # Build JSON payload with jq (handles escaping safely)
+          PAYLOAD=$(jq -n \
+            --arg app "$APP" \
+            --arg base_url "$BASE_URL" \
+            --arg exit_code "$EXIT_CODE" \
+            --arg pw_tail "$PW_TAIL" \
+            --arg fly_logs "$FLY_LOGS" \
+            '{body: ("## E2E Smoke Test Failed\n\n| Field | Value |\n|-------|-------|\n| **App** | `" + $app + "` |\n| **Base URL** | " + $base_url + " |\n| **Exit code** | `" + $exit_code + "` |\n\n<details><summary>Playwright output (last 80 lines)</summary>\n\n```\n" + $pw_tail + "\n```\n\n</details>\n\n<details><summary>Fly logs (last 120 lines)</summary>\n\n```\n" + $fly_logs + "\n```\n\n</details>")}')
+
+          # Post comment via Forgejo API
+          curl -sf -X POST \
+            "${FORGE_URL}/api/v1/repos/erik/relay-chat/issues/${PR_NUMBER}/comments" \
+            -H "Authorization: token ${FORGEJO_TOKEN}" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD"

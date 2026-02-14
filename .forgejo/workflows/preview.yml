@@ -50,3 +50,40 @@ jobs:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
         run: |
           $HOME/.fly/bin/flyctl info --app "$APP" || true
+
+      - name: Wait for app to be healthy
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          BASE_URL="https://${APP}.fly.dev"
+          echo "Waiting for ${BASE_URL} to respond..."
+          for i in $(seq 1 30); do
+            if curl -sf --max-time 5 "${BASE_URL}/api/auth/has-users" >/dev/null 2>&1; then
+              echo "App is healthy!"
+              exit 0
+            fi
+            echo "  attempt $i/30 — retrying in 5s..."
+            sleep 5
+          done
+          echo "App did not become healthy in time"
+          exit 1
+
+      - name: Install bun
+        run: |
+          curl -fsSL https://bun.sh/install | bash
+          echo "$HOME/.bun/bin" >> $GITHUB_PATH
+
+      - name: Install Playwright deps
+        working-directory: tests/e2e
+        run: |
+          export PATH="$HOME/.bun/bin:$PATH"
+          bun install
+          bunx playwright install --with-deps chromium
+
+      - name: Run smoke tests
+        working-directory: tests/e2e
+        env:
+          BASE_URL: "https://${{ env.APP }}.fly.dev"
+        run: |
+          export PATH="$HOME/.bun/bin:$PATH"
+          bun run test:smoke

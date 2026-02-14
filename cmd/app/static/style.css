@@ -217,3 +217,68 @@ button.btn-sm { padding: 0.25rem 0.5rem; font-size: 0.8rem; }
   font-family: monospace;
   font-size: 0.85rem;
 }
+
+/* Reactions */
+.reactions-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin-top: 0.25rem;
+  align-items: center;
+}
+.reaction-pill {
+  background: #0f3460;
+  border: 1px solid #333;
+  border-radius: 12px;
+  padding: 0.1rem 0.5rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+  color: #ccc;
+  margin-right: 0;
+}
+.reaction-pill:hover {
+  background: #1a4a8a;
+}
+.reaction-pill.mine {
+  background: #1a3a6a;
+  border-color: #e94560;
+}
+.reaction-add-btn {
+  background: transparent;
+  border: 1px dashed #555;
+  border-radius: 12px;
+  padding: 0.1rem 0.4rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+  color: #888;
+  margin-right: 0;
+}
+.reaction-add-btn:hover {
+  background: #0f3460;
+  color: #eee;
+}
+.reaction-picker {
+  position: absolute;
+  background: #16213e;
+  border: 1px solid #333;
+  border-radius: 8px;
+  padding: 0.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  z-index: 100;
+  max-width: 240px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+}
+.reaction-picker-btn {
+  background: transparent;
+  border: none;
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 4px;
+  margin-right: 0;
+}
+.reaction-picker-btn:hover {
+  background: #0f3460;
+}

@@ -13,19 +13,21 @@ import (
 	"github.com/ebrakke/relay-chat/internal/auth"
 	"github.com/ebrakke/relay-chat/internal/channels"
 	"github.com/ebrakke/relay-chat/internal/messages"
+	"github.com/ebrakke/relay-chat/internal/reactions"
 	"github.com/ebrakke/relay-chat/internal/ws"
 )
 
 type Handler struct {
-	auth     *auth.Service
-	channels *channels.Service
-	messages *messages.Service
-	hub      *ws.Hub
-	mux      *http.ServeMux
+	auth      *auth.Service
+	channels  *channels.Service
+	messages  *messages.Service
+	reactions *reactions.Service
+	hub       *ws.Hub
+	mux       *http.ServeMux
 }
 
-func New(authSvc *auth.Service, chanSvc *channels.Service, msgSvc *messages.Service, hub *ws.Hub) *Handler {
-	h := &Handler{auth: authSvc, channels: chanSvc, messages: msgSvc, hub: hub, mux: http.NewServeMux()}
+func New(authSvc *auth.Service, chanSvc *channels.Service, msgSvc *messages.Service, reactSvc *reactions.Service, hub *ws.Hub) *Handler {
+	h := &Handler{auth: authSvc, channels: chanSvc, messages: msgSvc, reactions: reactSvc, hub: hub, mux: http.NewServeMux()}
 	h.routes()
 	return h
 }
@@ -57,6 +59,10 @@ func (h *Handler) routes() {
 	h.mux.HandleFunc("POST /api/channels/{id}/messages", h.handleCreateMessage)
 	h.mux.HandleFunc("GET /api/messages/{id}/thread", h.handleListThread)
 	h.mux.HandleFunc("POST /api/messages/{id}/reply", h.handleCreateReply)
+
+	// Reactions
+	h.mux.HandleFunc("POST /api/messages/{id}/reactions", h.handleAddReaction)
+	h.mux.HandleFunc("DELETE /api/messages/{id}/reactions/{emoji}", h.handleRemoveReaction)
 
 	// Users
 	h.mux.HandleFunc("GET /api/users", h.handleListUsers)
@@ -276,6 +282,29 @@ func (h *Handler) handleListChannels(w http.ResponseWriter, r *http.Request) {
 
 // --- Message handlers ---
 
+type messageWithReactions struct {
+	messages.Message
+	Reactions []reactions.ReactionSummary `json:"reactions"`
+}
+
+func (h *Handler) attachReactions(msgs []messages.Message) []messageWithReactions {
+	ids := make([]int64, len(msgs))
+	for i, m := range msgs {
+		ids[i] = m.ID
+	}
+	summaryMap, _ := h.reactions.SummaryForMessages(ids)
+
+	result := make([]messageWithReactions, len(msgs))
+	for i, m := range msgs {
+		s := summaryMap[m.ID]
+		if s == nil {
+			s = []reactions.ReactionSummary{}
+		}
+		result[i] = messageWithReactions{Message: m, Reactions: s}
+	}
+	return result
+}
+
 func (h *Handler) handleListMessages(w http.ResponseWriter, r *http.Request) {
 	_, err := h.requireAuth(r)
 	if err != nil {
@@ -300,7 +329,7 @@ func (h *Handler) handleListMessages(w http.ResponseWriter, r *http.Request) {
 	if msgs == nil {
 		msgs = []messages.Message{}
 	}
-	writeJSON(w, http.StatusOK, msgs)
+	writeJSON(w, http.StatusOK, h.attachReactions(msgs))
 }
 
 func (h *Handler) handleCreateMessage(w http.ResponseWriter, r *http.Request) {
@@ -371,7 +400,7 @@ func (h *Handler) handleListThread(w http.ResponseWriter, r *http.Request) {
 	if msgs == nil {
 		msgs = []messages.Message{}
 	}
-	writeJSON(w, http.StatusOK, msgs)
+	writeJSON(w, http.StatusOK, h.attachReactions(msgs))
 }
 
 func (h *Handler) handleCreateReply(w http.ResponseWriter, r *http.Request) {
@@ -421,6 +450,94 @@ func (h *Handler) handleCreateReply(w http.ResponseWriter, r *http.Request) {
 	h.hub.Broadcast(ws.Event{Type: "new_reply", Payload: msg})
 
 	writeJSON(w, http.StatusCreated, msg)
+}
+
+// --- Reaction handlers ---
+
+func (h *Handler) handleAddReaction(w http.ResponseWriter, r *http.Request) {
+	user, err := h.requireAuth(r)
+	if err != nil {
+		writeErr(w, http.StatusUnauthorized, err)
+		return
+	}
+
+	messageID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, errors.New("invalid message id"))
+		return
+	}
+
+	var req struct {
+		Emoji string `json:"emoji"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
+
+	// Look up message to get channel for group ID
+	msg, err := h.messages.GetByID(messageID)
+	if err != nil {
+		writeErr(w, http.StatusNotFound, errors.New("message not found"))
+		return
+	}
+	ch, err := h.channels.GetByID(msg.ChannelID)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	reaction, err := h.reactions.Add(messageID, user.ID, req.Emoji, ch.Name)
+	if errors.Is(err, reactions.ErrInvalidEmoji) {
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	h.hub.Broadcast(ws.Event{Type: "reaction_added", Payload: reaction})
+
+	writeJSON(w, http.StatusCreated, reaction)
+}
+
+func (h *Handler) handleRemoveReaction(w http.ResponseWriter, r *http.Request) {
+	user, err := h.requireAuth(r)
+	if err != nil {
+		writeErr(w, http.StatusUnauthorized, err)
+		return
+	}
+
+	messageID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, errors.New("invalid message id"))
+		return
+	}
+
+	emoji := r.PathValue("emoji")
+
+	err = h.reactions.Remove(messageID, user.ID, emoji)
+	if errors.Is(err, reactions.ErrInvalidEmoji) {
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
+	if errors.Is(err, reactions.ErrNotFound) {
+		writeErr(w, http.StatusNotFound, err)
+		return
+	}
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	h.hub.Broadcast(ws.Event{Type: "reaction_removed", Payload: map[string]interface{}{
+		"messageId": messageID,
+		"emoji":     emoji,
+		"userId":    user.ID,
+	}})
+
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 // --- User handlers ---

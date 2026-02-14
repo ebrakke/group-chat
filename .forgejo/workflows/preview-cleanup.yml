@@ -1,0 +1,28 @@
+name: Preview Cleanup (Fly.io)
+
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  cleanup:
+    runs-on: docker
+    steps:
+      - name: Install flyctl
+        run: |
+          apk add --no-cache curl bash tar gzip ca-certificates || true
+          curl -L https://fly.io/install.sh | sh
+          $HOME/.fly/bin/flyctl version
+
+      - name: Compute preview app name
+        run: |
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+          APP="relay-chat-pr-${PR_NUMBER}"
+          echo "APP=${APP}" >> $GITHUB_ENV
+
+      - name: Destroy preview app
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          # Best-effort: don't fail the workflow if it was already gone.
+          $HOME/.fly/bin/flyctl apps destroy "$APP" --yes || true

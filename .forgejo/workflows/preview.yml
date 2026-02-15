@@ -97,7 +97,7 @@ jobs:
         id: smoke
         run: |
           export PATH="$HOME/.bun/bin:$PATH"
-          BASE_URL="https://${APP}.fly.dev"
+          export BASE_URL="https://${APP}.fly.dev"
           echo "BASE_URL=${BASE_URL}" >> $GITHUB_ENV
           cd tests/e2e
           set +e

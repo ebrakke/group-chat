@@ -50,11 +50,24 @@ jobs:
             $HOME/.fly/bin/flyctl apps create "$APP" --org personal
           fi
 
+      - name: Reset preview data (best-effort)
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          # We want PR preview envs to be ephemeral so bootstrap-based tests are deterministic.
+          # Fly volumes persist across deploys, so wipe them before deploying.
+          set +e
+          IDS=$($HOME/.fly/bin/flyctl volumes list --app "$APP" 2>/dev/null | awk 'NR>1 {print $1}')
+          for id in $IDS; do
+            echo "Destroying volume $id"
+            $HOME/.fly/bin/flyctl volumes destroy "$id" --app "$APP" --yes || true
+          done
+          set -e
+
       - name: Deploy preview
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
         run: |
-          # Preview env is ephemeral by default (no volume). That's fine for PR testing.
           $HOME/.fly/bin/flyctl deploy --app "$APP" --remote-only
 
       - name: Show URL

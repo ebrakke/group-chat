@@ -70,25 +70,32 @@ function renderReactions(msgId, reactions) {
   let html = '<div class="reactions-bar">';
   for (const r of reactions) {
     const mine = currentUser && r.userIds && r.userIds.includes(currentUser.id);
-    html += `<button class="reaction-pill${mine ? " mine" : ""}" data-msg-id="${msgId}" data-emoji="${esc(r.emoji)}">${r.emoji} ${r.count}</button>`;
+    html += `<button class="reaction-pill${mine ? " mine" : ""}" data-emoji="${esc(r.emoji)}">${r.emoji} <span class="reaction-count">${r.count}</span></button>`;
   }
-  html += `<button class="reaction-add-btn" data-msg-id="${msgId}">+</button>`;
+  html += `<button class="reaction-add-btn" data-add-for="${msgId}">+</button>`;
   html += '</div>';
   return html;
 }
 
-function attachReactionHandlers(container) {
-  container.querySelectorAll(".reaction-pill").forEach(btn => {
-    btn.onclick = () => toggleReaction(parseInt(btn.dataset.msgId, 10), btn.dataset.emoji);
+function attachReactionHandlers(container, msgId) {
+  const bar = container.querySelector(".reactions-bar");
+  if (!bar) return;
+  bar.querySelectorAll(".reaction-pill").forEach(btn => {
+    btn.onclick = () => toggleReaction(msgId, btn.dataset.emoji);
   });
-  container.querySelectorAll(".reaction-add-btn").forEach(btn => {
-    btn.onclick = (e) => showReactionPicker(e, parseInt(btn.dataset.msgId, 10));
-  });
+  const addBtn = bar.querySelector(".reaction-add-btn");
+  if (addBtn) {
+    addBtn.onclick = (e) => {
+      e.stopPropagation();
+      showReactionPicker(addBtn, msgId);
+    };
+  }
 }
 
-function showReactionPicker(e, msgId) {
+function showReactionPicker(anchorBtn, msgId) {
   // Remove any existing picker
-  document.querySelectorAll(".reaction-picker").forEach(el => el.remove());
+  const existing = document.querySelector(".reaction-picker");
+  if (existing) existing.remove();
 
   const picker = document.createElement("div");
   picker.className = "reaction-picker";
@@ -96,18 +103,21 @@ function showReactionPicker(e, msgId) {
     `<button class="reaction-picker-btn" data-emoji="${em}">${em}</button>`
   ).join("");
   picker.querySelectorAll(".reaction-picker-btn").forEach(btn => {
-    btn.onclick = () => {
+    btn.onclick = (e) => {
+      e.stopPropagation();
       picker.remove();
       toggleReaction(msgId, btn.dataset.emoji);
     };
   });
 
-  // Position near the + button
-  e.target.parentElement.appendChild(picker);
+  // Anchor picker relative to the + button
+  const bar = anchorBtn.closest(".reactions-bar");
+  bar.style.position = "relative";
+  bar.appendChild(picker);
 
   // Close on outside click
   const closeHandler = (ev) => {
-    if (!picker.contains(ev.target) && ev.target !== e.target) {
+    if (!picker.contains(ev.target) && ev.target !== anchorBtn) {
       picker.remove();
       document.removeEventListener("click", closeHandler);
     }
@@ -119,7 +129,6 @@ async function toggleReaction(msgId, emoji) {
   try {
     await api("POST", `/api/messages/${msgId}/reactions`, { emoji });
   } catch (e) {
-    // If already exists, try to remove
     if (e.message) {
       try {
         await api("DELETE", `/api/messages/${msgId}/reactions/${encodeURIComponent(emoji)}`);
@@ -128,96 +137,58 @@ async function toggleReaction(msgId, emoji) {
   }
 }
 
+function findMessageContainers(msgId) {
+  // Only select .message elements that are actual message containers, not nested elements
+  const results = [];
+  document.querySelectorAll(`.message[data-msg-id="${msgId}"]`).forEach(el => results.push(el));
+  document.querySelectorAll(`.message[data-reply-id="${msgId}"]`).forEach(el => {
+    if (!results.includes(el)) results.push(el);
+  });
+  return results;
+}
+
 function updateReactionUI(msgId, emoji, userId, added) {
-  // Find the message element (could be in channel or thread)
-  const msgEls = document.querySelectorAll(`[data-msg-id="${msgId}"]`);
-  msgEls.forEach(msgEl => {
+  const containers = findMessageContainers(msgId);
+  containers.forEach(msgEl => {
     let bar = msgEl.querySelector(".reactions-bar");
     if (!bar) {
-      // Create reactions bar before msg-actions if it exists, or at the end
       const actionsEl = msgEl.querySelector(".msg-actions");
       bar = document.createElement("div");
       bar.className = "reactions-bar";
-      bar.innerHTML = `<button class="reaction-add-btn" data-msg-id="${msgId}">+</button>`;
+      bar.innerHTML = `<button class="reaction-add-btn" data-add-for="${msgId}">+</button>`;
       if (actionsEl) {
         msgEl.insertBefore(bar, actionsEl);
       } else {
         msgEl.appendChild(bar);
       }
-      attachReactionHandlers(msgEl);
+      attachReactionHandlers(msgEl, msgId);
     }
 
     let pill = bar.querySelector(`.reaction-pill[data-emoji="${CSS.escape(emoji)}"]`);
     if (added) {
       if (pill) {
-        const match = pill.textContent.match(/(\d+)/);
-        const count = match ? parseInt(match[1], 10) + 1 : 1;
-        const mine = currentUser && userId === currentUser.id;
-        if (mine) pill.classList.add("mine");
-        pill.textContent = `${emoji} ${count}`;
-      } else {
-        const newPill = document.createElement("button");
-        newPill.className = "reaction-pill" + (currentUser && userId === currentUser.id ? " mine" : "");
-        newPill.dataset.msgId = msgId;
-        newPill.dataset.emoji = emoji;
-        newPill.textContent = `${emoji} 1`;
-        newPill.onclick = () => toggleReaction(msgId, emoji);
-        const addBtn = bar.querySelector(".reaction-add-btn");
-        bar.insertBefore(newPill, addBtn);
-      }
-    } else {
-      if (pill) {
-        const match = pill.textContent.match(/(\d+)/);
-        const count = match ? parseInt(match[1], 10) - 1 : 0;
-        if (count <= 0) {
-          pill.remove();
-        } else {
-          if (currentUser && userId === currentUser.id) pill.classList.remove("mine");
-          pill.textContent = `${emoji} ${count}`;
-        }
-      }
-    }
-  });
-
-  // Also update thread reply elements
-  const replyEls = document.querySelectorAll(`[data-reply-id="${msgId}"]`);
-  replyEls.forEach(replyEl => {
-    // Same logic but for reply elements
-    let bar = replyEl.querySelector(".reactions-bar");
-    if (!bar) {
-      bar = document.createElement("div");
-      bar.className = "reactions-bar";
-      bar.innerHTML = `<button class="reaction-add-btn" data-msg-id="${msgId}">+</button>`;
-      replyEl.appendChild(bar);
-      attachReactionHandlers(replyEl);
-    }
-
-    let pill = bar.querySelector(`.reaction-pill[data-emoji="${CSS.escape(emoji)}"]`);
-    if (added) {
-      if (pill) {
-        const match = pill.textContent.match(/(\d+)/);
-        const count = match ? parseInt(match[1], 10) + 1 : 1;
+        const countEl = pill.querySelector(".reaction-count");
+        const count = parseInt(countEl.textContent, 10) + 1;
+        countEl.textContent = count;
         if (currentUser && userId === currentUser.id) pill.classList.add("mine");
-        pill.textContent = `${emoji} ${count}`;
       } else {
         const newPill = document.createElement("button");
         newPill.className = "reaction-pill" + (currentUser && userId === currentUser.id ? " mine" : "");
-        newPill.dataset.msgId = msgId;
         newPill.dataset.emoji = emoji;
-        newPill.textContent = `${emoji} 1`;
+        newPill.innerHTML = `${emoji} <span class="reaction-count">1</span>`;
         newPill.onclick = () => toggleReaction(msgId, emoji);
         const addBtn = bar.querySelector(".reaction-add-btn");
         bar.insertBefore(newPill, addBtn);
       }
     } else {
       if (pill) {
-        const match = pill.textContent.match(/(\d+)/);
-        const count = match ? parseInt(match[1], 10) - 1 : 0;
+        const countEl = pill.querySelector(".reaction-count");
+        const count = parseInt(countEl.textContent, 10) - 1;
         if (count <= 0) {
           pill.remove();
         } else {
+          countEl.textContent = count;
           if (currentUser && userId === currentUser.id) pill.classList.remove("mine");
-          pill.textContent = `${emoji} ${count}`;
         }
       }
     }
@@ -494,7 +465,7 @@ function appendMessage(msg) {
     <div class="msg-actions">${replyBtn}</div>
   `;
   div.querySelector(".reply-btn").onclick = () => openThread(msg.id);
-  attachReactionHandlers(div);
+  attachReactionHandlers(div, msg.id);
   list.appendChild(div);
   list.scrollTop = list.scrollHeight;
 }
@@ -564,7 +535,7 @@ function appendReply(reply) {
     <div class="msg-body">${esc(reply.content)}</div>
     ${reactionsHtml}
   `;
-  attachReactionHandlers(div);
+  attachReactionHandlers(div, reply.id);
   list.appendChild(div);
   list.scrollTop = list.scrollHeight;
 }

@@ -222,63 +222,87 @@ button.btn-sm { padding: 0.25rem 0.5rem; font-size: 0.8rem; }
 .reactions-bar {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.25rem;
-  margin-top: 0.25rem;
+  gap: 4px;
+  margin-top: 4px;
   align-items: center;
+  position: relative;
 }
 .reaction-pill {
-  background: #0f3460;
-  border: 1px solid #333;
-  border-radius: 12px;
-  padding: 0.1rem 0.5rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 16px;
+  padding: 2px 8px;
   font-size: 0.8rem;
+  line-height: 1.4;
   cursor: pointer;
   color: #ccc;
   margin-right: 0;
+  transition: background 0.1s;
 }
 .reaction-pill:hover {
-  background: #1a4a8a;
+  background: rgba(255,255,255,0.12);
 }
 .reaction-pill.mine {
-  background: #1a3a6a;
-  border-color: #e94560;
+  background: rgba(233,69,96,0.15);
+  border-color: rgba(233,69,96,0.4);
+}
+.reaction-pill .reaction-count {
+  font-size: 0.75rem;
+  color: #aaa;
+}
+.reaction-pill.mine .reaction-count {
+  color: #e94560;
 }
 .reaction-add-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background: transparent;
-  border: 1px dashed #555;
-  border-radius: 12px;
-  padding: 0.1rem 0.4rem;
-  font-size: 0.8rem;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 16px;
+  width: 26px;
+  height: 24px;
+  font-size: 0.85rem;
   cursor: pointer;
-  color: #888;
+  color: #666;
   margin-right: 0;
+  padding: 0;
+  transition: background 0.1s, color 0.1s;
 }
 .reaction-add-btn:hover {
-  background: #0f3460;
-  color: #eee;
+  background: rgba(255,255,255,0.08);
+  color: #ccc;
 }
 .reaction-picker {
   position: absolute;
-  background: #16213e;
-  border: 1px solid #333;
+  bottom: 100%;
+  left: 0;
+  margin-bottom: 4px;
+  background: #1e2a3a;
+  border: 1px solid rgba(255,255,255,0.12);
   border-radius: 8px;
-  padding: 0.5rem;
+  padding: 6px;
   display: flex;
   flex-wrap: wrap;
-  gap: 0.25rem;
+  gap: 2px;
   z-index: 100;
-  max-width: 240px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  max-width: 220px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.5);
 }
 .reaction-picker-btn {
   background: transparent;
   border: none;
-  font-size: 1.2rem;
+  font-size: 1.1rem;
   cursor: pointer;
-  padding: 0.25rem;
-  border-radius: 4px;
+  padding: 4px;
+  border-radius: 6px;
   margin-right: 0;
+  line-height: 1;
+  transition: background 0.1s;
 }
 .reaction-picker-btn:hover {
-  background: #0f3460;
+  background: rgba(255,255,255,0.1);
 }

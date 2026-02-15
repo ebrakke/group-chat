@@ -136,4 +136,58 @@ test.describe.serial("Full E2E flow", () => {
     await ctxA.close();
     await ctxB.close();
   });
+
+  test("reactions: clicking + opens picker once, selecting emoji adds pill, toggling removes", async ({ page }) => {
+    // Login as admin
+    await page.goto("/");
+    await page.fill("#username", ADMIN_USER);
+    await page.fill("#password", ADMIN_PASS);
+    await page.click("#submit");
+    await expect(page.locator("#channel-header")).toHaveText("# general", { timeout: 5000 });
+
+    // Send a message to react to
+    const msgText = `react-test-${Date.now()}`;
+    await page.fill("#msg-input", msgText);
+    await page.click("#msg-send");
+    await expect(page.locator(".message .msg-body", { hasText: msgText })).toBeVisible({ timeout: 5000 });
+
+    // Find the message container
+    const msg = page.locator(".message", { has: page.locator(".msg-body", { hasText: msgText }) });
+
+    // --- Test 1: Clicking + opens picker exactly once ---
+    const addBtn = msg.locator(".reaction-add-btn");
+    await addBtn.click();
+
+    // Picker should appear
+    const picker = page.locator(".reaction-picker");
+    await expect(picker).toBeVisible({ timeout: 3000 });
+
+    // There should be exactly one picker on the page
+    await expect(page.locator(".reaction-picker")).toHaveCount(1);
+
+    // --- Test 2: Clicking outside closes picker ---
+    await page.locator(".channel-header").click();
+    await expect(picker).toBeHidden({ timeout: 3000 });
+
+    // --- Test 3: Selecting emoji from picker adds a pill ---
+    await addBtn.click();
+    await expect(picker).toBeVisible({ timeout: 3000 });
+
+    // Click the thumbs up emoji
+    await page.locator(".reaction-picker-btn").first().click();
+
+    // Picker should close
+    await expect(page.locator(".reaction-picker")).toBeHidden({ timeout: 3000 });
+
+    // A reaction pill should appear with count 1
+    const pill = msg.locator(".reaction-pill").first();
+    await expect(pill).toBeVisible({ timeout: 5000 });
+    await expect(pill.locator(".reaction-count")).toHaveText("1", { timeout: 5000 });
+
+    // --- Test 4: Clicking pill toggles (removes) the reaction ---
+    await pill.click();
+
+    // The pill should disappear (count goes to 0)
+    await expect(msg.locator(".reaction-pill")).toBeHidden({ timeout: 5000 });
+  });
 });

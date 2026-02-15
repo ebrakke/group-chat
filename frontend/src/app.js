@@ -81,7 +81,7 @@ function attachReactionHandlers(container, msgId) {
   const bar = container.querySelector(".reactions-bar");
   if (!bar) return;
   bar.querySelectorAll(".reaction-pill").forEach(btn => {
-    btn.onclick = () => toggleReaction(msgId, btn.dataset.emoji);
+    btn.onclick = () => toggleReaction(msgId, btn.dataset.emoji, btn.classList.contains("mine"));
   });
   const addBtn = bar.querySelector(".reaction-add-btn");
   if (addBtn) {
@@ -106,7 +106,7 @@ function showReactionPicker(anchorBtn, msgId) {
     btn.onclick = (e) => {
       e.stopPropagation();
       picker.remove();
-      toggleReaction(msgId, btn.dataset.emoji);
+      addReaction(msgId, btn.dataset.emoji);
     };
   });
 
@@ -125,15 +125,24 @@ function showReactionPicker(anchorBtn, msgId) {
   setTimeout(() => document.addEventListener("click", closeHandler), 0);
 }
 
-async function toggleReaction(msgId, emoji) {
+async function addReaction(msgId, emoji) {
+  await api("POST", `/api/messages/${msgId}/reactions`, { emoji });
+}
+
+async function removeReaction(msgId, emoji) {
+  await api("DELETE", `/api/messages/${msgId}/reactions/${encodeURIComponent(emoji)}`);
+}
+
+async function toggleReaction(msgId, emoji, isMine) {
+  // UI knows if current user has reacted; use correct endpoint.
   try {
-    await api("POST", `/api/messages/${msgId}/reactions`, { emoji });
-  } catch (e) {
-    if (e.message) {
-      try {
-        await api("DELETE", `/api/messages/${msgId}/reactions/${encodeURIComponent(emoji)}`);
-      } catch {}
+    if (isMine) {
+      await removeReaction(msgId, emoji);
+    } else {
+      await addReaction(msgId, emoji);
     }
+  } catch {
+    // ignore; WS will reconcile
   }
 }
 
@@ -176,7 +185,7 @@ function updateReactionUI(msgId, emoji, userId, added) {
         newPill.className = "reaction-pill" + (currentUser && userId === currentUser.id ? " mine" : "");
         newPill.dataset.emoji = emoji;
         newPill.innerHTML = `${emoji} <span class="reaction-count">1</span>`;
-        newPill.onclick = () => toggleReaction(msgId, emoji);
+        newPill.onclick = () => toggleReaction(msgId, emoji, newPill.classList.contains("mine"));
         const addBtn = bar.querySelector(".reaction-add-btn");
         bar.insertBefore(newPill, addBtn);
       }

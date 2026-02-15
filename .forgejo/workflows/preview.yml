@@ -52,20 +52,25 @@ jobs:
         run: |
           $HOME/.fly/bin/flyctl info --app "$APP" || true
 
-      - name: Install Node & Playwright
+      - name: Install bun + Playwright
         run: |
-          apk add --no-cache nodejs npm chromium || true
-          cd tests/e2e && npm ci
-          npx playwright install --with-deps chromium || true
+          apk add --no-cache curl bash nodejs chromium || true
+          # Install bun (needed because tests use bun.lock)
+          curl -fsSL https://bun.sh/install | bash
+          export PATH="$HOME/.bun/bin:$PATH"
+          cd tests/e2e
+          bun install --frozen-lockfile 2>/dev/null || bun install
+          bunx playwright install --with-deps chromium 2>/dev/null || true
 
       - name: Run smoke tests
         id: smoke
         run: |
+          export PATH="$HOME/.bun/bin:$PATH"
           BASE_URL="https://${APP}.fly.dev"
           echo "BASE_URL=${BASE_URL}" >> $GITHUB_ENV
           cd tests/e2e
           set +e
-          npx playwright test --reporter=list --base-url "$BASE_URL" 2>&1 | tee playwright-output.log
+          bunx playwright test --reporter=list --base-url "$BASE_URL" 2>&1 | tee playwright-output.log
           EXIT_CODE=$?
           echo "exit_code=${EXIT_CODE}" >> $GITHUB_OUTPUT
           exit $EXIT_CODE

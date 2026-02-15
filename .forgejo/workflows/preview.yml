@@ -38,17 +38,16 @@ jobs:
           echo "APP=${APP}" >> $GITHUB_ENV
           echo "PR_NUMBER=${PR_NUMBER}" >> $GITHUB_ENV
 
-      - name: Ensure preview app exists
+      - name: Recreate preview app (ephemeral)
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
         run: |
+          # For deterministic E2E: destroy and recreate the app every run.
+          # This clears volumes and ensures bootstrap/login state is fresh.
+          set +e
+          $HOME/.fly/bin/flyctl apps destroy "$APP" --yes >/dev/null 2>&1
           set -e
-          if $HOME/.fly/bin/flyctl status --app "$APP" >/dev/null 2>&1; then
-            echo "Preview app exists: $APP"
-          else
-            echo "Creating preview app: $APP"
-            $HOME/.fly/bin/flyctl apps create "$APP" --org personal
-          fi
+          $HOME/.fly/bin/flyctl apps create "$APP" --org personal
 
       - name: Reset preview data (best-effort)
         env:

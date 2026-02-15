@@ -52,25 +52,21 @@ jobs:
         run: |
           $HOME/.fly/bin/flyctl info --app "$APP" || true
 
-      - name: Install bun + Playwright
+      - name: Install Node & Playwright
         run: |
-          apk add --no-cache curl bash nodejs chromium unzip libc6-compat || true
-          # Install bun (needed because tests use bun.lock)
-          curl -fsSL https://bun.sh/install | bash
-          export PATH="$HOME/.bun/bin:$PATH"
+          apk add --no-cache nodejs npm chromium curl bash ca-certificates jq || true
           cd tests/e2e
-          bun install --frozen-lockfile 2>/dev/null || bun install
-          bunx playwright install --with-deps chromium 2>/dev/null || true
+          npm install
+          npx playwright install --with-deps chromium 2>/dev/null || true
 
       - name: Run smoke tests
         id: smoke
         run: |
-          export PATH="$HOME/.bun/bin:$PATH"
           BASE_URL="https://${APP}.fly.dev"
           echo "BASE_URL=${BASE_URL}" >> $GITHUB_ENV
           cd tests/e2e
           set +e
-          bunx playwright test --reporter=list --base-url "$BASE_URL" 2>&1 | tee playwright-output.log
+          npx playwright test --reporter=list --base-url "$BASE_URL" 2>&1 | tee playwright-output.log
           EXIT_CODE=$?
           echo "exit_code=${EXIT_CODE}" >> $GITHUB_OUTPUT
           exit $EXIT_CODE
@@ -117,8 +113,14 @@ jobs:
             '{body: ("## E2E Smoke Test Failed\n\n| Field | Value |\n|-------|-------|\n| **App** | `" + $app + "` |\n| **Base URL** | " + $base_url + " |\n| **Exit code** | `" + $exit_code + "` |\n\n<details><summary>Playwright output (last 80 lines)</summary>\n\n```\n" + $pw_tail + "\n```\n\n</details>\n\n<details><summary>Fly logs (last 120 lines)</summary>\n\n```\n" + $fly_logs + "\n```\n\n</details>")}')
 
           # Post comment via Forgejo API
+          # If FORGEJO_TOKEN isn't set, skip commenting (don't fail the workflow on reporting).
+          if [ -z "${FORGEJO_TOKEN:-}" ]; then
+            echo "FORGEJO_TOKEN not set; skipping PR comment"
+            exit 0
+          fi
+
           curl -sf -X POST \
             "${FORGE_URL}/api/v1/repos/erik/relay-chat/issues/${PR_NUMBER}/comments" \
             -H "Authorization: token ${FORGEJO_TOKEN}" \
             -H "Content-Type: application/json" \
-            -d "$PAYLOAD"
+            -d "$PAYLOAD" || true

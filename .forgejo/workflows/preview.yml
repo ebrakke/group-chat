@@ -3,6 +3,12 @@ name: Preview Deploy (Fly.io)
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: "PR number to use for naming/commenting (optional)"
+        required: false
+        type: string
 
 jobs:
   preview:
@@ -23,6 +29,10 @@ jobs:
         run: |
           # App names must be globally unique and lowercase. Keep it short.
           PR_NUMBER="${{ github.event.pull_request.number }}"
+          # Allow manual re-dispatch via workflow_dispatch
+          if [ -n "${{ github.event.inputs.pr_number }}" ]; then
+            PR_NUMBER="${{ github.event.inputs.pr_number }}"
+          fi
           APP="relay-chat-pr-${PR_NUMBER}"
           echo "app=${APP}" >> $GITHUB_OUTPUT
           echo "APP=${APP}" >> $GITHUB_ENV

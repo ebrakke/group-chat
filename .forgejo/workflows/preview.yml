@@ -81,7 +81,7 @@ jobs:
           echo "BASE_URL=${BASE_URL}" >> $GITHUB_ENV
           cd tests/e2e
           set +e
-          npx playwright test --reporter=list --base-url "$BASE_URL" 2>&1 | tee playwright-output.log
+          npx playwright test --reporter=list --base-url "$BASE_URL" > playwright-output.log 2>&1
           EXIT_CODE=$?
           echo "exit_code=${EXIT_CODE}" >> $GITHUB_OUTPUT
           exit $EXIT_CODE
@@ -92,6 +92,7 @@ jobs:
         with:
           name: playwright-results-pr-${{ env.PR_NUMBER }}
           path: |
+            tests/e2e/playwright-output.log
             tests/e2e/test-results/
             tests/e2e/playwright-report/
           retention-days: 7
@@ -115,8 +116,16 @@ jobs:
             PW_TAIL="(no Playwright output captured)"
           fi
 
-          # Fly logs (best-effort)
-          FLY_LOGS=$($HOME/.fly/bin/flyctl logs --app "$APP" --no-tail 2>&1 | tail -120) || FLY_LOGS="(could not fetch fly logs)"
+          # Fly logs (best-effort, don't break the reporter step)
+          set +e
+          FLY_LOGS="$($HOME/.fly/bin/flyctl logs --app \"$APP\" --no-tail 2>&1 | tail -120)"
+          set -e
+          if [ -z "$FLY_LOGS" ]; then
+            FLY_LOGS="(no fly logs captured)"
+          fi
+
+          # Export so python can read them
+          export APP BASE_URL EXIT_CODE PW_TAIL FLY_LOGS
 
           # Build JSON payload safely (python json.dumps for escaping)
           PAYLOAD=$(python3 - <<'PY'

@@ -81,7 +81,8 @@ jobs:
           echo "BASE_URL=${BASE_URL}" >> $GITHUB_ENV
           cd tests/e2e
           set +e
-          npx playwright test --reporter=list --base-url "$BASE_URL" > playwright-output.log 2>&1
+          # baseURL is read from BASE_URL env in playwright.config.ts
+          npx playwright test --reporter=list > playwright-output.log 2>&1
           EXIT_CODE=$?
           echo "exit_code=${EXIT_CODE}" >> $GITHUB_OUTPUT
           exit $EXIT_CODE

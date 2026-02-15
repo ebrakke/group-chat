@@ -54,7 +54,7 @@ jobs:
 
       - name: Install bun + Playwright
         run: |
-          apk add --no-cache curl bash nodejs chromium || true
+          apk add --no-cache curl bash nodejs chromium unzip libc6-compat || true
           # Install bun (needed because tests use bun.lock)
           curl -fsSL https://bun.sh/install | bash
           export PATH="$HOME/.bun/bin:$PATH"

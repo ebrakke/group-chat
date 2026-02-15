@@ -50,4 +50,5 @@ bun install --frozen-lockfile 2>/dev/null || bun install
 bunx playwright install chromium 2>/dev/null || true
 
 echo "==> Running Playwright tests..."
-TEST_PORT="$TEST_PORT" bunx playwright test
+# Local E2E harness runs the local-only suite (prod-smoke is for deployed preview envs).
+TEST_PORT="$TEST_PORT" bunx playwright test tests/e2e.spec.ts

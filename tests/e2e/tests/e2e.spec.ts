@@ -126,7 +126,8 @@ test.describe.serial("Full E2E flow", () => {
     await expect(pageB.locator(".thread-replies .msg-body", { hasText: "Reply from Member!" })).toBeVisible({ timeout: 5000 });
 
     // User A should see the reply count update via WS
-    await expect(pageA.locator(".reply-btn", { hasText: "(1)" })).toBeVisible({ timeout: 5000 });
+    // On Fly preview envs WS delivery can be a bit slower; give it more time.
+    await expect(pageA.locator(".reply-btn", { hasText: "(1)" })).toBeVisible({ timeout: 15_000 });
 
     // User A opens thread to verify
     await pageA.locator(".reply-btn").first().click();

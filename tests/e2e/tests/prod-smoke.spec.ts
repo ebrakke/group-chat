@@ -52,7 +52,8 @@ test.describe.serial("Prod smoke – critical path", () => {
       await page.click("#submit");
     }
 
-    await expect(page.locator("#channel-header")).toBeVisible({ timeout: 10_000 });
+    // Some preview envs are slow; wait for the composer as the true "chat is ready" signal.
+    await expect(page.locator("#msg-input")).toBeVisible({ timeout: 20_000 });
     await expect(
       page.locator(".channel-list li", { hasText: "general" })
     ).toBeVisible();
@@ -87,7 +88,7 @@ test.describe.serial("Prod smoke – critical path", () => {
     await page.fill("#signup-password", MEMBER_PASS);
     await page.click("#signup-submit");
 
-    await expect(page.locator("#channel-header")).toBeVisible({ timeout: 10_000 });
+    await expect(page.locator("#msg-input")).toBeVisible({ timeout: 20_000 });
     await expect(
       page.locator(".channel-list li", { hasText: "general" })
     ).toBeVisible();

@@ -166,3 +166,4 @@ jobs:
             -H "Authorization: token ${FORGEJO_TOKEN}" \
             -H "Content-Type: application/json" \
             -d "$PAYLOAD" || true
+trigger

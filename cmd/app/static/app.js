@@ -433,13 +433,12 @@ async function renderMain() {
     loadInvites();
   }
 
-  const general = channelsList.find(c => c.name === "general");
-  if (general) selectChannel(general);
+  await handleRoute(channelsList);
 }
 
 // --- Channel + Messages ---
 
-async function selectChannel(channel) {
+async function selectChannel(channel, fromRoute = false) {
   currentChannel = channel;
   openThreadId = null;
   document.getElementById("thread-panel").classList.add("hidden");
@@ -456,6 +455,10 @@ async function selectChannel(channel) {
   if (sb) sb.classList.remove("sidebar-open");
   if (bd) bd.classList.remove("sidebar-backdrop-visible");
   document.getElementById("composer").style.display = "flex";
+
+  if (!fromRoute) {
+    navigate(`/${channel.name}`);
+  }
 
   await loadMessages(channel.id);
   document.getElementById("msg-input").focus();
@@ -510,7 +513,7 @@ function updateReplyCount(parentId) {
 
 // --- Threads ---
 
-async function openThread(parentId) {
+async function openThread(parentId, fromRoute = false) {
   openThreadId = parentId;
   const panel = document.getElementById("thread-panel");
   panel.classList.remove("hidden");
@@ -527,6 +530,10 @@ async function openThread(parentId) {
         <div class="msg-body">${esc(body)}</div>
       </div>
     `;
+  }
+
+  if (!fromRoute && currentChannel) {
+    navigate(`/${currentChannel.name}/t/${parentId}`);
   }
 
   await loadReplies(parentId);
@@ -571,6 +578,9 @@ function appendReply(reply) {
 function closeThread() {
   openThreadId = null;
   document.getElementById("thread-panel").classList.add("hidden");
+  if (currentChannel) {
+    navigate(`/${currentChannel.name}`);
+  }
 }
 
 // --- Send ---
@@ -628,6 +638,65 @@ function fmtTime(ts) {
     return ts;
   }
 }
+
+// --- Routing ---
+
+function navigate(path, replace = false) {
+  if (replace) {
+    history.replaceState(null, "", path);
+  } else {
+    history.pushState(null, "", path);
+  }
+}
+
+async function handleRoute(channelsList) {
+  const path = location.pathname.replace(/\/+$/, "") || "/";
+  const parts = path.split("/").filter(Boolean); // e.g. ["general"] or ["general", "t", "42"]
+
+  let channelName = null;
+  let threadId = null;
+
+  if (parts.length >= 1) {
+    channelName = parts[0];
+  }
+  if (parts.length === 3 && parts[1] === "t") {
+    threadId = parseInt(parts[2], 10);
+    if (isNaN(threadId)) threadId = null;
+  }
+
+  // Find matching channel
+  let target = null;
+  if (channelName) {
+    target = channelsList.find(c => c.name === channelName);
+  }
+
+  // Fall back to #general
+  if (!target) {
+    target = channelsList.find(c => c.name === "general");
+  }
+
+  if (target) {
+    await selectChannel(target, true);
+    // Update URL to canonical form (in case we fell back)
+    const canonicalPath = `/${target.name}`;
+    if (!channelName || !channelsList.find(c => c.name === channelName)) {
+      navigate(canonicalPath, true);
+    }
+    if (threadId) {
+      await openThread(threadId, true);
+    }
+  }
+}
+
+window.addEventListener("popstate", () => {
+  if (!currentUser) return;
+  const channelEls = document.querySelectorAll(".channel-list li");
+  const channelsList = Array.from(channelEls).map(li => ({
+    id: parseInt(li.dataset.id, 10),
+    name: li.dataset.name,
+  }));
+  handleRoute(channelsList);
+});
 
 // --- Boot ---
 async function boot() {

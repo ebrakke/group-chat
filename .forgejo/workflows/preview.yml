@@ -120,39 +120,39 @@ jobs:
 
           # Build JSON payload safely (python json.dumps for escaping)
           PAYLOAD=$(python3 - <<'PY'
-import json, os
-app=os.environ.get('APP','')
-base_url=os.environ.get('BASE_URL','')
-exit_code=os.environ.get('EXIT_CODE','')
-pw_tail=os.environ.get('PW_TAIL','')
-fly_logs=os.environ.get('FLY_LOGS','')
-body = f"""## E2E Smoke Test Failed
+          import json, os
+          app=os.environ.get('APP','')
+          base_url=os.environ.get('BASE_URL','')
+          exit_code=os.environ.get('EXIT_CODE','')
+          pw_tail=os.environ.get('PW_TAIL','')
+          fly_logs=os.environ.get('FLY_LOGS','')
+          body = f"""## E2E Smoke Test Failed
 
-| Field | Value |
-|-------|-------|
-| **App** | `{app}` |
-| **Base URL** | {base_url} |
-| **Exit code** | `{exit_code}` |
+          | Field | Value |
+          |-------|-------|
+          | **App** | `{app}` |
+          | **Base URL** | {base_url} |
+          | **Exit code** | `{exit_code}` |
 
-<details><summary>Playwright output (last 80 lines)</summary>
+          <details><summary>Playwright output (last 80 lines)</summary>
 
-```
-{pw_tail}
-```
+          ```
+          {pw_tail}
+          ```
 
-</details>
+          </details>
 
-<details><summary>Fly logs (last 120 lines)</summary>
+          <details><summary>Fly logs (last 120 lines)</summary>
 
-```
-{fly_logs}
-```
+          ```
+          {fly_logs}
+          ```
 
-</details>
-"""
-print(json.dumps({"body": body}))
-PY
-)
+          </details>
+          """
+          print(json.dumps({"body": body}))
+          PY
+          )
 
           # Post comment via Forgejo API
           # If FORGEJO_TOKEN isn't set, skip commenting (don't fail the workflow on reporting).

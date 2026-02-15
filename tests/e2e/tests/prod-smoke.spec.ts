@@ -103,7 +103,7 @@ test.describe.serial("Prod smoke – critical path", () => {
     await page.fill("#username", MEMBER_USER);
     await page.fill("#password", MEMBER_PASS);
     await page.click("#submit");
-    await expect(page.locator("#channel-header")).toHaveText("# general", {
+    await expect(page.locator("#channel-header-text")).toHaveText("# general", {
       timeout: 10_000,
     });
 

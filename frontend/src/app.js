@@ -333,6 +333,7 @@ async function renderMain() {
 
   app.innerHTML = `
     <div class="chat-layout">
+      <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
       <div class="sidebar">
         <div class="sidebar-header">
           <h2>Relay Chat</h2>
@@ -351,7 +352,7 @@ async function renderMain() {
       </div>
       <div class="main-panel">
         <div id="channel-view" class="channel-view">
-          <div class="channel-header" id="channel-header">Select a channel</div>
+          <div class="channel-header" id="channel-header"><button class="hamburger-btn" id="sidebar-toggle" aria-label="Toggle sidebar">&#9776;</button><span id="channel-header-text">Select a channel</span></div>
           <div class="message-list" id="message-list"></div>
           <div class="composer" id="composer" style="display:none">
             <input type="text" id="msg-input" placeholder="Type a message...">
@@ -402,6 +403,18 @@ async function renderMain() {
 
   document.getElementById("close-thread").onclick = closeThread;
 
+  // Mobile sidebar toggle
+  const sidebar = document.querySelector(".sidebar");
+  const backdrop = document.getElementById("sidebar-backdrop");
+  document.getElementById("sidebar-toggle").onclick = () => {
+    sidebar.classList.toggle("sidebar-open");
+    backdrop.classList.toggle("sidebar-backdrop-visible");
+  };
+  backdrop.onclick = () => {
+    sidebar.classList.remove("sidebar-open");
+    backdrop.classList.remove("sidebar-backdrop-visible");
+  };
+
   if (currentUser && currentUser.role === "admin") {
     document.getElementById("toggle-admin").onclick = () => {
       document.getElementById("admin-panel").classList.toggle("hidden");
@@ -435,7 +448,13 @@ async function selectChannel(channel) {
     li.classList.toggle("active", parseInt(li.dataset.id, 10) === channel.id);
   });
 
-  document.getElementById("channel-header").textContent = `# ${channel.name}`;
+  document.getElementById("channel-header-text").textContent = `# ${channel.name}`;
+
+  // Close mobile sidebar
+  const sb = document.querySelector(".sidebar");
+  const bd = document.querySelector(".sidebar-backdrop");
+  if (sb) sb.classList.remove("sidebar-open");
+  if (bd) bd.classList.remove("sidebar-backdrop-visible");
   document.getElementById("composer").style.display = "flex";
 
   await loadMessages(channel.id);

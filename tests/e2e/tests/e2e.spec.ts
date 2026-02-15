@@ -96,14 +96,14 @@ test.describe.serial("Full E2E flow", () => {
     await pageA.fill("#username", ADMIN_USER);
     await pageA.fill("#password", ADMIN_PASS);
     await pageA.click("#submit");
-    await expect(pageA.locator("#channel-header")).toHaveText("# general", { timeout: 5000 });
+    await expect(pageA.locator("#channel-header-text")).toHaveText("# general", { timeout: 5000 });
 
     // Login user B (member)
     await pageB.goto("/");
     await pageB.fill("#username", MEMBER_USER);
     await pageB.fill("#password", MEMBER_PASS);
     await pageB.click("#submit");
-    await expect(pageB.locator("#channel-header")).toHaveText("# general", { timeout: 5000 });
+    await expect(pageB.locator("#channel-header-text")).toHaveText("# general", { timeout: 5000 });
 
     // User A sends a message
     await pageA.fill("#msg-input", "Hello from Admin!");
@@ -144,7 +144,7 @@ test.describe.serial("Full E2E flow", () => {
     await page.fill("#username", ADMIN_USER);
     await page.fill("#password", ADMIN_PASS);
     await page.click("#submit");
-    await expect(page.locator("#channel-header")).toHaveText("# general", { timeout: 5000 });
+    await expect(page.locator("#channel-header-text")).toHaveText("# general", { timeout: 5000 });
 
     // Send a message to react to
     const msgText = `react-test-${Date.now()}`;

@@ -129,10 +129,20 @@ button.btn-sm { padding: 0.25rem 0.5rem; font-size: 0.8rem; }
 }
 .channel-header {
   padding: 0.75rem 1rem;
+  padding-top: max(0.75rem, env(safe-area-inset-top));
   font-size: 1.1rem;
   font-weight: bold;
   border-bottom: 1px solid #333;
   background: #16213e;
+}
+
+/* Connection status */
+.connection-status {
+  background: #e94560;
+  color: #fff;
+  text-align: center;
+  font-size: 0.8rem;
+  padding: 0.25rem;
 }
 
 /* Messages */
@@ -152,7 +162,7 @@ button.btn-sm { padding: 0.25rem 0.5rem; font-size: 0.8rem; }
   margin-bottom: 0.25rem;
 }
 .msg-header strong { color: #e94560; font-size: 0.9rem; }
-.msg-time { font-size: 0.75rem; color: #666; }
+.msg-time { font-size: 0.75rem; color: #999; }
 .msg-body { font-size: 0.95rem; line-height: 1.4; word-break: break-word; }
 .msg-actions { margin-top: 0.25rem; }
 .reply-btn { font-size: 0.75rem !important; padding: 0.15rem 0.4rem !important; }
@@ -161,6 +171,7 @@ button.btn-sm { padding: 0.25rem 0.5rem; font-size: 0.8rem; }
 .composer {
   display: flex;
   padding: 0.75rem 1rem;
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
   gap: 0.5rem;
   border-top: 1px solid #333;
   background: #16213e;
@@ -277,10 +288,7 @@ button.btn-sm { padding: 0.25rem 0.5rem; font-size: 0.8rem; }
   color: #ccc;
 }
 .reaction-picker {
-  position: absolute;
-  bottom: 100%;
-  left: 0;
-  margin-bottom: 4px;
+  position: fixed;
   background: #1e2a3a;
   border: 1px solid rgba(255,255,255,0.12);
   border-radius: 8px;
@@ -288,7 +296,7 @@ button.btn-sm { padding: 0.25rem 0.5rem; font-size: 0.8rem; }
   display: flex;
   flex-wrap: wrap;
   gap: 2px;
-  z-index: 100;
+  z-index: 1100;
   max-width: 220px;
   box-shadow: 0 4px 16px rgba(0,0,0,0.5);
 }
@@ -305,6 +313,13 @@ button.btn-sm { padding: 0.25rem 0.5rem; font-size: 0.8rem; }
 }
 .reaction-picker-btn:hover {
   background: rgba(255,255,255,0.1);
+}
+
+/* Scroll lock when sidebar overlay is open */
+body.sidebar-is-open {
+  overflow: hidden;
+  position: fixed;
+  width: 100%;
 }
 
 /* ── Mobile responsive ─────────────────────────────────── */
@@ -347,6 +362,10 @@ button.btn-sm { padding: 0.25rem 0.5rem; font-size: 0.8rem; }
   .channel-header {
     display: flex;
     align-items: center;
+    min-height: 56px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
   }
 
   .sidebar {
@@ -357,6 +376,7 @@ button.btn-sm { padding: 0.25rem 0.5rem; font-size: 0.8rem; }
     z-index: 1000;
     transform: translateX(-100%);
     transition: transform 0.25s ease;
+    padding-top: env(safe-area-inset-top);
   }
   .sidebar.sidebar-open {
     transform: translateX(0);
@@ -382,6 +402,30 @@ button.btn-sm { padding: 0.25rem 0.5rem; font-size: 0.8rem; }
     border-left: none;
   }
   .thread-panel.hidden {
+    display: none;
+  }
+
+  .thread-header {
+    padding-top: max(0.75rem, env(safe-area-inset-top));
+    min-height: 56px;
+    align-items: center;
+  }
+
+  #close-thread {
+    background: transparent;
+    border: none;
+    font-size: 1.5rem;
+    padding: 0.5rem;
+    min-height: 44px;
+    min-width: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    order: -1;
+    margin-right: 0.5rem;
+  }
+
+  #close-thread .close-text {
     display: none;
   }
 
@@ -416,5 +460,33 @@ button.btn-sm { padding: 0.25rem 0.5rem; font-size: 0.8rem; }
   }
   .composer input {
     font-size: 16px;
+  }
+
+  /* Auth screens */
+  .auth-container {
+    padding: 1rem;
+    padding-top: max(1.5rem, env(safe-area-inset-top));
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    justify-content: center;
+  }
+  .auth-container h1 {
+    text-align: center;
+  }
+  .auth-container input {
+    font-size: 16px;
+    min-height: 44px;
+  }
+  .auth-container button {
+    width: 100%;
+    min-height: 48px;
+  }
+
+  /* Message text */
+  .msg-body {
+    font-size: 1rem;
+    line-height: 1.5;
   }
 }

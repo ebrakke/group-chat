@@ -9,6 +9,19 @@ let wsConn = null;
 
 const REACTION_EMOJIS = ["👍", "👎", "❤️", "😂", "😮", "😢", "🔥", "🎉", "👀", "🙏"];
 
+// Register service worker
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js').catch(() => {});
+}
+
+function isMobile() {
+  return window.matchMedia("(max-width: 768px)").matches;
+}
+
+// WebSocket reconnect state
+let wsReconnectAttempt = 0;
+let connectionStatusTimeout = null;
+
 async function api(method, path, body) {
   const opts = { method, headers: { "Content-Type": "application/json" }, credentials: "include" };
   if (body) opts.body = JSON.stringify(body);
@@ -20,12 +33,36 @@ async function api(method, path, body) {
 
 // --- WebSocket ---
 
+function getReconnectDelay() {
+  const delay = Math.min(1000 * Math.pow(2, wsReconnectAttempt), 30000);
+  return Math.round(delay * (0.75 + Math.random() * 0.5));
+}
+
+function updateConnectionStatus(connected) {
+  const el = document.getElementById("connection-status");
+  if (!el) return;
+  if (connected) {
+    clearTimeout(connectionStatusTimeout);
+    el.classList.add("hidden");
+  } else {
+    clearTimeout(connectionStatusTimeout);
+    connectionStatusTimeout = setTimeout(() => {
+      el.classList.remove("hidden");
+      el.textContent = "Reconnecting\u2026";
+    }, 2000);
+  }
+}
+
 function connectWS() {
   if (wsConn) { wsConn.close(); wsConn = null; }
   const proto = location.protocol === "https:" ? "wss:" : "ws:";
   let url = `${proto}//${location.host}/ws`;
   if (sessionToken) url += `?token=${encodeURIComponent(sessionToken)}`;
   const ws = new WebSocket(url);
+  ws.onopen = () => {
+    wsReconnectAttempt = 0;
+    updateConnectionStatus(true);
+  };
   ws.onmessage = (ev) => {
     try {
       const data = JSON.parse(ev.data);
@@ -34,9 +71,12 @@ function connectWS() {
   };
   ws.onclose = () => {
     wsConn = null;
+    updateConnectionStatus(false);
+    const delay = getReconnectDelay();
+    wsReconnectAttempt++;
     setTimeout(() => {
       if (currentUser) connectWS();
-    }, 3000);
+    }, delay);
   };
   wsConn = ws;
 }
@@ -93,7 +133,6 @@ function attachReactionHandlers(container, msgId) {
 }
 
 function showReactionPicker(anchorBtn, msgId) {
-  // Remove any existing picker
   const existing = document.querySelector(".reaction-picker");
   if (existing) existing.remove();
 
@@ -110,12 +149,22 @@ function showReactionPicker(anchorBtn, msgId) {
     };
   });
 
-  // Anchor picker relative to the + button
-  const bar = anchorBtn.closest(".reactions-bar");
-  bar.style.position = "relative";
-  bar.appendChild(picker);
+  document.body.appendChild(picker);
 
-  // Close on outside click
+  // Position relative to anchor, clamped to viewport
+  const rect = anchorBtn.getBoundingClientRect();
+  const pickerHeight = 80;
+
+  let top = rect.top - pickerHeight - 4;
+  let left = rect.left;
+
+  if (top < 8) top = rect.bottom + 4;
+  if (left + 220 > window.innerWidth - 8) left = window.innerWidth - 228;
+  if (left < 8) left = 8;
+
+  picker.style.top = `${top}px`;
+  picker.style.left = `${left}px`;
+
   const closeHandler = (ev) => {
     if (!picker.contains(ev.target) && ev.target !== anchorBtn) {
       picker.remove();
@@ -202,6 +251,51 @@ function updateReactionUI(msgId, emoji, userId, added) {
       }
     }
   });
+}
+
+// --- Swipe Gestures ---
+
+function setupSwipeGestures() {
+  let touchStartX = 0;
+  let touchStartY = 0;
+  let touchStartTime = 0;
+  let isSwiping = false;
+  const EDGE_ZONE = 30;
+  const MIN_DISTANCE = 60;
+  const MAX_Y_DRIFT = 80;
+
+  document.addEventListener("touchstart", (e) => {
+    const touch = e.touches[0];
+    touchStartX = touch.clientX;
+    touchStartY = touch.clientY;
+    touchStartTime = Date.now();
+    const sidebar = document.querySelector(".sidebar");
+    isSwiping = touchStartX < EDGE_ZONE || (sidebar && sidebar.classList.contains("sidebar-open"));
+  }, { passive: true });
+
+  document.addEventListener("touchend", (e) => {
+    if (!isSwiping) return;
+    const touch = e.changedTouches[0];
+    const deltaX = touch.clientX - touchStartX;
+    const deltaY = Math.abs(touch.clientY - touchStartY);
+    const elapsed = Date.now() - touchStartTime;
+
+    if (deltaY > MAX_Y_DRIFT || elapsed > 500 || Math.abs(deltaX) < MIN_DISTANCE) return;
+
+    const sidebar = document.querySelector(".sidebar");
+    const backdrop = document.getElementById("sidebar-backdrop");
+    if (!sidebar || !backdrop) return;
+
+    if (deltaX > 0 && touchStartX < EDGE_ZONE && !sidebar.classList.contains("sidebar-open")) {
+      sidebar.classList.add("sidebar-open");
+      backdrop.classList.add("sidebar-backdrop-visible");
+      document.body.classList.add("sidebar-is-open");
+    } else if (deltaX < 0 && sidebar.classList.contains("sidebar-open")) {
+      sidebar.classList.remove("sidebar-open");
+      backdrop.classList.remove("sidebar-backdrop-visible");
+      document.body.classList.remove("sidebar-is-open");
+    }
+  }, { passive: true });
 }
 
 // --- Screens ---
@@ -309,6 +403,7 @@ function renderLogin() {
 }
 
 async function renderMain() {
+  wsReconnectAttempt = 0;
   connectWS();
 
   let channelsList = [];
@@ -353,6 +448,7 @@ async function renderMain() {
       <div class="main-panel">
         <div id="channel-view" class="channel-view">
           <div class="channel-header" id="channel-header"><button class="hamburger-btn" id="sidebar-toggle" aria-label="Toggle sidebar">&#9776;</button><span id="channel-header-text">Select a channel</span></div>
+          <div id="connection-status" class="connection-status hidden"></div>
           <div class="message-list" id="message-list"></div>
           <div class="composer" id="composer" style="display:none">
             <input type="text" id="msg-input" placeholder="Type a message...">
@@ -362,7 +458,7 @@ async function renderMain() {
         <div id="thread-panel" class="thread-panel hidden">
           <div class="thread-header">
             <h3>Thread</h3>
-            <button id="close-thread" class="secondary btn-sm">Close</button>
+            <button id="close-thread" class="secondary btn-sm" aria-label="Close thread">&#8592; <span class="close-text">Close</span></button>
           </div>
           <div class="thread-parent" id="thread-parent"></div>
           <div class="thread-replies" id="thread-replies"></div>
@@ -409,11 +505,15 @@ async function renderMain() {
   document.getElementById("sidebar-toggle").onclick = () => {
     sidebar.classList.toggle("sidebar-open");
     backdrop.classList.toggle("sidebar-backdrop-visible");
+    document.body.classList.toggle("sidebar-is-open");
   };
   backdrop.onclick = () => {
     sidebar.classList.remove("sidebar-open");
     backdrop.classList.remove("sidebar-backdrop-visible");
+    document.body.classList.remove("sidebar-is-open");
   };
+
+  setupSwipeGestures();
 
   if (currentUser && currentUser.role === "admin") {
     document.getElementById("toggle-admin").onclick = () => {
@@ -454,6 +554,7 @@ async function selectChannel(channel, fromRoute = false) {
   const bd = document.querySelector(".sidebar-backdrop");
   if (sb) sb.classList.remove("sidebar-open");
   if (bd) bd.classList.remove("sidebar-backdrop-visible");
+  document.body.classList.remove("sidebar-is-open");
   document.getElementById("composer").style.display = "flex";
 
   if (!fromRoute) {
@@ -461,7 +562,7 @@ async function selectChannel(channel, fromRoute = false) {
   }
 
   await loadMessages(channel.id);
-  document.getElementById("msg-input").focus();
+  if (!isMobile()) document.getElementById("msg-input").focus();
 }
 
 async function loadMessages(channelId) {
@@ -537,7 +638,7 @@ async function openThread(parentId, fromRoute = false) {
   }
 
   await loadReplies(parentId);
-  document.getElementById("reply-input").focus();
+  if (!isMobile()) document.getElementById("reply-input").focus();
 }
 
 async function loadReplies(parentId) {

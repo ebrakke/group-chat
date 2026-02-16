@@ -48,7 +48,7 @@ function updateConnectionStatus(connected) {
     clearTimeout(connectionStatusTimeout);
     connectionStatusTimeout = setTimeout(() => {
       el.classList.remove("hidden");
-      el.textContent = "Reconnecting\u2026";
+      el.textContent = "[ reconnecting... ]";
     }, 2000);
   }
 }
@@ -183,7 +183,6 @@ async function removeReaction(msgId, emoji) {
 }
 
 async function toggleReaction(msgId, emoji, isMine) {
-  // UI knows if current user has reacted; use correct endpoint.
   try {
     if (isMine) {
       await removeReaction(msgId, emoji);
@@ -196,7 +195,6 @@ async function toggleReaction(msgId, emoji, isMine) {
 }
 
 function findMessageContainers(msgId) {
-  // Only select .message elements that are actual message containers, not nested elements
   const results = [];
   document.querySelectorAll(`.message[data-msg-id="${msgId}"]`).forEach(el => results.push(el));
   document.querySelectorAll(`.message[data-reply-id="${msgId}"]`).forEach(el => {
@@ -340,8 +338,11 @@ function renderLogin() {
   app.innerHTML = `
     <div class="auth-container">
       <h1>Relay Chat</h1>
-      <div class="card">
-        <h2>Login</h2>
+      <div class="auth-tabs">
+        <button class="auth-tab active" data-tab="login">Login</button>
+        <button class="auth-tab" data-tab="signup">Sign Up</button>
+      </div>
+      <div class="card" id="login-card">
         <div id="error" class="error hidden"></div>
         <label for="username">Username</label>
         <input type="text" id="username" autocomplete="username">
@@ -349,8 +350,7 @@ function renderLogin() {
         <input type="password" id="password" autocomplete="current-password">
         <button id="submit">Login</button>
       </div>
-      <div class="card">
-        <h2>Sign Up (Invite Only)</h2>
+      <div class="card hidden" id="signup-card">
         <div id="signup-error" class="error hidden"></div>
         <label for="invite-code">Invite Code</label>
         <input type="text" id="invite-code">
@@ -364,6 +364,24 @@ function renderLogin() {
       </div>
     </div>
   `;
+
+  // Tab switching
+  const tabs = document.querySelectorAll(".auth-tab");
+  const loginCard = document.getElementById("login-card");
+  const signupCard = document.getElementById("signup-card");
+  tabs.forEach(tab => {
+    tab.onclick = () => {
+      tabs.forEach(t => t.classList.remove("active"));
+      tab.classList.add("active");
+      if (tab.dataset.tab === "login") {
+        loginCard.classList.remove("hidden");
+        signupCard.classList.add("hidden");
+      } else {
+        loginCard.classList.add("hidden");
+        signupCard.classList.remove("hidden");
+      }
+    };
+  });
 
   document.getElementById("submit").onclick = async () => {
     const errEl = document.getElementById("error");
@@ -411,7 +429,10 @@ async function renderMain() {
     channelsList = await api("GET", "/api/channels");
   } catch {}
 
-  const adminSection = currentUser && currentUser.role === "admin" ? `
+  const isAdmin = currentUser && currentUser.role === "admin";
+
+  // Desktop sidebar still has admin section; mobile hides it via CSS
+  const adminSection = isAdmin ? `
     <div class="admin-section">
       <button id="toggle-admin" class="secondary btn-sm">Admin</button>
       <div id="admin-panel" class="hidden">
@@ -426,12 +447,14 @@ async function renderMain() {
     </div>
   ` : "";
 
+  const settingsBtn = isAdmin ? `<button class="settings-btn" id="open-admin" aria-label="Settings">&#9881;</button>` : "";
+
   app.innerHTML = `
     <div class="chat-layout">
       <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
       <div class="sidebar">
         <div class="sidebar-header">
-          <h2>Relay Chat</h2>
+          <h2>relay chat</h2>
           <div class="user-bar">
             <span class="user-info">${esc(currentUser.displayName)}</span>
             <button id="logout" class="secondary btn-sm">Logout</button>
@@ -447,11 +470,11 @@ async function renderMain() {
       </div>
       <div class="main-panel">
         <div id="channel-view" class="channel-view">
-          <div class="channel-header" id="channel-header"><button class="hamburger-btn" id="sidebar-toggle" aria-label="Toggle sidebar">&#9776;</button><span id="channel-header-text">Select a channel</span></div>
+          <div class="channel-header" id="channel-header"><button class="hamburger-btn" id="sidebar-toggle" aria-label="Toggle sidebar">&#9776;</button><span id="channel-header-text">Select a channel</span>${settingsBtn}</div>
           <div id="connection-status" class="connection-status hidden"></div>
           <div class="message-list" id="message-list"></div>
           <div class="composer" id="composer" style="display:none">
-            <input type="text" id="msg-input" placeholder="Type a message...">
+            <input type="text" id="msg-input" placeholder="> message...">
             <button id="msg-send">Send</button>
           </div>
         </div>
@@ -463,21 +486,37 @@ async function renderMain() {
           <div class="thread-parent" id="thread-parent"></div>
           <div class="thread-replies" id="thread-replies"></div>
           <div class="composer">
-            <input type="text" id="reply-input" placeholder="Reply in thread...">
+            <input type="text" id="reply-input" placeholder="> reply...">
             <button id="reply-send">Send</button>
+          </div>
+        </div>
+        <div id="admin-page" class="admin-page hidden">
+          <div class="admin-page-header">
+            <h3>Settings</h3>
+            <button id="close-admin" class="secondary btn-sm" aria-label="Close settings">&#8592; <span class="close-text">Close</span></button>
+          </div>
+          <div class="admin-page-content">
+            <div class="admin-user-info">
+              Logged in as <strong>${esc(currentUser.displayName)}</strong> (${esc(currentUser.role)})
+            </div>
+            <div class="card">
+              <h3>Invites</h3>
+              <div id="admin-invite-error" class="error hidden"></div>
+              <div id="admin-invite-result"></div>
+              <button id="admin-create-invite" class="btn-sm">Create Invite</button>
+              <ul class="invite-list" id="admin-invite-list"></ul>
+            </div>
+            <div class="card">
+              <h3>Account</h3>
+              <button id="admin-logout" class="secondary">Logout</button>
+            </div>
           </div>
         </div>
       </div>
     </div>
   `;
 
-  document.getElementById("logout").onclick = async () => {
-    await api("POST", "/api/auth/logout");
-    currentUser = null;
-    sessionToken = null;
-    if (wsConn) { wsConn.close(); wsConn = null; }
-    renderLogin();
-  };
+  document.getElementById("logout").onclick = doLogout;
 
   document.getElementById("channel-list").onclick = (e) => {
     const li = e.target.closest("li");
@@ -515,25 +554,82 @@ async function renderMain() {
 
   setupSwipeGestures();
 
-  if (currentUser && currentUser.role === "admin") {
-    document.getElementById("toggle-admin").onclick = () => {
-      document.getElementById("admin-panel").classList.toggle("hidden");
-    };
-    document.getElementById("create-invite").onclick = async () => {
+  // Desktop admin toggle (sidebar)
+  if (isAdmin) {
+    const toggleAdmin = document.getElementById("toggle-admin");
+    if (toggleAdmin) {
+      toggleAdmin.onclick = () => {
+        document.getElementById("admin-panel").classList.toggle("hidden");
+      };
+    }
+    const createInvite = document.getElementById("create-invite");
+    if (createInvite) {
+      createInvite.onclick = async () => {
+        try {
+          const invite = await api("POST", "/api/invites", {});
+          document.getElementById("invite-result").innerHTML = `<div class="invite-code">${invite.code}</div>`;
+          loadInvites();
+        } catch (e) {
+          const errEl = document.getElementById("invite-error");
+          errEl.textContent = e.message;
+          errEl.classList.remove("hidden");
+        }
+      };
+    }
+    loadInvites();
+
+    // Mobile admin page
+    const openAdmin = document.getElementById("open-admin");
+    if (openAdmin) {
+      openAdmin.onclick = () => openAdminPage();
+    }
+    document.getElementById("close-admin").onclick = closeAdminPage;
+    document.getElementById("admin-logout").onclick = doLogout;
+    document.getElementById("admin-create-invite").onclick = async () => {
       try {
         const invite = await api("POST", "/api/invites", {});
-        document.getElementById("invite-result").innerHTML = `<div class="invite-code">${invite.code}</div>`;
-        loadInvites();
+        document.getElementById("admin-invite-result").innerHTML = `<div class="invite-code">${invite.code}</div>`;
+        loadAdminInvites();
       } catch (e) {
-        const errEl = document.getElementById("invite-error");
+        const errEl = document.getElementById("admin-invite-error");
         errEl.textContent = e.message;
         errEl.classList.remove("hidden");
       }
     };
-    loadInvites();
   }
 
   await handleRoute(channelsList);
+}
+
+async function doLogout() {
+  await api("POST", "/api/auth/logout");
+  currentUser = null;
+  sessionToken = null;
+  if (wsConn) { wsConn.close(); wsConn = null; }
+  renderLogin();
+}
+
+// --- Admin Page ---
+
+function openAdminPage() {
+  const panel = document.getElementById("admin-page");
+  panel.classList.remove("hidden");
+  loadAdminInvites();
+}
+
+function closeAdminPage() {
+  document.getElementById("admin-page").classList.add("hidden");
+}
+
+async function loadAdminInvites() {
+  try {
+    const invites = await api("GET", "/api/invites");
+    const list = document.getElementById("admin-invite-list");
+    if (!list) return;
+    list.innerHTML = invites.map(i =>
+      `<li>${i.code} (used: ${i.useCount}${i.maxUses ? "/" + i.maxUses : ""})</li>`
+    ).join("");
+  } catch {}
 }
 
 // --- Channel + Messages ---
@@ -752,7 +848,7 @@ function navigate(path, replace = false) {
 
 async function handleRoute(channelsList) {
   const path = location.pathname.replace(/\/+$/, "") || "/";
-  const parts = path.split("/").filter(Boolean); // e.g. ["general"] or ["general", "t", "42"]
+  const parts = path.split("/").filter(Boolean);
 
   let channelName = null;
   let threadId = null;
@@ -765,20 +861,17 @@ async function handleRoute(channelsList) {
     if (isNaN(threadId)) threadId = null;
   }
 
-  // Find matching channel
   let target = null;
   if (channelName) {
     target = channelsList.find(c => c.name === channelName);
   }
 
-  // Fall back to #general
   if (!target) {
     target = channelsList.find(c => c.name === "general");
   }
 
   if (target) {
     await selectChannel(target, true);
-    // Update URL to canonical form (in case we fell back)
     const canonicalPath = `/${target.name}`;
     if (!channelName || !channelsList.find(c => c.name === channelName)) {
       navigate(canonicalPath, true);

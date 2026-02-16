@@ -26,7 +26,7 @@ test.describe.serial("Full E2E flow", () => {
     // Should be logged in and see channels sidebar with #general
     await expect(page.locator("#channel-header")).toBeVisible({ timeout: 5000 });
     await expect(page.locator(".channel-list li", { hasText: "general" })).toBeVisible();
-    await expect(page.locator(`text=${ADMIN_DISPLAY}`)).toBeVisible();
+    await expect(page.locator(".user-info", { hasText: ADMIN_DISPLAY })).toBeVisible();
   });
 
   test("admin creates invite", async ({ page }) => {
@@ -56,7 +56,8 @@ test.describe.serial("Full E2E flow", () => {
 
     await page.goto("/");
 
-    // Fill in signup form
+    // Switch to signup tab and fill in form
+    await page.click('.auth-tab[data-tab="signup"]');
     await page.fill("#invite-code", inviteCode.trim());
     await page.fill("#signup-username", MEMBER_USER);
     await page.fill("#signup-display", MEMBER_DISPLAY);
@@ -66,7 +67,7 @@ test.describe.serial("Full E2E flow", () => {
     // Should be logged in and see #general in channel list
     await expect(page.locator("#channel-header")).toBeVisible({ timeout: 5000 });
     await expect(page.locator(".channel-list li", { hasText: "general" })).toBeVisible();
-    await expect(page.locator(`text=${MEMBER_DISPLAY}`)).toBeVisible();
+    await expect(page.locator(".user-info", { hasText: MEMBER_DISPLAY })).toBeVisible();
   });
 
   test("member can logout and login", async ({ page }) => {
@@ -80,8 +81,8 @@ test.describe.serial("Full E2E flow", () => {
     // Logout
     await page.click("#logout");
 
-    // Should see login form
-    await expect(page.getByRole("heading", { name: "Login" })).toBeVisible({ timeout: 5000 });
+    // Should see login form (tab-based)
+    await expect(page.locator('.auth-tab[data-tab="login"]')).toBeVisible({ timeout: 5000 });
   });
 
   test("user A posts message, user B sees it via WS", async ({ browser }) => {

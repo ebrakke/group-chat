@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/ebrakke/relay-chat/internal/auth"
+	"github.com/ebrakke/relay-chat/internal/bots"
 	"github.com/ebrakke/relay-chat/internal/channels"
 	"github.com/ebrakke/relay-chat/internal/messages"
 	"github.com/ebrakke/relay-chat/internal/reactions"
@@ -20,6 +21,7 @@ import (
 
 type Handler struct {
 	auth      *auth.Service
+	bots      *bots.Service
 	channels  *channels.Service
 	messages  *messages.Service
 	reactions *reactions.Service
@@ -27,8 +29,8 @@ type Handler struct {
 	mux       *http.ServeMux
 }
 
-func New(authSvc *auth.Service, chanSvc *channels.Service, msgSvc *messages.Service, reactSvc *reactions.Service, hub *ws.Hub) *Handler {
-	h := &Handler{auth: authSvc, channels: chanSvc, messages: msgSvc, reactions: reactSvc, hub: hub, mux: http.NewServeMux()}
+func New(authSvc *auth.Service, botSvc *bots.Service, chanSvc *channels.Service, msgSvc *messages.Service, reactSvc *reactions.Service, hub *ws.Hub) *Handler {
+	h := &Handler{auth: authSvc, bots: botSvc, channels: chanSvc, messages: msgSvc, reactions: reactSvc, hub: hub, mux: http.NewServeMux()}
 	h.routes()
 	return h
 }
@@ -69,6 +71,17 @@ func (h *Handler) routes() {
 	// Users
 	h.mux.HandleFunc("GET /api/users", h.handleListUsers)
 	h.mux.HandleFunc("POST /api/users/{id}/reset-password", h.handleResetPassword)
+
+	// Bots (admin-only)
+	h.mux.HandleFunc("GET /api/bots", h.handleListBots)
+	h.mux.HandleFunc("POST /api/bots", h.handleCreateBot)
+	h.mux.HandleFunc("DELETE /api/bots/{id}", h.handleDeleteBot)
+	h.mux.HandleFunc("GET /api/bots/{id}/tokens", h.handleListBotTokens)
+	h.mux.HandleFunc("POST /api/bots/{id}/tokens", h.handleGenerateBotToken)
+	h.mux.HandleFunc("DELETE /api/bots/tokens/{id}", h.handleRevokeBotToken)
+	h.mux.HandleFunc("GET /api/bots/{id}/bindings", h.handleListBotBindings)
+	h.mux.HandleFunc("POST /api/bots/{id}/bindings", h.handleBindBotChannel)
+	h.mux.HandleFunc("DELETE /api/bots/{id}/bindings/{channelId}", h.handleUnbindBotChannel)
 }
 
 // --- Auth handlers ---
@@ -392,6 +405,15 @@ func (h *Handler) handleCreateMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Bot permission check
+	if user.IsBot {
+		canWrite, err := h.bots.CanWrite(user.ID, channelID)
+		if err != nil || !canWrite {
+			writeErr(w, http.StatusForbidden, errors.New("bot not authorized for this channel"))
+			return
+		}
+	}
+
 	// Verify channel exists and get name for group ID
 	ch, err := h.channels.GetByID(channelID)
 	if err != nil {
@@ -418,7 +440,7 @@ func (h *Handler) handleCreateMessage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Broadcast to WebSocket clients
-	h.hub.Broadcast(ws.Event{Type: "new_message", Payload: msg})
+	h.hub.Broadcast(ws.Event{Type: "new_message", Payload: msg, ChannelID: channelID})
 
 	writeJSON(w, http.StatusCreated, msg)
 }
@@ -469,6 +491,16 @@ func (h *Handler) handleCreateReply(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusNotFound, errors.New("parent message not found"))
 		return
 	}
+
+	// Bot permission check
+	if user.IsBot {
+		canWrite, err := h.bots.CanWrite(user.ID, parent.ChannelID)
+		if err != nil || !canWrite {
+			writeErr(w, http.StatusForbidden, errors.New("bot not authorized for this channel"))
+			return
+		}
+	}
+
 	ch, err := h.channels.GetByID(parent.ChannelID)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, err)
@@ -494,7 +526,7 @@ func (h *Handler) handleCreateReply(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Broadcast to WebSocket clients
-	h.hub.Broadcast(ws.Event{Type: "new_reply", Payload: msg})
+	h.hub.Broadcast(ws.Event{Type: "new_reply", Payload: msg, ChannelID: parent.ChannelID})
 
 	writeJSON(w, http.StatusCreated, msg)
 }
@@ -544,7 +576,7 @@ func (h *Handler) handleAddReaction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.hub.Broadcast(ws.Event{Type: "reaction_added", Payload: reaction})
+	h.hub.Broadcast(ws.Event{Type: "reaction_added", Payload: reaction, ChannelID: msg.ChannelID})
 
 	writeJSON(w, http.StatusCreated, reaction)
 }
@@ -564,6 +596,13 @@ func (h *Handler) handleRemoveReaction(w http.ResponseWriter, r *http.Request) {
 
 	emoji := r.PathValue("emoji")
 
+	// Look up message to get channel for broadcast filtering
+	msg, err := h.messages.GetByID(messageID)
+	if err != nil {
+		writeErr(w, http.StatusNotFound, errors.New("message not found"))
+		return
+	}
+
 	err = h.reactions.Remove(messageID, user.ID, emoji)
 	if errors.Is(err, reactions.ErrInvalidEmoji) {
 		writeErr(w, http.StatusBadRequest, err)
@@ -582,7 +621,7 @@ func (h *Handler) handleRemoveReaction(w http.ResponseWriter, r *http.Request) {
 		"messageId": messageID,
 		"emoji":     emoji,
 		"userId":    user.ID,
-	}})
+	}, ChannelID: msg.ChannelID})
 
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
@@ -644,6 +683,267 @@ func (h *Handler) handleResetPassword(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
+// --- Bot handlers (admin-only) ---
+
+func (h *Handler) requireAdmin(r *http.Request) (*auth.User, error) {
+	user, err := h.requireAuth(r)
+	if err != nil {
+		return nil, err
+	}
+	if user.Role != "admin" {
+		return nil, errors.New("admin only")
+	}
+	return user, nil
+}
+
+func (h *Handler) handleListBots(w http.ResponseWriter, r *http.Request) {
+	if _, err := h.requireAdmin(r); err != nil {
+		writeErr(w, http.StatusForbidden, err)
+		return
+	}
+
+	list, err := h.bots.List()
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	if list == nil {
+		list = []bots.Bot{}
+	}
+	writeJSON(w, http.StatusOK, list)
+}
+
+func (h *Handler) handleCreateBot(w http.ResponseWriter, r *http.Request) {
+	if _, err := h.requireAdmin(r); err != nil {
+		writeErr(w, http.StatusForbidden, err)
+		return
+	}
+
+	var req struct {
+		Username    string `json:"username"`
+		DisplayName string `json:"displayName"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
+	if req.Username == "" {
+		writeErr(w, http.StatusBadRequest, errors.New("username required"))
+		return
+	}
+	if req.DisplayName == "" {
+		req.DisplayName = req.Username
+	}
+
+	bot, err := h.bots.Create(req.Username, req.DisplayName)
+	if errors.Is(err, bots.ErrExists) {
+		writeErr(w, http.StatusConflict, errors.New("username already exists"))
+		return
+	}
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, bot)
+}
+
+func (h *Handler) handleDeleteBot(w http.ResponseWriter, r *http.Request) {
+	if _, err := h.requireAdmin(r); err != nil {
+		writeErr(w, http.StatusForbidden, err)
+		return
+	}
+
+	botID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, errors.New("invalid bot id"))
+		return
+	}
+
+	if err := h.bots.Delete(botID); err != nil {
+		if errors.Is(err, bots.ErrNotFound) {
+			writeErr(w, http.StatusNotFound, err)
+			return
+		}
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func (h *Handler) handleListBotTokens(w http.ResponseWriter, r *http.Request) {
+	if _, err := h.requireAdmin(r); err != nil {
+		writeErr(w, http.StatusForbidden, err)
+		return
+	}
+
+	botID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, errors.New("invalid bot id"))
+		return
+	}
+
+	tokens, err := h.bots.ListTokens(botID)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	if tokens == nil {
+		tokens = []bots.BotToken{}
+	}
+	writeJSON(w, http.StatusOK, tokens)
+}
+
+func (h *Handler) handleGenerateBotToken(w http.ResponseWriter, r *http.Request) {
+	if _, err := h.requireAdmin(r); err != nil {
+		writeErr(w, http.StatusForbidden, err)
+		return
+	}
+
+	botID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, errors.New("invalid bot id"))
+		return
+	}
+
+	var req struct {
+		Label string `json:"label"`
+	}
+	json.NewDecoder(r.Body).Decode(&req)
+
+	token, err := h.bots.GenerateToken(botID, req.Label)
+	if err != nil {
+		if errors.Is(err, bots.ErrNotFound) {
+			writeErr(w, http.StatusNotFound, err)
+			return
+		}
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, token)
+}
+
+func (h *Handler) handleRevokeBotToken(w http.ResponseWriter, r *http.Request) {
+	if _, err := h.requireAdmin(r); err != nil {
+		writeErr(w, http.StatusForbidden, err)
+		return
+	}
+
+	tokenID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, errors.New("invalid token id"))
+		return
+	}
+
+	if err := h.bots.RevokeToken(tokenID); err != nil {
+		if errors.Is(err, bots.ErrNotFound) {
+			writeErr(w, http.StatusNotFound, err)
+			return
+		}
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func (h *Handler) handleListBotBindings(w http.ResponseWriter, r *http.Request) {
+	if _, err := h.requireAdmin(r); err != nil {
+		writeErr(w, http.StatusForbidden, err)
+		return
+	}
+
+	botID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, errors.New("invalid bot id"))
+		return
+	}
+
+	bindings, err := h.bots.ListBindings(botID)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	if bindings == nil {
+		bindings = []bots.ChannelBinding{}
+	}
+	writeJSON(w, http.StatusOK, bindings)
+}
+
+func (h *Handler) handleBindBotChannel(w http.ResponseWriter, r *http.Request) {
+	if _, err := h.requireAdmin(r); err != nil {
+		writeErr(w, http.StatusForbidden, err)
+		return
+	}
+
+	botID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, errors.New("invalid bot id"))
+		return
+	}
+
+	var req struct {
+		ChannelID int64 `json:"channelId"`
+		CanRead   *bool `json:"canRead"`
+		CanWrite  *bool `json:"canWrite"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
+	if req.ChannelID == 0 {
+		writeErr(w, http.StatusBadRequest, errors.New("channelId required"))
+		return
+	}
+
+	canRead := true
+	canWrite := true
+	if req.CanRead != nil {
+		canRead = *req.CanRead
+	}
+	if req.CanWrite != nil {
+		canWrite = *req.CanWrite
+	}
+
+	binding, err := h.bots.BindChannel(botID, req.ChannelID, canRead, canWrite)
+	if err != nil {
+		if errors.Is(err, bots.ErrNotFound) {
+			writeErr(w, http.StatusNotFound, err)
+			return
+		}
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, binding)
+}
+
+func (h *Handler) handleUnbindBotChannel(w http.ResponseWriter, r *http.Request) {
+	if _, err := h.requireAdmin(r); err != nil {
+		writeErr(w, http.StatusForbidden, err)
+		return
+	}
+
+	botID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, errors.New("invalid bot id"))
+		return
+	}
+
+	channelID, err := strconv.ParseInt(r.PathValue("channelId"), 10, 64)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, errors.New("invalid channel id"))
+		return
+	}
+
+	if err := h.bots.UnbindChannel(botID, channelID); err != nil {
+		if errors.Is(err, bots.ErrNotFound) {
+			writeErr(w, http.StatusNotFound, err)
+			return
+		}
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
 // --- Helpers ---
 
 func (h *Handler) autoJoinGeneral(userID int64) {
@@ -662,7 +962,17 @@ func (h *Handler) requireAuth(r *http.Request) (*auth.User, error) {
 	if token == "" {
 		return nil, auth.ErrUnauthorized
 	}
-	return h.auth.ValidateSession(token)
+	// Try session token first
+	user, err := h.auth.ValidateSession(token)
+	if err == nil {
+		return user, nil
+	}
+	// Try bot token
+	user, err = h.bots.ValidateToken(token)
+	if err == nil {
+		return user, nil
+	}
+	return nil, auth.ErrUnauthorized
 }
 
 func extractToken(r *http.Request) string {

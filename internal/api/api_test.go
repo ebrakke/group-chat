@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/ebrakke/relay-chat/internal/auth"
+	"github.com/ebrakke/relay-chat/internal/bots"
 	"github.com/ebrakke/relay-chat/internal/channels"
 	"github.com/ebrakke/relay-chat/internal/db"
 	"github.com/ebrakke/relay-chat/internal/messages"
@@ -25,12 +26,13 @@ func setup(t *testing.T) *Handler {
 	t.Cleanup(func() { d.Close() })
 
 	authSvc := auth.NewService(d)
+	botSvc := bots.NewService(d)
 	chanSvc := channels.NewService(d)
 	msgSvc := messages.NewService(d)
 	reactSvc := reactions.NewService(d)
 	hub := ws.NewHub()
 	chanSvc.EnsureGeneral()
-	return New(authSvc, chanSvc, msgSvc, reactSvc, hub)
+	return New(authSvc, botSvc, chanSvc, msgSvc, reactSvc, hub)
 }
 
 func doReq(h http.Handler, method, path string, body interface{}) *httptest.ResponseRecorder {

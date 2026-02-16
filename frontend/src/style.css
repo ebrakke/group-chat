@@ -746,3 +746,109 @@ body.sidebar-is-open {
     min-width: 38px;
   }
 }
+
+/* --- Bot badge & management --- */
+.bot-badge {
+  display: inline-block;
+  background: #533483;
+  color: #ddd;
+  font-size: 0.6rem;
+  padding: 0.1rem 0.35rem;
+  border-radius: 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  vertical-align: middle;
+  margin-left: 0.25rem;
+  font-weight: bold;
+}
+
+.bot-list {
+  list-style: none;
+  margin-top: 0.5rem;
+}
+.bot-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid #1a1a2e;
+}
+.bot-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+.bot-username {
+  font-size: 0.75rem;
+  color: #777;
+}
+.bot-item-actions {
+  flex-shrink: 0;
+}
+.bot-empty {
+  color: #777;
+  font-size: 0.8rem;
+  padding: 0.25rem 0;
+}
+
+.modal-wide {
+  max-width: 500px;
+}
+.manage-section {
+  margin-bottom: 1rem;
+}
+.manage-section h4 {
+  font-size: 0.85rem;
+  color: #ccc;
+  margin-bottom: 0.4rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.manage-list {
+  margin-bottom: 0.4rem;
+}
+.manage-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.3rem 0;
+  border-bottom: 1px solid #1a1a2e;
+  font-size: 0.85rem;
+}
+.manage-meta {
+  font-size: 0.7rem;
+  color: #777;
+  margin-left: 0.35rem;
+}
+.manage-empty {
+  color: #777;
+  font-size: 0.8rem;
+  padding: 0.25rem 0;
+}
+.manage-actions {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+.input-sm {
+  font-family: inherit;
+  font-size: 0.8rem;
+  padding: 0.3rem 0.5rem;
+  background: #0f3460;
+  color: #eee;
+  border: 1px solid #533483;
+  border-radius: 3px;
+}
+.input-sm:focus {
+  outline: none;
+  border-color: #e94560;
+}
+select.input-sm {
+  appearance: auto;
+}
+.token-warning {
+  color: #e94560;
+  font-size: 0.85rem;
+  margin-bottom: 0.5rem;
+  font-style: italic;
+}

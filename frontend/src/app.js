@@ -538,6 +538,11 @@ async function renderMain() {
           <button id="create-invite" class="btn-sm">Create Invite</button>
           <ul class="invite-list" id="invite-list"></ul>
         </div>
+        <div class="card">
+          <h3>Bots</h3>
+          <button id="create-bot" class="btn-sm">Create Bot</button>
+          <ul class="bot-list" id="bot-list"></ul>
+        </div>
       </div>
     </div>
   ` : "";
@@ -600,6 +605,11 @@ async function renderMain() {
               <div id="admin-invite-result"></div>
               <button id="admin-create-invite" class="btn-sm">Create Invite</button>
               <ul class="invite-list" id="admin-invite-list"></ul>
+            </div>
+            <div class="card">
+              <h3>Bots</h3>
+              <button id="admin-create-bot" class="btn-sm">Create Bot</button>
+              <ul class="bot-list" id="admin-bot-list"></ul>
             </div>
             <div class="card">
               <h3>Account</h3>
@@ -677,6 +687,13 @@ async function renderMain() {
     }
     loadInvites();
 
+    // Desktop bot handlers
+    const createBot = document.getElementById("create-bot");
+    if (createBot) {
+      createBot.onclick = () => showCreateBotModal();
+    }
+    loadBots("bot-list");
+
     // Mobile admin page
     const openAdmin = document.getElementById("open-admin");
     if (openAdmin) {
@@ -697,6 +714,13 @@ async function renderMain() {
         errEl.classList.remove("hidden");
       }
     };
+
+    // Mobile bot handlers
+    const adminCreateBot = document.getElementById("admin-create-bot");
+    if (adminCreateBot) {
+      adminCreateBot.onclick = () => showCreateBotModal();
+    }
+    loadBots("admin-bot-list");
   }
 
   await handleRoute(channelsList);
@@ -819,9 +843,10 @@ function appendMessage(msg) {
   div.dataset.msgId = msg.id;
   const replyBtn = `<button class="reply-btn btn-sm secondary" data-msg-id="${msg.id}">Reply${msg.replyCount ? ` (${msg.replyCount})` : ""}</button>`;
   const reactionsHtml = renderReactions(msg.id, msg.reactions || []);
+  const botBadge = msg.isBot ? '<span class="bot-badge">BOT</span>' : '';
   div.innerHTML = `
     <div class="msg-header">
-      <strong>${esc(msg.displayName)}</strong>
+      <strong>${esc(msg.displayName)}</strong>${botBadge}
       <span class="msg-time">${fmtTime(msg.createdAt)}</span>
     </div>
     <div class="msg-body">${esc(msg.content)}</div>
@@ -895,9 +920,10 @@ function appendReply(reply) {
   div.dataset.replyId = reply.id;
   div.dataset.msgId = reply.id;
   const reactionsHtml = renderReactions(reply.id, reply.reactions || []);
+  const botBadge = reply.isBot ? '<span class="bot-badge">BOT</span>' : '';
   div.innerHTML = `
     <div class="msg-header">
-      <strong>${esc(reply.displayName)}</strong>
+      <strong>${esc(reply.displayName)}</strong>${botBadge}
       <span class="msg-time">${fmtTime(reply.createdAt)}</span>
     </div>
     <div class="msg-body">${esc(reply.content)}</div>
@@ -954,6 +980,239 @@ async function loadInvites() {
     ).join("");
     list.querySelectorAll("li").forEach(li => attachCopyHandler(li));
   } catch {}
+}
+
+// --- Bots ---
+
+async function loadBots(listId) {
+  try {
+    const botList = await api("GET", "/api/bots");
+    const list = document.getElementById(listId);
+    if (!list) return;
+    if (!botList.length) {
+      list.innerHTML = '<li class="bot-empty">No bots yet</li>';
+      return;
+    }
+    list.innerHTML = botList.map(b => `
+      <li class="bot-item" data-bot-id="${b.id}">
+        <div class="bot-info">
+          <strong>${esc(b.displayName)}</strong>
+          <span class="bot-username">@${esc(b.username)}</span>
+        </div>
+        <div class="bot-item-actions">
+          <button class="btn-sm secondary manage-bot-btn" data-bot-id="${b.id}">Manage</button>
+        </div>
+      </li>
+    `).join("");
+    list.querySelectorAll(".manage-bot-btn").forEach(btn => {
+      btn.onclick = () => showManageBotModal(parseInt(btn.dataset.botId, 10));
+    });
+  } catch {}
+}
+
+function showCreateBotModal() {
+  const backdrop = document.createElement("div");
+  backdrop.className = "modal-backdrop";
+  backdrop.innerHTML = `
+    <div class="modal">
+      <h3>Create Bot</h3>
+      <label>Username</label>
+      <input type="text" id="bot-username-input" placeholder="my-bot" maxlength="50" autocomplete="off">
+      <label>Display Name</label>
+      <input type="text" id="bot-displayname-input" placeholder="My Bot" maxlength="100" autocomplete="off">
+      <div id="bot-create-error" class="error hidden"></div>
+      <div class="modal-actions">
+        <button id="bot-create-submit">Create</button>
+        <button id="bot-create-cancel" class="secondary">Cancel</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(backdrop);
+  backdrop.querySelector("#bot-create-cancel").onclick = () => backdrop.remove();
+  backdrop.onclick = (e) => { if (e.target === backdrop) backdrop.remove(); };
+  const nameInput = backdrop.querySelector("#bot-username-input");
+  nameInput.focus();
+  backdrop.querySelector("#bot-create-submit").onclick = async () => {
+    const username = nameInput.value.trim().toLowerCase();
+    const displayName = backdrop.querySelector("#bot-displayname-input").value.trim();
+    if (!username) return;
+    try {
+      await api("POST", "/api/bots", { username, displayName: displayName || username });
+      backdrop.remove();
+      loadBots("bot-list");
+      loadBots("admin-bot-list");
+    } catch (e) {
+      const errEl = backdrop.querySelector("#bot-create-error");
+      errEl.textContent = e.message;
+      errEl.classList.remove("hidden");
+    }
+  };
+  nameInput.onkeydown = (e) => {
+    if (e.key === "Enter") backdrop.querySelector("#bot-create-submit").click();
+  };
+}
+
+async function showManageBotModal(botId) {
+  let botList;
+  try { botList = await api("GET", "/api/bots"); } catch { return; }
+  const bot = botList.find(b => b.id === botId);
+  if (!bot) return;
+
+  const backdrop = document.createElement("div");
+  backdrop.className = "modal-backdrop";
+  backdrop.innerHTML = `
+    <div class="modal modal-wide">
+      <h3>${esc(bot.displayName)} <span class="bot-username">@${esc(bot.username)}</span></h3>
+
+      <div class="manage-section">
+        <h4>Tokens</h4>
+        <div id="manage-token-list" class="manage-list"></div>
+        <div class="manage-actions">
+          <input type="text" id="token-label-input" placeholder="Token label (optional)" class="input-sm">
+          <button id="generate-token-btn" class="btn-sm">Generate Token</button>
+        </div>
+      </div>
+
+      <div class="manage-section">
+        <h4>Channel Bindings</h4>
+        <div id="manage-binding-list" class="manage-list"></div>
+        <div class="manage-actions">
+          <select id="bind-channel-select" class="input-sm"></select>
+          <button id="bind-channel-btn" class="btn-sm">Bind</button>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button id="delete-bot-btn" class="btn-sm" style="background:#c0392b">Delete Bot</button>
+        <button id="manage-close" class="secondary">Close</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(backdrop);
+  backdrop.querySelector("#manage-close").onclick = () => backdrop.remove();
+  backdrop.onclick = (e) => { if (e.target === backdrop) backdrop.remove(); };
+
+  // Load tokens
+  async function refreshTokens() {
+    try {
+      const tokens = await api("GET", `/api/bots/${botId}/tokens`);
+      const el = backdrop.querySelector("#manage-token-list");
+      if (!tokens.length) {
+        el.innerHTML = '<div class="manage-empty">No tokens</div>';
+        return;
+      }
+      el.innerHTML = tokens.map(t => `
+        <div class="manage-item">
+          <span>${esc(t.label || "(no label)")} <span class="manage-meta">${t.revokedAt ? "revoked" : "active"}</span></span>
+          ${t.revokedAt ? '' : `<button class="btn-sm secondary revoke-token-btn" data-token-id="${t.id}">Revoke</button>`}
+        </div>
+      `).join("");
+      el.querySelectorAll(".revoke-token-btn").forEach(btn => {
+        btn.onclick = async () => {
+          try {
+            await api("DELETE", `/api/bots/tokens/${btn.dataset.tokenId}`);
+            refreshTokens();
+          } catch {}
+        };
+      });
+    } catch {}
+  }
+
+  // Load bindings
+  async function refreshBindings() {
+    try {
+      const bindings = await api("GET", `/api/bots/${botId}/bindings`);
+      const channels = await api("GET", "/api/channels");
+      const el = backdrop.querySelector("#manage-binding-list");
+      if (!bindings.length) {
+        el.innerHTML = '<div class="manage-empty">No channel bindings</div>';
+      } else {
+        el.innerHTML = bindings.map(b => {
+          const ch = channels.find(c => c.id === b.channelId);
+          const name = ch ? ch.name : `#${b.channelId}`;
+          const scopes = [b.canRead ? "read" : "", b.canWrite ? "write" : ""].filter(Boolean).join(", ");
+          return `
+            <div class="manage-item">
+              <span>#${esc(name)} <span class="manage-meta">${scopes}</span></span>
+              <button class="btn-sm secondary unbind-btn" data-channel-id="${b.channelId}">Unbind</button>
+            </div>
+          `;
+        }).join("");
+        el.querySelectorAll(".unbind-btn").forEach(btn => {
+          btn.onclick = async () => {
+            try {
+              await api("DELETE", `/api/bots/${botId}/bindings/${btn.dataset.channelId}`);
+              refreshBindings();
+            } catch {}
+          };
+        });
+      }
+
+      // Populate channel select (exclude already bound)
+      const boundIds = new Set(bindings.map(b => b.channelId));
+      const select = backdrop.querySelector("#bind-channel-select");
+      const available = channels.filter(c => !boundIds.has(c.id));
+      select.innerHTML = available.length
+        ? available.map(c => `<option value="${c.id}">#${esc(c.name)}</option>`).join("")
+        : '<option disabled>All channels bound</option>';
+    } catch {}
+  }
+
+  refreshTokens();
+  refreshBindings();
+
+  // Generate token
+  backdrop.querySelector("#generate-token-btn").onclick = async () => {
+    const label = backdrop.querySelector("#token-label-input").value.trim();
+    try {
+      const result = await api("POST", `/api/bots/${botId}/tokens`, { label });
+      backdrop.querySelector("#token-label-input").value = "";
+      refreshTokens();
+      showBotTokenModal(result.token);
+    } catch {}
+  };
+
+  // Bind channel
+  backdrop.querySelector("#bind-channel-btn").onclick = async () => {
+    const select = backdrop.querySelector("#bind-channel-select");
+    const channelId = parseInt(select.value, 10);
+    if (!channelId) return;
+    try {
+      await api("POST", `/api/bots/${botId}/bindings`, { channelId, canRead: true, canWrite: true });
+      refreshBindings();
+    } catch {}
+  };
+
+  // Delete bot
+  backdrop.querySelector("#delete-bot-btn").onclick = async () => {
+    if (!confirm(`Delete bot @${bot.username}? This cannot be undone.`)) return;
+    try {
+      await api("DELETE", `/api/bots/${botId}`);
+      backdrop.remove();
+      loadBots("bot-list");
+      loadBots("admin-bot-list");
+    } catch {}
+  };
+}
+
+function showBotTokenModal(token) {
+  const backdrop = document.createElement("div");
+  backdrop.className = "modal-backdrop";
+  backdrop.innerHTML = `
+    <div class="modal">
+      <h3>Bot Token Generated</h3>
+      <p class="token-warning">Copy this token now. It will not be shown again.</p>
+      <div class="invite-code" style="user-select:all;word-break:break-all">${esc(token)}</div>
+      <div class="modal-actions">
+        <button class="btn-sm copy-link-btn" data-url="${esc(token)}">Copy Token</button>
+        <button id="token-modal-close" class="secondary">Done</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(backdrop);
+  attachCopyHandler(backdrop);
+  backdrop.querySelector("#token-modal-close").onclick = () => backdrop.remove();
+  backdrop.onclick = (e) => { if (e.target === backdrop) backdrop.remove(); };
 }
 
 // --- Helpers ---

@@ -12,21 +12,31 @@ import (
 
 // Event is a message broadcast to connected clients.
 type Event struct {
-	Type    string      `json:"type"`
-	Payload interface{} `json:"payload"`
+	Type      string      `json:"type"`
+	Payload   interface{} `json:"payload"`
+	ChannelID int64       `json:"-"` // used for bot filtering, not serialized
+}
+
+// AuthResult is returned by AuthFunc with user metadata.
+type AuthResult struct {
+	UserID     int64
+	IsBot      bool
+	ChannelIDs []int64 // bound channel IDs (bots only)
 }
 
 type client struct {
-	conn   *websocket.Conn
-	userID int64
+	conn       *websocket.Conn
+	userID     int64
+	isBot      bool
+	channelIDs map[int64]bool // bound channels for bot filtering
 }
 
 // Hub manages WebSocket connections and broadcasts events.
 type Hub struct {
 	mu      sync.RWMutex
 	clients map[*client]struct{}
-	// AuthFunc validates a session token and returns the user ID. Set by the app.
-	AuthFunc func(token string) (int64, error)
+	// AuthFunc validates a token and returns auth metadata. Set by the app.
+	AuthFunc func(token string) (*AuthResult, error)
 }
 
 // NewHub creates a new WebSocket hub.
@@ -57,13 +67,23 @@ func (h *Hub) Handler() http.Handler {
 			websocket.Message.Send(conn, `{"type":"error","payload":"auth not configured"}`)
 			return
 		}
-		userID, err := h.AuthFunc(token)
+		result, err := h.AuthFunc(token)
 		if err != nil {
 			websocket.Message.Send(conn, `{"type":"error","payload":"unauthorized"}`)
 			return
 		}
 
-		c := &client{conn: conn, userID: userID}
+		channelSet := make(map[int64]bool, len(result.ChannelIDs))
+		for _, id := range result.ChannelIDs {
+			channelSet[id] = true
+		}
+
+		c := &client{
+			conn:       conn,
+			userID:     result.UserID,
+			isBot:      result.IsBot,
+			channelIDs: channelSet,
+		}
 		h.register(c)
 		defer h.unregister(c)
 
@@ -80,6 +100,7 @@ func (h *Hub) Handler() http.Handler {
 }
 
 // Broadcast sends an event to all connected clients.
+// Bot clients only receive events from their bound channels.
 func (h *Hub) Broadcast(ev Event) {
 	data, err := json.Marshal(ev)
 	if err != nil {
@@ -92,6 +113,10 @@ func (h *Hub) Broadcast(ev Event) {
 	defer h.mu.RUnlock()
 
 	for c := range h.clients {
+		// Filter: bot clients only get events from bound channels
+		if c.isBot && ev.ChannelID > 0 && !c.channelIDs[ev.ChannelID] {
+			continue
+		}
 		if err := websocket.Message.Send(c.conn, msg); err != nil {
 			log.Printf("ws: send error: %v", err)
 		}

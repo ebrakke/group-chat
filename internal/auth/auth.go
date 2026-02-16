@@ -30,6 +30,7 @@ type User struct {
 	DisplayName string `json:"displayName"`
 	Role        string `json:"role"`
 	CreatedAt   string `json:"createdAt"`
+	IsBot       bool   `json:"isBot,omitempty"`
 }
 
 type Invite struct {
@@ -104,7 +105,7 @@ func (s *Service) Login(username, password string) (*User, string, error) {
 		return nil, "", err
 	}
 
-	return &User{ID: id, Username: username, DisplayName: displayName, Role: role, CreatedAt: createdAt}, token, nil
+	return &User{ID: id, Username: username, DisplayName: displayName, Role: role, CreatedAt: createdAt, IsBot: role == "bot"}, token, nil
 }
 
 // ValidateSession returns the user for a valid session token.
@@ -118,7 +119,11 @@ func (s *Service) ValidateSession(token string) (*User, error) {
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrUnauthorized
 	}
-	return &u, err
+	if err != nil {
+		return nil, err
+	}
+	u.IsBot = u.Role == "bot"
+	return &u, nil
 }
 
 // Logout deletes a session.
@@ -193,7 +198,11 @@ func (s *Service) GetUserByID(id int64) (*User, error) {
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
-	return &u, err
+	if err != nil {
+		return nil, err
+	}
+	u.IsBot = u.Role == "bot"
+	return &u, nil
 }
 
 // ListUsers returns all users.
@@ -210,6 +219,7 @@ func (s *Service) ListUsers() ([]User, error) {
 		if err := rows.Scan(&u.ID, &u.Username, &u.DisplayName, &u.Role, &u.CreatedAt); err != nil {
 			return nil, err
 		}
+		u.IsBot = u.Role == "bot"
 		users = append(users, u)
 	}
 	return users, rows.Err()
@@ -235,7 +245,7 @@ func (s *Service) createUser(username, password, displayName, role string) (*Use
 		return nil, "", err
 	}
 
-	return &User{ID: id, Username: username, DisplayName: displayName, Role: role}, token, nil
+	return &User{ID: id, Username: username, DisplayName: displayName, Role: role, IsBot: role == "bot"}, token, nil
 }
 
 func (s *Service) createSession(userID int64) (string, error) {

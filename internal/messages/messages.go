@@ -26,6 +26,7 @@ type Message struct {
 	Username    string  `json:"username"`
 	DisplayName string  `json:"displayName"`
 	ReplyCount  int     `json:"replyCount,omitempty"`
+	IsBot       bool    `json:"isBot,omitempty"`
 }
 
 type Service struct {
@@ -99,21 +100,23 @@ func (s *Service) GetByID(id int64) (*Message, error) {
 	var m Message
 	var parentID sql.NullInt64
 	var eventID sql.NullString
+	var role string
 	err := s.db.QueryRow(`
 		SELECT m.id, m.channel_id, m.user_id, m.parent_id, m.content, m.event_id, m.created_at,
-		       u.username, u.display_name,
+		       u.username, u.display_name, u.role,
 		       (SELECT COUNT(*) FROM messages r WHERE r.parent_id = m.id) as reply_count
 		FROM messages m
 		JOIN users u ON m.user_id = u.id
 		WHERE m.id = ?
 	`, id).Scan(&m.ID, &m.ChannelID, &m.UserID, &parentID, &m.Content, &eventID, &m.CreatedAt,
-		&m.Username, &m.DisplayName, &m.ReplyCount)
+		&m.Username, &m.DisplayName, &role, &m.ReplyCount)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
 	if err != nil {
 		return nil, err
 	}
+	m.IsBot = role == "bot"
 	if parentID.Valid {
 		m.ParentID = &parentID.Int64
 	}
@@ -135,7 +138,7 @@ func (s *Service) ListChannel(channelID int64, limit int, before int64) ([]Messa
 	if before > 0 {
 		rows, err = s.db.Query(`
 			SELECT m.id, m.channel_id, m.user_id, m.content, m.event_id, m.created_at,
-			       u.username, u.display_name,
+			       u.username, u.display_name, u.role,
 			       (SELECT COUNT(*) FROM messages r WHERE r.parent_id = m.id) as reply_count
 			FROM messages m
 			JOIN users u ON m.user_id = u.id
@@ -145,7 +148,7 @@ func (s *Service) ListChannel(channelID int64, limit int, before int64) ([]Messa
 	} else {
 		rows, err = s.db.Query(`
 			SELECT m.id, m.channel_id, m.user_id, m.content, m.event_id, m.created_at,
-			       u.username, u.display_name,
+			       u.username, u.display_name, u.role,
 			       (SELECT COUNT(*) FROM messages r WHERE r.parent_id = m.id) as reply_count
 			FROM messages m
 			JOIN users u ON m.user_id = u.id
@@ -162,10 +165,12 @@ func (s *Service) ListChannel(channelID int64, limit int, before int64) ([]Messa
 	for rows.Next() {
 		var m Message
 		var eventID sql.NullString
+		var role string
 		if err := rows.Scan(&m.ID, &m.ChannelID, &m.UserID, &m.Content, &eventID, &m.CreatedAt,
-			&m.Username, &m.DisplayName, &m.ReplyCount); err != nil {
+			&m.Username, &m.DisplayName, &role, &m.ReplyCount); err != nil {
 			return nil, err
 		}
+		m.IsBot = role == "bot"
 		if eventID.Valid {
 			m.EventID = eventID.String
 		}
@@ -185,7 +190,7 @@ func (s *Service) ListThread(parentID int64, limit int, before int64) ([]Message
 	if before > 0 {
 		rows, err = s.db.Query(`
 			SELECT m.id, m.channel_id, m.user_id, m.parent_id, m.content, m.event_id, m.created_at,
-			       u.username, u.display_name
+			       u.username, u.display_name, u.role
 			FROM messages m
 			JOIN users u ON m.user_id = u.id
 			WHERE m.parent_id = ? AND m.id < ?
@@ -194,7 +199,7 @@ func (s *Service) ListThread(parentID int64, limit int, before int64) ([]Message
 	} else {
 		rows, err = s.db.Query(`
 			SELECT m.id, m.channel_id, m.user_id, m.parent_id, m.content, m.event_id, m.created_at,
-			       u.username, u.display_name
+			       u.username, u.display_name, u.role
 			FROM messages m
 			JOIN users u ON m.user_id = u.id
 			WHERE m.parent_id = ?
@@ -211,10 +216,12 @@ func (s *Service) ListThread(parentID int64, limit int, before int64) ([]Message
 		var m Message
 		var parentID sql.NullInt64
 		var eventID sql.NullString
+		var role string
 		if err := rows.Scan(&m.ID, &m.ChannelID, &m.UserID, &parentID, &m.Content, &eventID, &m.CreatedAt,
-			&m.Username, &m.DisplayName); err != nil {
+			&m.Username, &m.DisplayName, &role); err != nil {
 			return nil, err
 		}
+		m.IsBot = role == "bot"
 		if parentID.Valid {
 			m.ParentID = &parentID.Int64
 		}

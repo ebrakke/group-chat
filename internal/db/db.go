@@ -78,24 +78,34 @@ func (d *DB) migrate() error {
 			return fmt.Errorf("read migration %s: %w", f, err)
 		}
 
+		// Disable FK checks so migrations can recreate tables with foreign key references.
+		// This must run outside the transaction (SQLite ignores it inside transactions).
+		d.Exec("PRAGMA foreign_keys = OFF")
+
 		tx, err := d.Begin()
 		if err != nil {
+			d.Exec("PRAGMA foreign_keys = ON")
 			return fmt.Errorf("begin tx for %s: %w", f, err)
 		}
 
 		if _, err := tx.Exec(string(content)); err != nil {
 			tx.Rollback()
+			d.Exec("PRAGMA foreign_keys = ON")
 			return fmt.Errorf("exec migration %s: %w", f, err)
 		}
 
 		if _, err := tx.Exec("INSERT INTO schema_migrations (version) VALUES (?)", version); err != nil {
 			tx.Rollback()
+			d.Exec("PRAGMA foreign_keys = ON")
 			return fmt.Errorf("record migration %s: %w", f, err)
 		}
 
 		if err := tx.Commit(); err != nil {
+			d.Exec("PRAGMA foreign_keys = ON")
 			return fmt.Errorf("commit migration %s: %w", f, err)
 		}
+
+		d.Exec("PRAGMA foreign_keys = ON")
 		log.Printf("Applied migration: %s", f)
 	}
 	return nil

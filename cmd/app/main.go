@@ -12,6 +12,7 @@ import (
 
 	"github.com/ebrakke/relay-chat/internal/api"
 	"github.com/ebrakke/relay-chat/internal/auth"
+	"github.com/ebrakke/relay-chat/internal/bots"
 	"github.com/ebrakke/relay-chat/internal/channels"
 	"github.com/ebrakke/relay-chat/internal/db"
 	"github.com/ebrakke/relay-chat/internal/messages"
@@ -40,6 +41,7 @@ func main() {
 
 	// Services
 	authSvc := auth.NewService(database)
+	botSvc := bots.NewService(database)
 	chanSvc := channels.NewService(database)
 	msgSvc := messages.NewService(database)
 	reactSvc := reactions.NewService(database)
@@ -59,16 +61,23 @@ func main() {
 
 	// WebSocket hub
 	hub := ws.NewHub()
-	hub.AuthFunc = func(token string) (int64, error) {
+	hub.AuthFunc = func(token string) (*ws.AuthResult, error) {
+		// Try session token first
 		user, err := authSvc.ValidateSession(token)
-		if err != nil {
-			return 0, err
+		if err == nil {
+			return &ws.AuthResult{UserID: user.ID}, nil
 		}
-		return user.ID, nil
+		// Try bot token
+		user, err = botSvc.ValidateToken(token)
+		if err == nil {
+			channelIDs, _ := botSvc.GetBoundChannelIDs(user.ID)
+			return &ws.AuthResult{UserID: user.ID, IsBot: true, ChannelIDs: channelIDs}, nil
+		}
+		return nil, fmt.Errorf("unauthorized")
 	}
 
 	// API handler
-	apiHandler := api.New(authSvc, chanSvc, msgSvc, reactSvc, hub)
+	apiHandler := api.New(authSvc, botSvc, chanSvc, msgSvc, reactSvc, hub)
 
 	// Build mux
 	mux := http.NewServeMux()

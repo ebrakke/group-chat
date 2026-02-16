@@ -101,7 +101,101 @@ function handleWSEvent(data) {
   } else if (data.type === "reaction_removed") {
     const r = data.payload;
     updateReactionUI(r.messageId, r.emoji, r.userId, false);
+  } else if (data.type === "channel_created") {
+    const ch = data.payload;
+    const list = document.getElementById("channel-list");
+    if (list && !list.querySelector(`li[data-id="${ch.id}"]`)) {
+      const li = document.createElement("li");
+      li.dataset.id = ch.id;
+      li.dataset.name = ch.name;
+      li.textContent = ch.name;
+      list.appendChild(li);
+    }
   }
+}
+
+// --- Create Channel Modal ---
+
+function showCreateChannelModal() {
+  const existing = document.querySelector(".modal-backdrop");
+  if (existing) existing.remove();
+
+  const backdrop = document.createElement("div");
+  backdrop.className = "modal-backdrop";
+  backdrop.innerHTML = `
+    <div class="modal">
+      <h3># create channel</h3>
+      <label for="channel-name-input">Name</label>
+      <input type="text" id="channel-name-input" placeholder="e.g. random" maxlength="50" autocomplete="off">
+      <div class="channel-name-preview hidden" id="channel-name-preview"></div>
+      <div class="error hidden" id="channel-create-error"></div>
+      <div class="modal-actions">
+        <button id="channel-create-submit">Create</button>
+        <button id="channel-create-cancel" class="secondary">Cancel</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(backdrop);
+
+  const input = document.getElementById("channel-name-input");
+  const preview = document.getElementById("channel-name-preview");
+  const errEl = document.getElementById("channel-create-error");
+
+  function formatName(raw) {
+    return raw.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "").replace(/-{2,}/g, "-");
+  }
+
+  input.addEventListener("input", () => {
+    const formatted = formatName(input.value);
+    if (formatted && formatted !== input.value) {
+      preview.textContent = "# " + formatted;
+      preview.classList.remove("hidden");
+    } else {
+      preview.classList.add("hidden");
+    }
+  });
+
+  async function submit() {
+    const name = formatName(input.value).replace(/^-+|-+$/g, "");
+    if (!name) {
+      errEl.textContent = "Name is required";
+      errEl.classList.remove("hidden");
+      return;
+    }
+    try {
+      const ch = await api("POST", "/api/channels", { name });
+      backdrop.remove();
+      // Add to sidebar if not already there (WS event may have added it)
+      const list = document.getElementById("channel-list");
+      if (list && !list.querySelector(`li[data-id="${ch.id}"]`)) {
+        const li = document.createElement("li");
+        li.dataset.id = ch.id;
+        li.dataset.name = ch.name;
+        li.textContent = ch.name;
+        list.appendChild(li);
+      }
+      selectChannel({ id: ch.id, name: ch.name });
+    } catch (e) {
+      errEl.textContent = e.message || "Failed to create channel";
+      errEl.classList.remove("hidden");
+    }
+  }
+
+  document.getElementById("channel-create-submit").onclick = submit;
+  input.onkeydown = (e) => {
+    if (e.key === "Enter") { e.preventDefault(); submit(); }
+  };
+
+  function close() { backdrop.remove(); }
+  document.getElementById("channel-create-cancel").onclick = close;
+  backdrop.addEventListener("click", (e) => {
+    if (e.target === backdrop) close();
+  });
+  document.addEventListener("keydown", function escHandler(e) {
+    if (e.key === "Escape") { close(); document.removeEventListener("keydown", escHandler); }
+  });
+
+  input.focus();
 }
 
 // --- Reactions ---
@@ -463,7 +557,7 @@ async function renderMain() {
           ${adminSection}
         </div>
         <div class="channel-list-container">
-          <h3>Channels</h3>
+          <div class="channel-list-header"><h3>Channels</h3><button id="create-channel-btn" class="channel-create-btn" aria-label="Create channel">+</button></div>
           <ul class="channel-list" id="channel-list">
             ${channelsList.map(c => `<li data-id="${c.id}" data-name="${esc(c.name)}">${esc(c.name)}</li>`).join("")}
           </ul>
@@ -526,6 +620,8 @@ async function renderMain() {
     const name = li.dataset.name;
     selectChannel({ id, name });
   };
+
+  document.getElementById("create-channel-btn").onclick = showCreateChannelModal;
 
   document.getElementById("msg-send").onclick = sendMessage;
   document.getElementById("msg-input").onkeydown = (e) => {

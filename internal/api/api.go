@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -53,6 +54,7 @@ func (h *Handler) routes() {
 
 	// Channels
 	h.mux.HandleFunc("GET /api/channels", h.handleListChannels)
+	h.mux.HandleFunc("POST /api/channels", h.handleCreateChannel)
 
 	// Messages
 	h.mux.HandleFunc("GET /api/channels/{id}/messages", h.handleListMessages)
@@ -278,6 +280,51 @@ func (h *Handler) handleListChannels(w http.ResponseWriter, r *http.Request) {
 		chs = []channels.Channel{}
 	}
 	writeJSON(w, http.StatusOK, chs)
+}
+
+var channelNameRe = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
+
+func (h *Handler) handleCreateChannel(w http.ResponseWriter, r *http.Request) {
+	_, err := h.requireAuth(r)
+	if err != nil {
+		writeErr(w, http.StatusUnauthorized, err)
+		return
+	}
+
+	var req struct {
+		Name string `json:"name"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
+	req.Name = strings.TrimSpace(req.Name)
+
+	if req.Name == "" {
+		writeErr(w, http.StatusBadRequest, errors.New("name is required"))
+		return
+	}
+	if len(req.Name) > 50 {
+		writeErr(w, http.StatusBadRequest, errors.New("name must be 50 characters or less"))
+		return
+	}
+	if !channelNameRe.MatchString(req.Name) {
+		writeErr(w, http.StatusBadRequest, errors.New("name must be lowercase alphanumeric and hyphens, cannot start or end with a hyphen"))
+		return
+	}
+
+	ch, err := h.channels.Create(req.Name)
+	if err != nil {
+		if strings.Contains(err.Error(), "UNIQUE constraint") {
+			writeErr(w, http.StatusConflict, errors.New("channel already exists"))
+			return
+		}
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	h.hub.Broadcast(ws.Event{Type: "channel_created", Payload: ch})
+	writeJSON(w, http.StatusCreated, ch)
 }
 
 // --- Message handlers ---

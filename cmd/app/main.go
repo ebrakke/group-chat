@@ -97,6 +97,8 @@ func main() {
 }
 
 // spaHandler serves static files, falling back to index.html for SPA routing.
+// Hashed assets (app.XXXX.js, style.XXXX.css) get long-lived cache headers.
+// index.html and sw.js are never cached so updates propagate immediately.
 func spaHandler(fsys fs.FS) http.Handler {
 	fileServer := http.FileServer(http.FS(fsys))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -109,11 +111,21 @@ func spaHandler(fsys fs.FS) http.Handler {
 		f, err := fsys.Open(path)
 		if err != nil {
 			// File not found -> serve index.html for SPA routing
+			w.Header().Set("Cache-Control", "no-cache")
 			r.URL.Path = "/"
 			fileServer.ServeHTTP(w, r)
 			return
 		}
 		f.Close()
+
+		// Cache-Control based on file type
+		if path == "index.html" || path == "sw.js" {
+			w.Header().Set("Cache-Control", "no-cache")
+		} else if strings.Contains(path, ".") && (strings.HasSuffix(path, ".js") || strings.HasSuffix(path, ".css")) {
+			// Hashed assets are immutable
+			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
+		}
+
 		fileServer.ServeHTTP(w, r)
 	})
 }

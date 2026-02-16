@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "rm -rf dist && mkdir -p dist && cp src/index.html src/style.css src/app.js src/manifest.json src/sw.js src/icon-*.png dist/",
+    "build": "bun run build.js",
     "dev": "bun run build && echo 'Built to dist/'"
   },
   "devDependencies": {

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'relay-chat-v1';
+const CACHE_NAME = 'relay-chat-v2';
 const STATIC_ASSETS = [
   '/',
   '/index.html',

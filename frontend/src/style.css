@@ -277,7 +277,9 @@ button.btn-sm { padding: 0.25rem 0.5rem; font-size: 0.75rem; }
   word-break: break-all;
   margin: 0.5rem 0;
   border: 1px solid #2a2a4a;
-  font-size: 0.85rem;
+  font-size: 0.75rem;
+  color: #aaa;
+  user-select: all;
 }
 .invite-list { list-style: none; margin-top: 0.5rem; }
 .invite-list li {
@@ -287,6 +289,35 @@ button.btn-sm { padding: 0.25rem 0.5rem; font-size: 0.75rem; }
   margin-bottom: 0.25rem;
   font-size: 0.8rem;
   border: 1px solid #2a2a4a;
+}
+.invite-list li .invite-code {
+  margin: 0 0 0.25rem;
+  padding: 0;
+  border: none;
+  background: none;
+  font-size: 0.75rem;
+  color: #999;
+}
+.invite-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.invite-usage {
+  font-size: 0.7rem;
+  color: #555;
+}
+.copy-link-btn {
+  background: #533483;
+  white-space: nowrap;
+}
+.copy-link-btn:hover {
+  background: #3f2768;
+}
+input[readonly] {
+  opacity: 0.7;
+  cursor: not-allowed;
 }
 
 /* Reactions */

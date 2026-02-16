@@ -72,17 +72,20 @@ test.describe.serial("Prod smoke – critical path", () => {
     await expect(page.locator("#create-invite")).toBeVisible({ timeout: 5000 });
     await page.click("#create-invite");
 
-    const codeEl = page.locator(".invite-code");
+    const codeEl = page.locator("#invite-result .invite-code");
     await expect(codeEl).toBeVisible({ timeout: 5000 });
-    inviteCode = (await codeEl.textContent()) || "";
-    expect(inviteCode.trim().length).toBeGreaterThan(0);
+    const inviteUrl = (await codeEl.textContent()) || "";
+    const match = inviteUrl.trim().match(/\/invite\/([a-f0-9]+)$/i);
+    expect(match).toBeTruthy();
+    inviteCode = match![1];
   });
 
   test("member signs up with invite", async ({ page }) => {
     expect(inviteCode).toBeTruthy();
-    await page.goto("/");
+    await page.goto(`/invite/${inviteCode}`);
 
-    await page.fill("#invite-code", inviteCode.trim());
+    await expect(page.locator('.auth-tab[data-tab="signup"].active')).toBeVisible({ timeout: 5000 });
+    await expect(page.locator("#invite-code")).toHaveValue(inviteCode);
     await page.fill("#signup-username", MEMBER_USER);
     await page.fill("#signup-display", MEMBER_DISPLAY);
     await page.fill("#signup-password", MEMBER_PASS);

@@ -334,15 +334,16 @@ function renderBootstrap() {
   };
 }
 
-function renderLogin() {
+function renderLogin(prefillInviteCode) {
+  const showSignup = !!prefillInviteCode;
   app.innerHTML = `
     <div class="auth-container">
       <h1>Relay Chat</h1>
       <div class="auth-tabs">
-        <button class="auth-tab active" data-tab="login">Login</button>
-        <button class="auth-tab" data-tab="signup">Sign Up</button>
+        <button class="auth-tab${showSignup ? "" : " active"}" data-tab="login">Login</button>
+        <button class="auth-tab${showSignup ? " active" : ""}" data-tab="signup">Sign Up</button>
       </div>
-      <div class="card" id="login-card">
+      <div class="card${showSignup ? " hidden" : ""}" id="login-card">
         <div id="error" class="error hidden"></div>
         <label for="username">Username</label>
         <input type="text" id="username" autocomplete="username">
@@ -350,10 +351,10 @@ function renderLogin() {
         <input type="password" id="password" autocomplete="current-password">
         <button id="submit">Login</button>
       </div>
-      <div class="card hidden" id="signup-card">
+      <div class="card${showSignup ? "" : " hidden"}" id="signup-card">
         <div id="signup-error" class="error hidden"></div>
         <label for="invite-code">Invite Code</label>
-        <input type="text" id="invite-code">
+        <input type="text" id="invite-code" value="${esc(prefillInviteCode || "")}"${prefillInviteCode ? " readonly" : ""}>
         <label for="signup-username">Username</label>
         <input type="text" id="signup-username" autocomplete="username">
         <label for="signup-display">Display Name</label>
@@ -567,7 +568,9 @@ async function renderMain() {
       createInvite.onclick = async () => {
         try {
           const invite = await api("POST", "/api/invites", {});
-          document.getElementById("invite-result").innerHTML = `<div class="invite-code">${invite.code}</div>`;
+          const resultEl = document.getElementById("invite-result");
+          resultEl.innerHTML = renderInviteLink(invite.code);
+          attachCopyHandler(resultEl);
           loadInvites();
         } catch (e) {
           const errEl = document.getElementById("invite-error");
@@ -588,7 +591,9 @@ async function renderMain() {
     document.getElementById("admin-create-invite").onclick = async () => {
       try {
         const invite = await api("POST", "/api/invites", {});
-        document.getElementById("admin-invite-result").innerHTML = `<div class="invite-code">${invite.code}</div>`;
+        const resultEl = document.getElementById("admin-invite-result");
+        resultEl.innerHTML = renderInviteLink(invite.code);
+        attachCopyHandler(resultEl);
         loadAdminInvites();
       } catch (e) {
         const errEl = document.getElementById("admin-invite-error");
@@ -609,6 +614,40 @@ async function doLogout() {
   renderLogin();
 }
 
+// --- Invite Link Helpers ---
+
+function inviteUrl(code) {
+  return `${location.origin}/invite/${code}`;
+}
+
+function renderInviteLink(code) {
+  const url = inviteUrl(code);
+  return `<div class="invite-code">${esc(url)}</div><button class="btn-sm copy-link-btn" data-url="${esc(url)}">Copy Link</button>`;
+}
+
+function attachCopyHandler(container) {
+  const btn = container.querySelector(".copy-link-btn");
+  if (!btn) return;
+  btn.onclick = async () => {
+    try {
+      await navigator.clipboard.writeText(btn.dataset.url);
+    } catch {
+      // fallback
+      const ta = document.createElement("textarea");
+      ta.value = btn.dataset.url;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      ta.remove();
+    }
+    const origText = btn.textContent;
+    btn.textContent = "Copied!";
+    setTimeout(() => { btn.textContent = origText; }, 2000);
+  };
+}
+
 // --- Admin Page ---
 
 function openAdminPage() {
@@ -627,8 +666,9 @@ async function loadAdminInvites() {
     const list = document.getElementById("admin-invite-list");
     if (!list) return;
     list.innerHTML = invites.map(i =>
-      `<li>${i.code} (used: ${i.useCount}${i.maxUses ? "/" + i.maxUses : ""})</li>`
+      `<li><div class="invite-code">${esc(inviteUrl(i.code))}</div><div class="invite-meta"><span class="invite-usage">${i.useCount}${i.maxUses ? "/" + i.maxUses : ""} used</span><button class="btn-sm copy-link-btn" data-url="${esc(inviteUrl(i.code))}">Copy</button></div></li>`
     ).join("");
+    list.querySelectorAll("li").forEach(li => attachCopyHandler(li));
   } catch {}
 }
 
@@ -814,8 +854,9 @@ async function loadInvites() {
     const list = document.getElementById("invite-list");
     if (!list) return;
     list.innerHTML = invites.map(i =>
-      `<li>${i.code} (used: ${i.useCount}${i.maxUses ? "/" + i.maxUses : ""})</li>`
+      `<li><div class="invite-code">${esc(inviteUrl(i.code))}</div><div class="invite-meta"><span class="invite-usage">${i.useCount}${i.maxUses ? "/" + i.maxUses : ""} used</span><button class="btn-sm copy-link-btn" data-url="${esc(inviteUrl(i.code))}">Copy</button></div></li>`
     ).join("");
+    list.querySelectorAll("li").forEach(li => attachCopyHandler(li));
   } catch {}
 }
 
@@ -893,7 +934,15 @@ window.addEventListener("popstate", () => {
 });
 
 // --- Boot ---
+
+function extractInviteCode() {
+  const match = location.pathname.match(/^\/invite\/([a-f0-9]+)$/i);
+  return match ? match[1] : null;
+}
+
 async function boot() {
+  const inviteCode = extractInviteCode();
+
   try {
     const { hasUsers } = await api("GET", "/api/auth/has-users");
     if (!hasUsers) {
@@ -901,7 +950,7 @@ async function boot() {
       return;
     }
   } catch {
-    renderLogin();
+    renderLogin(inviteCode);
     return;
   }
 
@@ -909,7 +958,7 @@ async function boot() {
     currentUser = await api("GET", "/api/auth/me");
     renderMain();
   } catch {
-    renderLogin();
+    renderLogin(inviteCode);
   }
 }
 

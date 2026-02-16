@@ -44,21 +44,32 @@ test.describe.serial("Full E2E flow", () => {
     await expect(page.locator("#create-invite")).toBeVisible({ timeout: 5000 });
     await page.click("#create-invite");
 
-    // Should see invite code
-    const codeEl = page.locator(".invite-code");
+    // Should see invite link
+    const codeEl = page.locator("#invite-result .invite-code");
     await expect(codeEl).toBeVisible({ timeout: 5000 });
-    inviteCode = (await codeEl.textContent()) || "";
-    expect(inviteCode.trim().length).toBeGreaterThan(0);
+    const inviteUrl = (await codeEl.textContent()) || "";
+    // Extract code from URL like http://localhost:8090/invite/{code}
+    const match = inviteUrl.trim().match(/\/invite\/([a-f0-9]+)$/i);
+    expect(match).toBeTruthy();
+    inviteCode = match![1];
+
+    // Should see copy link button
+    await expect(page.locator("#invite-result .copy-link-btn")).toBeVisible();
   });
 
   test("member accepts invite and sees #general", async ({ page }) => {
     expect(inviteCode).toBeTruthy();
 
-    await page.goto("/");
+    // Navigate directly to the invite link
+    await page.goto(`/invite/${inviteCode}`);
 
-    // Switch to signup tab and fill in form
-    await page.click('.auth-tab[data-tab="signup"]');
-    await page.fill("#invite-code", inviteCode.trim());
+    // Signup tab should be active with invite code pre-filled
+    await expect(page.locator('.auth-tab[data-tab="signup"].active')).toBeVisible({ timeout: 5000 });
+    const codeInput = page.locator("#invite-code");
+    await expect(codeInput).toHaveValue(inviteCode);
+    await expect(codeInput).toHaveAttribute("readonly", "");
+
+    // Fill in remaining signup fields
     await page.fill("#signup-username", MEMBER_USER);
     await page.fill("#signup-display", MEMBER_DISPLAY);
     await page.fill("#signup-password", MEMBER_PASS);

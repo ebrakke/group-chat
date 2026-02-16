@@ -155,10 +155,13 @@ test.describe.serial("Mobile UX Audit", () => {
 
     // Create an invite
     await createBtn.click();
-    const codeEl = page.locator("#admin-page .invite-code");
+    const codeEl = page.locator("#admin-invite-result .invite-code");
     await expect(codeEl).toBeVisible({ timeout: 5000 });
-    inviteCode = (await codeEl.textContent()) || "";
-    console.log(`Invite code: ${inviteCode.trim()}`);
+    const inviteUrl = (await codeEl.textContent()) || "";
+    const match = inviteUrl.trim().match(/\/invite\/([a-f0-9]+)$/i);
+    expect(match).toBeTruthy();
+    inviteCode = match![1];
+    console.log(`Invite code: ${inviteCode}`);
 
     await page.screenshot({ path: "screenshots/06-admin-invite-created.png", fullPage: false });
 

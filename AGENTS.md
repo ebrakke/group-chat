@@ -300,9 +300,10 @@ NIP-29 relay roles:
 - `POST /api/messages/{id}/reactions` - Add reaction `{emoji}` (idempotent)
 - `DELETE /api/messages/{id}/reactions/{emoji}` - Remove reaction
 
-**Users (admin-only):**
-- `GET /api/users` - List all users
-- `POST /api/users/{id}/reset-password` - Reset user password `{password}`
+**Users:**
+- `GET /api/users/search?q={prefix}` - Search users by username/displayName prefix (authenticated, returns max 10)
+- `GET /api/users` - List all users (admin-only)
+- `POST /api/users/{id}/reset-password` - Reset user password `{password}` (admin-only)
 
 **Invites (admin-only):**
 - `GET /api/invites` - List invites
@@ -335,6 +336,7 @@ Bots are first-class users with `role='bot'` in the users table. They authentica
 - **Dual auth**: `requireAuth()` tries session token first, then bot token. Transparent to all handlers — they just get an `*auth.User` back with `IsBot: true`.
 - **Hub filtering**: Bot WebSocket clients only receive events from bound channels (ChannelID field on Event struct, not serialized to JSON).
 - **@mentions**: Messages include a `mentions` array extracted from `@username` patterns in content. Bots use this to detect when they're addressed.
+- **Mention autocomplete**: Typing `@` in the message or reply input shows a dropdown of matching users (backed by `GET /api/users/search`). Supports keyboard navigation (arrows, Enter/Tab, Escape) and touch on mobile.
 - **Permission enforcement**: Bot message/reply creation checks `bots.CanWrite(botID, channelID)`, returns 403 if not authorized.
 
 **Key structs:**
@@ -390,7 +392,7 @@ Docker build (`Dockerfile.fly`):
 | Package    | Key Exports                                                    |
 |------------|----------------------------------------------------------------|
 | `api`      | `New(auth, bots, channels, messages, reactions, hub)`, `ServeHTTP()` |
-| `auth`     | `HasUsers`, `Bootstrap`, `Signup`, `Login`, `Logout`, `ValidateSession`, `CreateInvite`, `ListInvites`, `ListUsers`, `ResetPassword`, `GetUserByID` |
+| `auth`     | `HasUsers`, `Bootstrap`, `Signup`, `Login`, `Logout`, `ValidateSession`, `CreateInvite`, `ListInvites`, `ListUsers`, `SearchUsers`, `ResetPassword`, `GetUserByID` |
 | `bots`     | `Create`, `List`, `GetByID`, `Delete`, `GenerateToken`, `ValidateToken`, `ListTokens`, `RevokeToken`, `BindChannel`, `UnbindChannel`, `ListBindings`, `GetBoundChannelIDs`, `CanWrite` |
 | `channels` | `EnsureGeneral`, `Create`, `GetByID`, `GetByName`, `List`, `AddMember`, `ListMembers`, `IsMember` |
 | `messages` | `SetRelayKey`, `Create`, `CreateReply`, `GetByID`, `ListChannel`, `ListThread` |

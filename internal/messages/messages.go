@@ -7,26 +7,30 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"regexp"
 	"time"
 
 	"github.com/ebrakke/relay-chat/internal/db"
 	"github.com/nbd-wtf/go-nostr"
 )
 
+var mentionRe = regexp.MustCompile(`@([a-zA-Z0-9_-]+)`)
+
 var ErrNotFound = errors.New("message not found")
 
 type Message struct {
-	ID          int64   `json:"id"`
-	ChannelID   int64   `json:"channelId"`
-	UserID      int64   `json:"userId"`
-	ParentID    *int64  `json:"parentId,omitempty"`
-	Content     string  `json:"content"`
-	EventID     string  `json:"eventId,omitempty"`
-	CreatedAt   string  `json:"createdAt"`
-	Username    string  `json:"username"`
-	DisplayName string  `json:"displayName"`
-	ReplyCount  int     `json:"replyCount,omitempty"`
-	IsBot       bool    `json:"isBot,omitempty"`
+	ID          int64    `json:"id"`
+	ChannelID   int64    `json:"channelId"`
+	UserID      int64    `json:"userId"`
+	ParentID    *int64   `json:"parentId,omitempty"`
+	Content     string   `json:"content"`
+	EventID     string   `json:"eventId,omitempty"`
+	CreatedAt   string   `json:"createdAt"`
+	Username    string   `json:"username"`
+	DisplayName string   `json:"displayName"`
+	ReplyCount  int      `json:"replyCount,omitempty"`
+	IsBot       bool     `json:"isBot,omitempty"`
+	Mentions    []string `json:"mentions,omitempty"`
 }
 
 type Service struct {
@@ -117,6 +121,7 @@ func (s *Service) GetByID(id int64) (*Message, error) {
 		return nil, err
 	}
 	m.IsBot = role == "bot"
+	m.Mentions = extractMentions(m.Content)
 	if parentID.Valid {
 		m.ParentID = &parentID.Int64
 	}
@@ -171,6 +176,7 @@ func (s *Service) ListChannel(channelID int64, limit int, before int64) ([]Messa
 			return nil, err
 		}
 		m.IsBot = role == "bot"
+		m.Mentions = extractMentions(m.Content)
 		if eventID.Valid {
 			m.EventID = eventID.String
 		}
@@ -222,6 +228,7 @@ func (s *Service) ListThread(parentID int64, limit int, before int64) ([]Message
 			return nil, err
 		}
 		m.IsBot = role == "bot"
+		m.Mentions = extractMentions(m.Content)
 		if parentID.Valid {
 			m.ParentID = &parentID.Int64
 		}
@@ -268,6 +275,24 @@ func (s *Service) createEvent(content, groupID, parentEventID, parentPubkey stri
 	}
 
 	return ev.ID, nil
+}
+
+// extractMentions parses @username patterns from message content.
+func extractMentions(content string) []string {
+	matches := mentionRe.FindAllStringSubmatch(content, -1)
+	if len(matches) == 0 {
+		return nil
+	}
+	seen := make(map[string]bool)
+	var mentions []string
+	for _, m := range matches {
+		name := m[1]
+		if !seen[name] {
+			seen[name] = true
+			mentions = append(mentions, name)
+		}
+	}
+	return mentions
 }
 
 func randomHex(n int) string {

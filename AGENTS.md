@@ -87,25 +87,31 @@ archive/                  # Old configs, previous SvelteKit frontend, etc.
 - **Bun** (install with `curl -fsSL https://bun.sh/install | bash`)
 - After installing Bun: `export PATH="$HOME/.bun/bin:$PATH"`
 
-### Build
+### Build & Run
 
 ```bash
-make build        # Builds frontend (bun) + Go binary
+make dev          # Build + (re)start dev server on :8080 — kills stale process first
+make build        # Build frontend (bun) + Go binary only
+make run          # Build + start server foreground (same as dev but no auto-kill)
 make frontend     # Frontend only (bun install + build + copy to cmd/app/static/)
-make run          # Build everything + start dev server on :8080
 make test         # Go unit tests (./internal/...)
 make test-e2e     # Full E2E (builds, starts server, runs Playwright)
 make clean        # Remove binary, frontend/dist/, tmp/
 ```
 
-### Run Dev Server
+### Dev Workflow
 
 ```bash
-mkdir -p tmp
-DATA_DIR=./tmp PORT=8080 ./relay-chat
+make dev          # First time: builds everything, starts on http://localhost:8080
+                  # Visit in browser → bootstrap flow creates admin account
+                  # DB persists in ./tmp/app.db between restarts
+
+# After editing Go, JS, or CSS:
+make dev          # Rebuilds frontend+binary, kills old process, restarts
+                  # Hard-refresh browser (Ctrl+Shift+R) to bypass service worker cache
 ```
 
-The first user to visit gets the bootstrap flow (creates admin account).
+**Important**: The binary embeds static files at build time (`go:embed`). You must rebuild (`make dev` or `make build`) after any frontend change — there is no hot-reload.
 
 ### Environment Variables
 

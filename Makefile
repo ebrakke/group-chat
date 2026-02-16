@@ -1,10 +1,11 @@
-.PHONY: build run test test-e2e frontend clean help
+.PHONY: build run dev test test-e2e frontend clean help
 
 help:
 	@echo "Relay Chat"
 	@echo ""
+	@echo "  make dev        - Build + (re)start dev server on :8080 (kills old process)"
 	@echo "  make build      - Build frontend + Go binary"
-	@echo "  make run        - Build and run (DATA_DIR=./tmp)"
+	@echo "  make run        - Build and run (foreground, DATA_DIR=./tmp)"
 	@echo "  make test       - Run Go unit tests"
 	@echo "  make test-e2e   - Run Playwright E2E tests"
 	@echo "  make frontend   - Build frontend only"
@@ -20,6 +21,16 @@ build: frontend
 
 run: build
 	mkdir -p tmp
+	DATA_DIR=./tmp ./relay-chat
+
+dev: build
+	@echo "--- Stopping old relay-chat on :8080 ---"
+	@-lsof -ti:8080 | xargs kill 2>/dev/null; sleep 0.3
+	@mkdir -p tmp
+	@echo "--- Starting relay-chat on http://localhost:8080 ---"
+	@echo "    DB: ./tmp/app.db (persists between restarts)"
+	@echo "    First visit → bootstrap (create admin account)"
+	@echo "    Ctrl+C to stop"
 	DATA_DIR=./tmp ./relay-chat
 
 test:

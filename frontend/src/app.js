@@ -5,6 +5,7 @@ let currentUser = null;
 let sessionToken = null;
 let currentChannel = null;
 let openThreadId = null;
+let viewingThreads = false;
 let wsConn = null;
 
 const REACTION_EMOJIS = ["👍", "👎", "❤️", "😂", "😮", "😢", "🔥", "🎉", "👀", "🙏"];
@@ -562,6 +563,7 @@ async function renderMain() {
           ${adminSection}
         </div>
         <div class="channel-list-container">
+          <button class="my-threads-btn" id="my-threads-btn">My Threads</button>
           <div class="channel-list-header"><h3>Channels</h3><button id="create-channel-btn" class="channel-create-btn" aria-label="Create channel">+</button></div>
           <ul class="channel-list" id="channel-list">
             ${channelsList.map(c => `<li data-id="${c.id}" data-name="${esc(c.name)}">${esc(c.name)}</li>`).join("")}
@@ -635,6 +637,16 @@ async function renderMain() {
   };
 
   document.getElementById("create-channel-btn").onclick = showCreateChannelModal;
+
+  document.getElementById("my-threads-btn").onclick = () => {
+    // Close mobile sidebar
+    const sb = document.querySelector(".sidebar");
+    const bd = document.querySelector(".sidebar-backdrop");
+    if (sb) sb.classList.remove("sidebar-open");
+    if (bd) bd.classList.remove("sidebar-backdrop-visible");
+    document.body.classList.remove("sidebar-is-open");
+    showMyThreads();
+  };
 
   document.getElementById("msg-send").onclick = sendMessage;
   const msgInput = document.getElementById("msg-input");
@@ -837,11 +849,16 @@ async function loadAdminInvites() {
 // --- Channel + Messages ---
 
 async function selectChannel(channel, fromRoute = false) {
+  viewingThreads = false;
   currentChannel = channel;
   openThreadId = null;
   document.getElementById("thread-panel").classList.remove("visible");
   const threadBackdrop = document.getElementById("thread-backdrop");
   if (threadBackdrop) threadBackdrop.classList.remove("visible");
+
+  // Clear threads button active state
+  const threadsBtn = document.getElementById("my-threads-btn");
+  if (threadsBtn) threadsBtn.classList.remove("active");
 
   document.querySelectorAll(".channel-list li").forEach(li => {
     li.classList.toggle("active", parseInt(li.dataset.id, 10) === channel.id);
@@ -983,8 +1000,118 @@ function closeThread() {
   openThreadId = null;
   document.getElementById("thread-panel").classList.remove("visible");
   document.getElementById("thread-backdrop").classList.remove("visible");
-  if (currentChannel) {
+  if (viewingThreads) {
+    navigate("/threads");
+  } else if (currentChannel) {
     navigate(`/${currentChannel.name}`);
+  }
+}
+
+// --- My Threads ---
+
+async function showMyThreads(fromRoute = false) {
+  viewingThreads = true;
+  currentChannel = null;
+  openThreadId = null;
+
+  // Close thread panel if open
+  document.getElementById("thread-panel").classList.remove("visible");
+  const threadBackdrop = document.getElementById("thread-backdrop");
+  if (threadBackdrop) threadBackdrop.classList.remove("visible");
+
+  // Update header
+  document.getElementById("channel-header-text").textContent = "My Threads";
+
+  // Deselect all channels, highlight threads button
+  document.querySelectorAll(".channel-list li").forEach(li => li.classList.remove("active"));
+  document.getElementById("my-threads-btn").classList.add("active");
+
+  // Hide composer
+  document.getElementById("composer").style.display = "none";
+
+  if (!fromRoute) {
+    navigate("/threads");
+  }
+
+  // Load and render
+  const list = document.getElementById("message-list");
+  list.innerHTML = '<div class="threads-loading">Loading threads...</div>';
+
+  try {
+    const threads = await api("GET", "/api/me/threads?limit=30");
+    list.innerHTML = "";
+
+    if (threads.length === 0) {
+      list.innerHTML = '<div class="threads-empty">No threads yet. Start or reply to a conversation to see it here.</div>';
+      return;
+    }
+
+    threads.forEach(t => {
+      const div = document.createElement("div");
+      div.className = "thread-summary";
+      div.dataset.parentId = t.parentId;
+      div.dataset.channelId = t.channelId;
+      div.dataset.channelName = t.channelName;
+
+      const botBadge = t.authorIsBot ? '<span class="bot-badge">BOT</span>' : '';
+      div.innerHTML = `
+        <div class="thread-summary-header">
+          <span class="thread-summary-channel"># ${esc(t.channelName)}</span>
+          <span class="thread-summary-time">${fmtRelativeTime(t.lastActivityAt)}</span>
+        </div>
+        <div class="thread-summary-author">
+          <strong>${esc(t.authorDisplayName)}</strong>${botBadge}
+        </div>
+        <div class="thread-summary-preview">${esc(t.contentPreview)}</div>
+        <div class="thread-summary-meta">
+          ${t.replyCount} ${t.replyCount === 1 ? 'reply' : 'replies'}
+        </div>
+      `;
+
+      div.onclick = () => openThreadFromSummary(t);
+      list.appendChild(div);
+    });
+  } catch (e) {
+    list.innerHTML = '<div class="error">Failed to load threads</div>';
+  }
+}
+
+async function openThreadFromSummary(threadSummary) {
+  const channel = { id: threadSummary.channelId, name: threadSummary.channelName };
+  currentChannel = channel;
+  viewingThreads = false;
+
+  // Highlight channel in sidebar
+  document.querySelectorAll(".channel-list li").forEach(li => {
+    li.classList.toggle("active", parseInt(li.dataset.id, 10) === channel.id);
+  });
+  document.getElementById("my-threads-btn").classList.remove("active");
+
+  // Load channel messages, show composer, update header
+  document.getElementById("channel-header-text").textContent = `# ${channel.name}`;
+  document.getElementById("composer").style.display = "flex";
+  await loadMessages(channel.id);
+
+  // Open thread panel
+  navigate(`/${channel.name}/t/${threadSummary.parentId}`);
+  await openThread(threadSummary.parentId, true);
+}
+
+function fmtRelativeTime(ts) {
+  try {
+    const d = new Date(ts);
+    const now = new Date();
+    const diffMs = now - d;
+    const diffMins = Math.floor(diffMs / 60000);
+    if (diffMins < 1) return "just now";
+    if (diffMins < 60) return `${diffMins}m ago`;
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `${diffHours}h ago`;
+    const diffDays = Math.floor(diffHours / 24);
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return d.toLocaleDateString();
+  } catch {
+    return ts;
   }
 }
 
@@ -1444,6 +1571,12 @@ function navigate(path, replace = false) {
 async function handleRoute(channelsList) {
   const path = location.pathname.replace(/\/+$/, "") || "/";
   const parts = path.split("/").filter(Boolean);
+
+  // Handle /threads route
+  if (parts.length === 1 && parts[0] === "threads") {
+    showMyThreads(true);
+    return;
+  }
 
   let channelName = null;
   let threadId = null;

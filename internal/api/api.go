@@ -64,6 +64,9 @@ func (h *Handler) routes() {
 	h.mux.HandleFunc("GET /api/messages/{id}/thread", h.handleListThread)
 	h.mux.HandleFunc("POST /api/messages/{id}/reply", h.handleCreateReply)
 
+	// My Threads
+	h.mux.HandleFunc("GET /api/me/threads", h.handleMyThreads)
+
 	// Reactions
 	h.mux.HandleFunc("POST /api/messages/{id}/reactions", h.handleAddReaction)
 	h.mux.HandleFunc("DELETE /api/messages/{id}/reactions/{emoji}", h.handleRemoveReaction)
@@ -530,6 +533,28 @@ func (h *Handler) handleCreateReply(w http.ResponseWriter, r *http.Request) {
 	h.hub.Broadcast(ws.Event{Type: "new_reply", Payload: msg, ChannelID: parent.ChannelID})
 
 	writeJSON(w, http.StatusCreated, msg)
+}
+
+// --- My Threads handler ---
+
+func (h *Handler) handleMyThreads(w http.ResponseWriter, r *http.Request) {
+	user, err := h.requireAuth(r)
+	if err != nil {
+		writeErr(w, http.StatusUnauthorized, err)
+		return
+	}
+
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+
+	threads, err := h.messages.ListUserThreads(user.ID, limit)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	if threads == nil {
+		threads = []messages.ThreadSummary{}
+	}
+	writeJSON(w, http.StatusOK, threads)
 }
 
 // --- Reaction handlers ---

@@ -240,6 +240,82 @@ func (s *Service) ListThread(parentID int64, limit int, before int64) ([]Message
 	return msgs, rows.Err()
 }
 
+// ThreadSummary is a lightweight representation of a thread for the "My Threads" view.
+type ThreadSummary struct {
+	ParentID       int64  `json:"parentId"`
+	ChannelID      int64  `json:"channelId"`
+	ChannelName    string `json:"channelName"`
+	AuthorUsername string `json:"authorUsername"`
+	AuthorDisplay  string `json:"authorDisplayName"`
+	AuthorIsBot    bool   `json:"authorIsBot,omitempty"`
+	ContentPreview string `json:"contentPreview"`
+	ReplyCount     int    `json:"replyCount"`
+	LastActivityAt string `json:"lastActivityAt"`
+}
+
+// ListUserThreads returns threads the user has participated in (started or replied to),
+// sorted by most recent activity.
+func (s *Service) ListUserThreads(userID int64, limit int) ([]ThreadSummary, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 30
+	}
+
+	rows, err := s.db.Query(`
+		SELECT
+			p.id,
+			p.channel_id,
+			c.name,
+			u.username,
+			u.display_name,
+			u.role,
+			p.content,
+			(SELECT COUNT(*) FROM messages r WHERE r.parent_id = p.id) AS reply_count,
+			COALESCE(
+				(SELECT MAX(r2.created_at) FROM messages r2 WHERE r2.parent_id = p.id),
+				p.created_at
+			) AS last_activity
+		FROM messages p
+		JOIN users u ON p.user_id = u.id
+		JOIN channels c ON p.channel_id = c.id
+		WHERE p.parent_id IS NULL
+		  AND p.id IN (
+			  SELECT m1.id FROM messages m1
+			  WHERE m1.user_id = ? AND m1.parent_id IS NULL
+			  UNION
+			  SELECT m2.parent_id FROM messages m2
+			  WHERE m2.user_id = ? AND m2.parent_id IS NOT NULL
+		  )
+		ORDER BY last_activity DESC
+		LIMIT ?
+	`, userID, userID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var threads []ThreadSummary
+	for rows.Next() {
+		var t ThreadSummary
+		var role string
+		var content string
+		if err := rows.Scan(
+			&t.ParentID, &t.ChannelID, &t.ChannelName,
+			&t.AuthorUsername, &t.AuthorDisplay, &role,
+			&content, &t.ReplyCount, &t.LastActivityAt,
+		); err != nil {
+			return nil, err
+		}
+		t.AuthorIsBot = role == "bot"
+		if len(content) > 120 {
+			t.ContentPreview = content[:120] + "..."
+		} else {
+			t.ContentPreview = content
+		}
+		threads = append(threads, t)
+	}
+	return threads, rows.Err()
+}
+
 // createEvent builds a signed kind-1 nostr event and returns its ID.
 func (s *Service) createEvent(content, groupID, parentEventID, parentPubkey string) (string, error) {
 	privkey := s.relayPriv

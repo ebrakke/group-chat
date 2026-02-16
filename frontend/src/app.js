@@ -578,7 +578,8 @@ async function renderMain() {
             <button id="msg-send">Send</button>
           </div>
         </div>
-        <div id="thread-panel" class="thread-panel hidden">
+        <div id="thread-backdrop" class="thread-backdrop"></div>
+        <div id="thread-panel" class="thread-panel">
           <div class="thread-header">
             <h3>Thread</h3>
             <button id="close-thread" class="secondary btn-sm" aria-label="Close thread">&#8592; <span class="close-text">Close</span></button>
@@ -590,30 +591,32 @@ async function renderMain() {
             <button id="reply-send">Send</button>
           </div>
         </div>
-        <div id="admin-page" class="admin-page hidden">
-          <div class="admin-page-header">
-            <h3>Settings</h3>
-            <button id="close-admin" class="secondary btn-sm" aria-label="Close settings">&#8592; <span class="close-text">Close</span></button>
-          </div>
-          <div class="admin-page-content">
-            <div class="admin-user-info">
-              Logged in as <strong>${esc(currentUser.displayName)}</strong> (${esc(currentUser.role)})
+        <div id="admin-page" class="admin-page">
+          <div class="admin-page-inner">
+            <div class="admin-page-header">
+              <h3>Settings</h3>
+              <button id="close-admin" class="secondary btn-sm" aria-label="Close settings">&#8592; <span class="close-text">Close</span></button>
             </div>
-            <div class="card">
-              <h3>Invites</h3>
-              <div id="admin-invite-error" class="error hidden"></div>
-              <div id="admin-invite-result"></div>
-              <button id="admin-create-invite" class="btn-sm">Create Invite</button>
-              <ul class="invite-list" id="admin-invite-list"></ul>
-            </div>
-            <div class="card">
-              <h3>Bots</h3>
-              <button id="admin-create-bot" class="btn-sm">Create Bot</button>
-              <ul class="bot-list" id="admin-bot-list"></ul>
-            </div>
-            <div class="card">
-              <h3>Account</h3>
-              <button id="admin-logout" class="secondary">Logout</button>
+            <div class="admin-page-content">
+              <div class="admin-user-info">
+                Logged in as <strong>${esc(currentUser.displayName)}</strong> (${esc(currentUser.role)})
+              </div>
+              <div class="card">
+                <h3>Invites</h3>
+                <div id="admin-invite-error" class="error hidden"></div>
+                <div id="admin-invite-result"></div>
+                <button id="admin-create-invite" class="btn-sm">Create Invite</button>
+                <ul class="invite-list" id="admin-invite-list"></ul>
+              </div>
+              <div class="card">
+                <h3>Bots</h3>
+                <button id="admin-create-bot" class="btn-sm">Create Bot</button>
+                <ul class="bot-list" id="admin-bot-list"></ul>
+              </div>
+              <div class="card">
+                <h3>Account</h3>
+                <button id="admin-logout" class="secondary">Logout</button>
+              </div>
             </div>
           </div>
         </div>
@@ -656,6 +659,32 @@ async function renderMain() {
   setupMentionAutocomplete(replyInput);
 
   document.getElementById("close-thread").onclick = closeThread;
+
+  // Thread backdrop click-to-close
+  document.getElementById("thread-backdrop").onclick = closeThread;
+
+  // Admin page backdrop click-to-close (click on overlay, not inner modal)
+  document.getElementById("admin-page").onclick = (e) => {
+    if (e.target === document.getElementById("admin-page")) {
+      closeAdminPage();
+    }
+  };
+
+  // Escape key handler for panels
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      // Don't close panels if a mention dropdown is open (handled by mention keydown)
+      if (mentionDropdown && mentionUsers.length > 0) return;
+      if (openThreadId) {
+        closeThread();
+      } else {
+        const adminPage = document.getElementById("admin-page");
+        if (adminPage && adminPage.classList.contains("visible")) {
+          closeAdminPage();
+        }
+      }
+    }
+  });
 
   // Mobile sidebar toggle
   const sidebar = document.querySelector(".sidebar");
@@ -784,12 +813,13 @@ function attachCopyHandler(container) {
 
 function openAdminPage() {
   const panel = document.getElementById("admin-page");
-  panel.classList.remove("hidden");
+  panel.classList.add("visible");
   loadAdminInvites();
+  loadBots("admin-bot-list");
 }
 
 function closeAdminPage() {
-  document.getElementById("admin-page").classList.add("hidden");
+  document.getElementById("admin-page").classList.remove("visible");
 }
 
 async function loadAdminInvites() {
@@ -809,7 +839,9 @@ async function loadAdminInvites() {
 async function selectChannel(channel, fromRoute = false) {
   currentChannel = channel;
   openThreadId = null;
-  document.getElementById("thread-panel").classList.add("hidden");
+  document.getElementById("thread-panel").classList.remove("visible");
+  const threadBackdrop = document.getElementById("thread-backdrop");
+  if (threadBackdrop) threadBackdrop.classList.remove("visible");
 
   document.querySelectorAll(".channel-list li").forEach(li => {
     li.classList.toggle("active", parseInt(li.dataset.id, 10) === channel.id);
@@ -886,7 +918,8 @@ function updateReplyCount(parentId) {
 async function openThread(parentId, fromRoute = false) {
   openThreadId = parentId;
   const panel = document.getElementById("thread-panel");
-  panel.classList.remove("hidden");
+  panel.classList.add("visible");
+  document.getElementById("thread-backdrop").classList.add("visible");
 
   const parentEl = document.getElementById("thread-parent");
   const msgEl = document.querySelector(`[data-msg-id="${parentId}"]`);
@@ -948,7 +981,8 @@ function appendReply(reply) {
 
 function closeThread() {
   openThreadId = null;
-  document.getElementById("thread-panel").classList.add("hidden");
+  document.getElementById("thread-panel").classList.remove("visible");
+  document.getElementById("thread-backdrop").classList.remove("visible");
   if (currentChannel) {
     navigate(`/${currentChannel.name}`);
   }

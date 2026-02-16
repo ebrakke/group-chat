@@ -205,6 +205,30 @@ func (s *Service) GetUserByID(id int64) (*User, error) {
 	return &u, nil
 }
 
+// SearchUsers returns users whose username or display_name matches the given prefix.
+func (s *Service) SearchUsers(query string) ([]User, error) {
+	like := query + "%"
+	rows, err := s.db.Query(
+		"SELECT id, username, display_name, role, created_at FROM users WHERE username LIKE ? OR display_name LIKE ? ORDER BY username LIMIT 10",
+		like, like,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var users []User
+	for rows.Next() {
+		var u User
+		if err := rows.Scan(&u.ID, &u.Username, &u.DisplayName, &u.Role, &u.CreatedAt); err != nil {
+			return nil, err
+		}
+		u.IsBot = u.Role == "bot"
+		users = append(users, u)
+	}
+	return users, rows.Err()
+}
+
 // ListUsers returns all users.
 func (s *Service) ListUsers() ([]User, error) {
 	rows, err := s.db.Query("SELECT id, username, display_name, role, created_at FROM users ORDER BY created_at")

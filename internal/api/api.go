@@ -70,6 +70,7 @@ func (h *Handler) routes() {
 
 	// Users
 	h.mux.HandleFunc("GET /api/users", h.handleListUsers)
+	h.mux.HandleFunc("GET /api/users/search", h.handleSearchUsers)
 	h.mux.HandleFunc("POST /api/users/{id}/reset-password", h.handleResetPassword)
 
 	// Bots (admin-only)
@@ -640,6 +641,25 @@ func (h *Handler) handleListUsers(w http.ResponseWriter, r *http.Request) {
 	}
 
 	users, err := h.auth.ListUsers()
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	if users == nil {
+		users = []auth.User{}
+	}
+	writeJSON(w, http.StatusOK, users)
+}
+
+func (h *Handler) handleSearchUsers(w http.ResponseWriter, r *http.Request) {
+	_, err := h.requireAuth(r)
+	if err != nil {
+		writeErr(w, http.StatusUnauthorized, err)
+		return
+	}
+
+	q := r.URL.Query().Get("q")
+	users, err := h.auth.SearchUsers(q)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, err)
 		return

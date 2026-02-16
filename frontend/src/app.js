@@ -634,14 +634,26 @@ async function renderMain() {
   document.getElementById("create-channel-btn").onclick = showCreateChannelModal;
 
   document.getElementById("msg-send").onclick = sendMessage;
-  document.getElementById("msg-input").onkeydown = (e) => {
+  const msgInput = document.getElementById("msg-input");
+  msgInput.onkeydown = (e) => {
+    if (mentionDropdown && mentionUsers.length > 0 &&
+        (e.key === "Enter" || e.key === "Tab" || e.key === "ArrowUp" || e.key === "ArrowDown" || e.key === "Escape")) {
+      return; // handled by mention keydown
+    }
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
   };
+  setupMentionAutocomplete(msgInput);
 
   document.getElementById("reply-send").onclick = sendReply;
-  document.getElementById("reply-input").onkeydown = (e) => {
+  const replyInput = document.getElementById("reply-input");
+  replyInput.onkeydown = (e) => {
+    if (mentionDropdown && mentionUsers.length > 0 &&
+        (e.key === "Enter" || e.key === "Tab" || e.key === "ArrowUp" || e.key === "ArrowDown" || e.key === "Escape")) {
+      return; // handled by mention keydown
+    }
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendReply(); }
   };
+  setupMentionAutocomplete(replyInput);
 
   document.getElementById("close-thread").onclick = closeThread;
 
@@ -939,6 +951,159 @@ function closeThread() {
   document.getElementById("thread-panel").classList.add("hidden");
   if (currentChannel) {
     navigate(`/${currentChannel.name}`);
+  }
+}
+
+// --- Mention Autocomplete ---
+
+let mentionDropdown = null;
+let mentionActiveIndex = 0;
+let mentionUsers = [];
+let mentionDebounce = null;
+let mentionInput = null;   // which input is active
+let mentionAtPos = -1;     // position of the triggering '@'
+
+function setupMentionAutocomplete(input) {
+  input.addEventListener("input", () => onMentionInput(input));
+  input.addEventListener("keydown", (e) => onMentionKeydown(e, input));
+  input.addEventListener("blur", () => {
+    // Delay to allow click on dropdown item
+    setTimeout(closeMentionDropdown, 150);
+  });
+}
+
+function onMentionInput(input) {
+  const pos = input.selectionStart;
+  const text = input.value;
+
+  // Walk backwards from cursor to find '@' preceded by start-of-string or space
+  let atIdx = -1;
+  for (let i = pos - 1; i >= 0; i--) {
+    if (text[i] === " " || text[i] === "\n") break;
+    if (text[i] === "@") {
+      if (i === 0 || text[i - 1] === " " || text[i - 1] === "\n") {
+        atIdx = i;
+      }
+      break;
+    }
+  }
+
+  if (atIdx === -1) {
+    closeMentionDropdown();
+    return;
+  }
+
+  const query = text.slice(atIdx + 1, pos);
+  mentionInput = input;
+  mentionAtPos = atIdx;
+
+  clearTimeout(mentionDebounce);
+  mentionDebounce = setTimeout(() => fetchMentionUsers(query, input), 150);
+}
+
+async function fetchMentionUsers(query, input) {
+  try {
+    const users = await api("GET", `/api/users/search?q=${encodeURIComponent(query)}`);
+    if (mentionInput !== input) return; // stale
+    mentionUsers = users;
+    mentionActiveIndex = 0;
+    if (users.length > 0) {
+      showMentionDropdown(input);
+    } else {
+      closeMentionDropdown();
+    }
+  } catch {
+    closeMentionDropdown();
+  }
+}
+
+function showMentionDropdown(input) {
+  if (!mentionDropdown) {
+    mentionDropdown = document.createElement("div");
+    mentionDropdown.className = "mention-dropdown";
+    document.body.appendChild(mentionDropdown);
+  }
+
+  mentionDropdown.innerHTML = mentionUsers.map((u, i) => {
+    const active = i === mentionActiveIndex ? " active" : "";
+    const badge = u.isBot ? '<span class="bot-badge">BOT</span>' : "";
+    return `<div class="mention-item${active}" data-index="${i}">
+      <span class="mention-name">@${esc(u.username)}</span>${badge}
+      <span class="mention-display">${esc(u.displayName)}</span>
+    </div>`;
+  }).join("");
+
+  // Click handlers on items
+  mentionDropdown.querySelectorAll(".mention-item").forEach(el => {
+    el.onmousedown = (e) => {
+      e.preventDefault(); // prevent blur
+      selectMention(parseInt(el.dataset.index, 10));
+    };
+  });
+
+  // Position above the input
+  const rect = input.getBoundingClientRect();
+  const dropdownHeight = Math.min(mentionUsers.length, 6) * 40;
+
+  let top = rect.top - dropdownHeight - 4;
+  let left = rect.left;
+
+  // If not enough room above, show below
+  if (top < 8) top = rect.bottom + 4;
+  if (left + 260 > window.innerWidth - 8) left = window.innerWidth - 268;
+  if (left < 8) left = 8;
+
+  mentionDropdown.style.top = `${top}px`;
+  mentionDropdown.style.left = `${left}px`;
+  mentionDropdown.style.width = `${Math.min(rect.width, 300)}px`;
+}
+
+function closeMentionDropdown() {
+  if (mentionDropdown) {
+    mentionDropdown.remove();
+    mentionDropdown = null;
+  }
+  mentionUsers = [];
+  mentionActiveIndex = 0;
+  mentionAtPos = -1;
+  mentionInput = null;
+  clearTimeout(mentionDebounce);
+}
+
+function selectMention(index) {
+  const user = mentionUsers[index];
+  if (!user || !mentionInput) return;
+
+  const input = mentionInput;
+  const before = input.value.slice(0, mentionAtPos);
+  const after = input.value.slice(input.selectionStart);
+  const insert = `@${user.username} `;
+  input.value = before + insert + after;
+
+  const newPos = mentionAtPos + insert.length;
+  input.setSelectionRange(newPos, newPos);
+  input.focus();
+  closeMentionDropdown();
+}
+
+function onMentionKeydown(e, input) {
+  if (!mentionDropdown || mentionUsers.length === 0) return;
+
+  if (e.key === "ArrowDown") {
+    e.preventDefault();
+    mentionActiveIndex = (mentionActiveIndex + 1) % mentionUsers.length;
+    showMentionDropdown(input);
+  } else if (e.key === "ArrowUp") {
+    e.preventDefault();
+    mentionActiveIndex = (mentionActiveIndex - 1 + mentionUsers.length) % mentionUsers.length;
+    showMentionDropdown(input);
+  } else if (e.key === "Enter" || e.key === "Tab") {
+    e.preventDefault();
+    e.stopPropagation();
+    selectMention(mentionActiveIndex);
+  } else if (e.key === "Escape") {
+    e.preventDefault();
+    closeMentionDropdown();
   }
 }
 

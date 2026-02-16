@@ -32,12 +32,16 @@ cmd/app/                  # Go entrypoint + go:embed static assets
 internal/                 # Go service layer
   api/                    # HTTP route handlers (REST JSON)
   auth/                   # User auth: bootstrap, login, signup, sessions (argon2id)
+  bots/                   # Bot identity, token auth, channel bindings, scope checks
   channels/               # Channel CRUD + membership
   db/                     # SQLite connection + migrations (WAL mode)
-  messages/               # Messages + threads (reply == thread), Nostr event signing
+  messages/               # Messages + threads (reply == thread), Nostr event signing, @mention extraction
   reactions/              # Emoji reactions on messages, Nostr event signing
   relay/                  # NIP-29 relay integration (khatru + relay29)
-  ws/                     # WebSocket hub for real-time delivery
+  ws/                     # WebSocket hub for real-time delivery (filtered broadcast for bots)
+
+examples/
+  echo-bot/               # Example bot: connects via WS, echoes @mentions back
 
 relay/                    # Standalone NIP-29 relay binary (historical, for reference)
   main.go                 # Independent relay server (port 3334)
@@ -185,6 +189,7 @@ There is no templating library. DOM is built via `innerHTML` templates + manual 
 | WebSocket      | Auto-reconnect with exponential backoff (max 30s)              |
 | Connection     | Status banner shown during reconnection                        |
 | Admin          | Invite management, user list, password reset (desktop sidebar + mobile overlay) |
+| Bots           | Bot badge on messages, admin bot management (create, tokens, channel bindings) |
 
 ### Key DOM Selectors
 
@@ -207,12 +212,15 @@ There is no templating library. DOM is built via `innerHTML` templates + manual 
 ### WebSocket Events
 
 Server pushes these event types via `hub.Broadcast()`:
-- `new_message` - New message in a channel (payload: full message object)
-- `new_reply` - New reply in a thread (payload: full reply object)
+- `new_message` - New message in a channel (payload: full message object with `mentions` array)
+- `new_reply` - New reply in a thread (payload: full reply object with `mentions` array)
 - `reaction_added` - Reaction added (payload: messageId, emoji, userId)
 - `reaction_removed` - Reaction removed (payload: messageId, emoji, userId)
+- `channel_created` - New channel created (payload: channel object)
 
 Client receives `{"type":"connected"}` on successful WebSocket auth.
+
+Bot clients only receive events from their bound channels (filtered by `ChannelID` on the Event struct, which is not serialized to JSON).
 
 ### Mobile Responsive Design
 
@@ -247,6 +255,9 @@ Files in `internal/db/migrations/`:
 - `001_init.sql` - Users (username unique, role: admin|member), sessions (30-day, token indexed), invites (code unique), channels (name unique), channel_members (composite PK)
 - `002_messages.sql` - Messages (self-referential parent_id for threads, event_id for Nostr), indexed on (channel_id, created_at) for top-level and (parent_id, created_at) for replies
 - `003_reactions.sql` - Reactions (unique per message+user+emoji), indexed on message_id
+- `004_bots.sql` - Recreates users table with `'bot'` role, adds bot_tokens (revocable opaque tokens) and bot_channel_bindings (read/write scopes per channel)
+
+Note: Migration runner disables `PRAGMA foreign_keys` before each migration transaction to support table recreation (SQLite cannot alter CHECK constraints in-place).
 
 ### Nostr Integration
 
@@ -291,10 +302,52 @@ NIP-29 relay roles:
 - `GET /api/invites` - List invites
 - `POST /api/invites` - Create invite `{expiresInHours?, maxUses?}`
 
+**Bots (admin-only):**
+- `GET /api/bots` - List all bots
+- `POST /api/bots` - Create bot `{username, displayName}`
+- `DELETE /api/bots/{id}` - Delete bot (cascades tokens + bindings)
+- `GET /api/bots/{id}/tokens` - List tokens (without plaintext value)
+- `POST /api/bots/{id}/tokens` - Generate token `{label}` → returns plaintext once
+- `DELETE /api/bots/tokens/{id}` - Revoke token
+- `GET /api/bots/{id}/bindings` - List channel bindings
+- `POST /api/bots/{id}/bindings` - Bind to channel `{channelId, canRead?, canWrite?}`
+- `DELETE /api/bots/{id}/bindings/{channelId}` - Unbind from channel
+
 **Health:**
 - `GET /api/health` - `{"status":"ok"}`
 
-**Auth mechanism:** Session token via `Authorization: Bearer <token>` header or `session` HTTP-only cookie (30-day expiry). New users auto-join #general channel.
+**Auth mechanism:** Session token via `Authorization: Bearer <token>` header or `session` HTTP-only cookie (30-day expiry). Bot tokens also accepted via `Authorization: Bearer <token>` — `requireAuth` tries session first, then bot token. New users auto-join #general channel.
+
+### Bot Platform
+
+Bots are first-class users with `role='bot'` in the users table. They authenticate with revocable opaque tokens (not session tokens) and receive filtered WebSocket events.
+
+**Key concepts:**
+- **Bot identity**: A user row with `role='bot'`, no password_hash. Created/managed via admin API.
+- **Bot tokens**: 64-char hex tokens stored in `bot_tokens`. Shown once on creation, cannot be retrieved. Can be revoked. Multiple tokens per bot supported (rotate without downtime).
+- **Channel bindings**: `bot_channel_bindings` table maps bot → channel with `can_read` and `can_write` boolean scopes. No binding = no access.
+- **Dual auth**: `requireAuth()` tries session token first, then bot token. Transparent to all handlers — they just get an `*auth.User` back with `IsBot: true`.
+- **Hub filtering**: Bot WebSocket clients only receive events from bound channels (ChannelID field on Event struct, not serialized to JSON).
+- **@mentions**: Messages include a `mentions` array extracted from `@username` patterns in content. Bots use this to detect when they're addressed.
+- **Permission enforcement**: Bot message/reply creation checks `bots.CanWrite(botID, channelID)`, returns 403 if not authorized.
+
+**Key structs:**
+- `auth.User` has `IsBot bool` field (derived from `Role == "bot"`)
+- `messages.Message` has `IsBot bool` and `Mentions []string` fields
+- `ws.AuthResult` — returned by Hub.AuthFunc: `{UserID, IsBot, ChannelIDs}`
+- `ws.Event` has `ChannelID int64` (json:"-") for bot filtering
+- `bots.Bot`, `bots.BotToken`, `bots.ChannelBinding` — service-layer structs
+
+**Frontend:**
+- Bot messages display a purple `BOT` badge (`.bot-badge` CSS class)
+- Admin panel has a "Bots" card (desktop sidebar + mobile admin page)
+- Manage modal: token list with revoke, generate with show-once display, channel binding management
+
+**Echo bot example** (`examples/echo-bot/main.go`):
+```bash
+go run ./examples/echo-bot -token <bot-token> -username echo-bot
+```
+Connects via WebSocket, listens for `new_message`/`new_reply` events with matching @mention, echoes content back to the same channel/thread.
 
 ### CI/CD Pipelines
 
@@ -330,12 +383,13 @@ Docker build (`Dockerfile.fly`):
 
 | Package    | Key Exports                                                    |
 |------------|----------------------------------------------------------------|
-| `api`      | `New(auth, channels, messages, reactions, hub)`, `ServeHTTP()` |
+| `api`      | `New(auth, bots, channels, messages, reactions, hub)`, `ServeHTTP()` |
 | `auth`     | `HasUsers`, `Bootstrap`, `Signup`, `Login`, `Logout`, `ValidateSession`, `CreateInvite`, `ListInvites`, `ListUsers`, `ResetPassword`, `GetUserByID` |
+| `bots`     | `Create`, `List`, `GetByID`, `Delete`, `GenerateToken`, `ValidateToken`, `ListTokens`, `RevokeToken`, `BindChannel`, `UnbindChannel`, `ListBindings`, `GetBoundChannelIDs`, `CanWrite` |
 | `channels` | `EnsureGeneral`, `Create`, `GetByID`, `GetByName`, `List`, `AddMember`, `ListMembers`, `IsMember` |
 | `messages` | `SetRelayKey`, `Create`, `CreateReply`, `GetByID`, `ListChannel`, `ListThread` |
 | `reactions` | `SetRelayKey`, `Toggle`, `Add`, `Remove`, `SummaryForMessages` |
-| `ws`       | `NewHub`, `Handler`, `Broadcast`                               |
+| `ws`       | `NewHub`, `Handler`, `Broadcast`, `AuthResult`                 |
 | `relay`    | `New(Config{PrivateKey, Domain, DatabasePath, AllowedPubkeys})`|
 | `db`       | `Open(path)` → runs migrations, returns `*DB`                 |
 

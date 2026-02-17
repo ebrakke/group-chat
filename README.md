@@ -54,36 +54,33 @@ Implementation: `frontend/src/markdown.js` wraps marked.js with security default
 
 ### Notifications
 
-Get mobile push notifications via webhooks when:
+Get mobile push notifications when:
 - Someone @mentions you
 - Someone replies to a thread you're in
 - All messages (optional)
 
-**Setup:**
+**Setup (Admin):**
 
-1. Sign up for a notification service:
-   - **Pushover**: https://pushover.net (paid, $5 one-time, iOS/Android)
-   - **ntfy.sh**: https://ntfy.sh (free, self-hostable, iOS/Android/web)
-   - Or use any custom webhook endpoint that accepts JSON POST requests
+For simplified Pushover setup:
+1. Create a Pushover application at https://pushover.net/apps/build
+2. In Relay Chat admin settings, enter your Pushover app token
+3. Restart the server
 
-2. In Relay Chat settings (gear icon), configure:
-   - **Webhook URL**: Your service's webhook endpoint
-   - **Base URL**: Your Relay Chat URL (e.g., `https://chat.example.com`)
-   - **Preferences**: Choose what triggers notifications
+**Setup (Users):**
 
-3. Tap notifications on mobile to open directly to that message/thread
+If Pushover is enabled:
+- Go to Settings → Notifications
+- Select "Pushover"
+- Enter your Pushover user key from https://pushover.net
+- Configure notification preferences
+- Save
 
-**Webhook URL Examples:**
-
-Pushover:
-```
-https://api.pushover.net/1/messages.json?token=YOUR_APP_TOKEN&user=YOUR_USER_KEY
-```
-
-ntfy.sh:
-```
-https://ntfy.sh/YOUR_UNIQUE_TOPIC
-```
+For custom webhooks:
+- Go to Settings → Notifications
+- Select "Custom Webhook"
+- Enter your webhook URL (e.g., ntfy.sh, custom endpoint)
+- Configure notification preferences
+- Save
 
 **Notification Payload:**
 
@@ -179,6 +176,9 @@ go build -o relay-chat ./cmd/app/
 | POST | `/api/threads/{id}/mute` | yes | Mute thread notifications |
 | DELETE | `/api/threads/{id}/mute` | yes | Unmute thread notifications |
 | GET | `/api/threads/{id}/mute` | yes | Check thread mute status |
+| GET | `/api/notifications/providers` | yes | List available notification providers |
+| GET | `/api/admin/settings` | admin | Get server-wide settings |
+| POST | `/api/admin/settings` | admin | Update server-wide settings |
 
 ## Environment Variables
 

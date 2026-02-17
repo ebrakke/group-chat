@@ -52,6 +52,60 @@ Messages support full markdown rendering via `marked.js`:
 
 Implementation: `frontend/src/markdown.js` wraps marked.js with security defaults (noopener/noreferrer on links). Messages are rendered via `renderMarkdown()` in `app.js`.
 
+### Notifications
+
+Get mobile push notifications via webhooks when:
+- Someone @mentions you
+- Someone replies to a thread you're in
+- All messages (optional)
+
+**Setup:**
+
+1. Sign up for a notification service:
+   - **Pushover**: https://pushover.net (paid, $5 one-time, iOS/Android)
+   - **ntfy.sh**: https://ntfy.sh (free, self-hostable, iOS/Android/web)
+   - Or use any custom webhook endpoint that accepts JSON POST requests
+
+2. In Relay Chat settings (gear icon), configure:
+   - **Webhook URL**: Your service's webhook endpoint
+   - **Base URL**: Your Relay Chat URL (e.g., `https://chat.example.com`)
+   - **Preferences**: Choose what triggers notifications
+
+3. Tap notifications on mobile to open directly to that message/thread
+
+**Webhook URL Examples:**
+
+Pushover:
+```
+https://api.pushover.net/1/messages.json?token=YOUR_APP_TOKEN&user=YOUR_USER_KEY
+```
+
+ntfy.sh:
+```
+https://ntfy.sh/YOUR_UNIQUE_TOPIC
+```
+
+**Notification Payload:**
+
+Webhooks receive JSON with:
+```json
+{
+  "title": "@you mentioned in #general",
+  "message": "Hey @alice check this out",
+  "sender": "Bob",
+  "channel": "general",
+  "channelId": 1,
+  "url": "https://chat.example.com/#/channel/1/thread/123",
+  "timestamp": "2026-02-17T12:34:56Z",
+  "notificationType": "mention",
+  "threadContext": "Re: previous message..."
+}
+```
+
+**Thread Muting:**
+
+Mute busy threads to stop getting notifications. Click the 🔕 icon in the thread header.
+
 ## Quick Start
 
 **Prerequisites:** Install [Bun](https://bun.sh) and Go 1.21+
@@ -120,6 +174,11 @@ go build -o relay-chat ./cmd/app/
 | GET | `/api/channels` | yes | List channels |
 | GET | `/api/users` | admin | List users |
 | POST | `/api/users/{id}/reset-password` | admin | Reset user password |
+| GET | `/api/notifications/settings` | yes | Get notification settings |
+| POST | `/api/notifications/settings` | yes | Update notification settings |
+| POST | `/api/threads/{id}/mute` | yes | Mute thread notifications |
+| DELETE | `/api/threads/{id}/mute` | yes | Unmute thread notifications |
+| GET | `/api/threads/{id}/mute` | yes | Check thread mute status |
 
 ## Environment Variables
 

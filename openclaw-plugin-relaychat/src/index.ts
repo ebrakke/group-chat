@@ -2,6 +2,7 @@ import { PluginAPI, PluginConfig, RelayMessage, AccountConfig } from './types';
 import { RelayClient } from './relay-client';
 import { SessionManager } from './session-manager';
 import { createRelayChannel } from './channel';
+import { dispatchMessageToOpenClaw, stripMention } from './openclaw-dispatch';
 
 /**
  * Main plugin registration function.
@@ -12,15 +13,12 @@ export default function register(api: PluginAPI): void {
 
   // Store active relay clients per account
   const clients = new Map<string, RelayClient>();
+  const accountConfigs = new Map<string, AccountConfig>();
 
   /**
    * Dispatch a relay-chat message to OpenClaw Gateway.
-   * NOTE: This is a placeholder - the actual OpenClaw plugin API for dispatching
-   * messages will depend on OpenClaw's plugin architecture documentation.
    */
   async function dispatchToOpenClaw(accountId: string, message: RelayMessage): Promise<void> {
-    // TODO: Replace with actual OpenClaw dispatch API when available
-    // For now, we'll log the message that would be dispatched
     const sessionId = SessionManager.createSessionId(
       accountId,
       message.channelId,
@@ -28,21 +26,21 @@ export default function register(api: PluginAPI): void {
       message.parentId
     );
 
-    api.logger.info(`[dispatch] Would send to OpenClaw session ${sessionId}:`);
-    api.logger.info(`  From: ${message.displayName} (@${message.username})`);
-    api.logger.info(`  Content: ${message.content}`);
+    // Get account config to access bot username
+    const config = accountConfigs.get(accountId);
+    if (!config) {
+      api.logger.error(`No config found for account ${accountId}, cannot dispatch`);
+      return;
+    }
 
-    // TODO: Call OpenClaw API to dispatch message
-    // Example (pseudo-code, depends on OpenClaw API):
-    // await api.chat.sendMessage({
-    //   sessionId,
-    //   text: stripMention(message.content, botUsername),
-    //   sender: {
-    //     username: message.username,
-    //     displayName: message.displayName,
-    //   },
-    //   timestamp: message.createdAt,
-    // });
+    const text = stripMention(message.content, config.username);
+
+    await dispatchMessageToOpenClaw(api, sessionId, text, {
+      username: message.username,
+      displayName: message.displayName,
+      channel: `Channel ${message.channelId}`, // TODO: Get actual channel name if available
+      timestamp: message.createdAt,
+    });
   }
 
   /**
@@ -103,6 +101,7 @@ export default function register(api: PluginAPI): void {
     try {
       await client.connect();
       clients.set(accountId, client);
+      accountConfigs.set(accountId, config);
       api.logger.info(`Connected to relay-chat account: ${accountId}`);
     } catch (err) {
       api.logger.error(`Failed to connect account ${accountId}:`, err);

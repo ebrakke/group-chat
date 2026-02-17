@@ -801,6 +801,22 @@ async function renderMain() {
                 <ul class="bot-list" id="admin-bot-list"></ul>
               </div>
               <div class="card">
+                <h3>Pushover Integration</h3>
+                <div id="pushover-settings-error" class="error hidden"></div>
+                <div id="pushover-settings-success" class="success hidden"></div>
+                <div id="pushover-settings-content">
+                  <div class="form-group">
+                    <label>Pushover Application Token (Server-wide)</label>
+                    <input type="text" id="pushover-app-token" placeholder="Your Pushover app token" class="input-sm">
+                    <small>Get your app token from <a href="https://pushover.net/apps/build" target="_blank">pushover.net/apps/build</a></small>
+                    <div class="warning-box" style="margin-top: 0.5rem; padding: 0.5rem; background: #f39c12; color: #000; border-radius: 4px; font-size: 0.9rem;">
+                      ⚠️ <strong>Note:</strong> Server restart is required for changes to take effect.
+                    </div>
+                  </div>
+                  <button id="save-pushover-settings" class="btn-sm">Save Pushover Settings</button>
+                </div>
+              </div>
+              <div class="card">
                 <h3>Account</h3>
                 <button id="admin-logout" class="secondary">Logout</button>
               </div>
@@ -965,6 +981,9 @@ async function renderMain() {
 
     // Notification settings handler
     document.getElementById("save-notifications").onclick = saveNotificationSettings;
+
+    // Pushover settings handler
+    document.getElementById("save-pushover-settings").onclick = savePushoverSettings;
   }
 
   await handleRoute(channelsList);
@@ -1020,6 +1039,7 @@ async function openAdminPage() {
   loadAdminInvites();
   loadBots("admin-bot-list");
   await loadNotificationSettings();
+  await loadPushoverSettings();
 }
 
 function closeAdminPage() {
@@ -1194,6 +1214,47 @@ async function saveNotificationSettings() {
     successEl.textContent = "Notification settings saved successfully";
     successEl.classList.remove("hidden");
     setTimeout(() => successEl.classList.add("hidden"), 3000);
+  } catch (e) {
+    errEl.textContent = "Failed to save settings: " + e.message;
+    errEl.classList.remove("hidden");
+  }
+}
+
+async function loadPushoverSettings() {
+  try {
+    const res = await api("GET", "/api/admin/settings");
+    const appTokenInput = document.getElementById("pushover-app-token");
+    if (!appTokenInput) return;
+
+    if (res.pushoverAppToken) {
+      appTokenInput.value = res.pushoverAppToken;
+    }
+  } catch (e) {
+    console.log("No Pushover settings configured yet");
+  }
+}
+
+async function savePushoverSettings() {
+  const errEl = document.getElementById("pushover-settings-error");
+  const successEl = document.getElementById("pushover-settings-success");
+
+  errEl.classList.add("hidden");
+  successEl.classList.add("hidden");
+
+  const appToken = document.getElementById("pushover-app-token").value.trim();
+  if (!appToken) {
+    errEl.textContent = "Pushover Application Token is required";
+    errEl.classList.remove("hidden");
+    return;
+  }
+
+  try {
+    await api("POST", "/api/admin/settings", {
+      pushoverAppToken: appToken,
+    });
+    successEl.textContent = "Pushover settings saved successfully. Restart server for changes to take effect.";
+    successEl.classList.remove("hidden");
+    setTimeout(() => successEl.classList.add("hidden"), 5000);
   } catch (e) {
     errEl.textContent = "Failed to save settings: " + e.message;
     errEl.classList.remove("hidden");

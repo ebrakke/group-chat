@@ -68,3 +68,59 @@ func TestUpdateSettings(t *testing.T) {
 		t.Errorf("webhook_url = %q, want %q", got.WebhookURL, settings.WebhookURL)
 	}
 }
+
+func TestThreadMuting(t *testing.T) {
+	database, _ := db.Open(":memory:")
+	defer database.Close()
+	svc := NewService(database)
+
+	// Create user and channel
+	if _, err := database.Exec("INSERT INTO users (username, display_name, password_hash, role, created_at) VALUES (?, ?, ?, ?, datetime('now'))", "user1", "User 1", "hash", "member"); err != nil {
+		t.Fatalf("failed to create user: %v", err)
+	}
+	if _, err := database.Exec("INSERT INTO channels (name, created_at) VALUES (?, datetime('now'))", "general"); err != nil {
+		t.Fatalf("failed to create channel: %v", err)
+	}
+	if _, err := database.Exec("INSERT INTO messages (channel_id, user_id, content, created_at) VALUES (?, ?, ?, datetime('now'))", 1, 1, "test message"); err != nil {
+		t.Fatalf("failed to create message: %v", err)
+	}
+
+	// Initially not muted
+	muted, err := svc.IsThreadMuted(1, 1)
+	if err != nil {
+		t.Fatalf("IsThreadMuted failed: %v", err)
+	}
+	if muted {
+		t.Error("thread should not be muted initially")
+	}
+
+	// Mute thread
+	err = svc.MuteThread(1, 1)
+	if err != nil {
+		t.Fatalf("MuteThread failed: %v", err)
+	}
+
+	// Verify muted
+	muted, err = svc.IsThreadMuted(1, 1)
+	if err != nil {
+		t.Fatalf("IsThreadMuted failed: %v", err)
+	}
+	if !muted {
+		t.Error("thread should be muted")
+	}
+
+	// Unmute thread
+	err = svc.UnmuteThread(1, 1)
+	if err != nil {
+		t.Fatalf("UnmuteThread failed: %v", err)
+	}
+
+	// Verify unmuted
+	muted, err = svc.IsThreadMuted(1, 1)
+	if err != nil {
+		t.Fatalf("IsThreadMuted failed: %v", err)
+	}
+	if muted {
+		t.Error("thread should not be muted after unmute")
+	}
+}

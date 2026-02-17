@@ -88,3 +88,41 @@ func (s *Service) UpdateSettings(userID int64, settings *Settings) error {
 
 	return nil
 }
+
+// MuteThread mutes a thread for a user.
+func (s *Service) MuteThread(userID, messageID int64) error {
+	now := time.Now().UTC().Format(time.RFC3339)
+	_, err := s.db.Exec(`
+		INSERT OR IGNORE INTO thread_mutes (user_id, message_id, created_at)
+		VALUES (?, ?, ?)
+	`, userID, messageID, now)
+	if err != nil {
+		return fmt.Errorf("mute thread: %w", err)
+	}
+	return nil
+}
+
+// UnmuteThread unmutes a thread for a user.
+func (s *Service) UnmuteThread(userID, messageID int64) error {
+	_, err := s.db.Exec(`
+		DELETE FROM thread_mutes
+		WHERE user_id = ? AND message_id = ?
+	`, userID, messageID)
+	if err != nil {
+		return fmt.Errorf("unmute thread: %w", err)
+	}
+	return nil
+}
+
+// IsThreadMuted checks if a user has muted a thread.
+func (s *Service) IsThreadMuted(userID, messageID int64) (bool, error) {
+	var count int
+	err := s.db.QueryRow(`
+		SELECT COUNT(*) FROM thread_mutes
+		WHERE user_id = ? AND message_id = ?
+	`, userID, messageID).Scan(&count)
+	if err != nil {
+		return false, fmt.Errorf("check thread mute: %w", err)
+	}
+	return count > 0, nil
+}

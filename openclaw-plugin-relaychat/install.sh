@@ -46,7 +46,12 @@ mkdir -p "$PLUGIN_DIR"
 echo "📦 Installing plugin to $PLUGIN_DIR..."
 cp -r dist package.json openclaw.plugin.json "$PLUGIN_DIR/"
 
-echo "✓ Plugin files copied"
+# Install dependencies in the plugin directory
+echo "📦 Installing plugin dependencies..."
+cd "$PLUGIN_DIR"
+npm install --production --no-save 2>&1 | grep -v "^npm WARN"
+
+echo "✓ Plugin files copied and dependencies installed"
 echo ""
 
 # Check if openclaw.json exists

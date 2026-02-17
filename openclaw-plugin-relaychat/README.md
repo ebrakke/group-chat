@@ -37,6 +37,8 @@ If you received a pre-built plugin zip file:
    ```bash
    mkdir -p ~/.openclaw/extensions/openclaw-plugin-relaychat
    cp -r dist package.json openclaw.plugin.json ~/.openclaw/extensions/openclaw-plugin-relaychat/
+   cd ~/.openclaw/extensions/openclaw-plugin-relaychat
+   npm install --production
    ```
 
 3. **Configure** `~/.openclaw/openclaw.json`:
@@ -88,6 +90,8 @@ Copy the built plugin to OpenClaw's extensions directory:
 ```bash
 mkdir -p ~/.openclaw/extensions/openclaw-plugin-relaychat
 cp -r dist package.json openclaw.plugin.json ~/.openclaw/extensions/openclaw-plugin-relaychat/
+cd ~/.openclaw/extensions/openclaw-plugin-relaychat
+npm install --production
 ```
 
 ### 3. Configure OpenClaw

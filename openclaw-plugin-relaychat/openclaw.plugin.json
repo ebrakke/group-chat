@@ -1,5 +1,5 @@
 {
-  "id": "relaychat",
+  "id": "openclaw-plugin-relaychat",
   "channels": ["relaychat"],
   "configSchema": {
     "type": "object",

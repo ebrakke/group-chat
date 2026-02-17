@@ -105,6 +105,11 @@ func (h *Handler) routes() {
 	h.mux.HandleFunc("POST /api/threads/{id}/mute", h.handleMuteThread)
 	h.mux.HandleFunc("DELETE /api/threads/{id}/mute", h.handleUnmuteThread)
 	h.mux.HandleFunc("GET /api/threads/{id}/mute", h.handleGetThreadMute)
+	h.mux.HandleFunc("GET /api/notifications/providers", h.handleGetProviders)
+
+	// Admin settings
+	h.mux.HandleFunc("GET /api/admin/settings", h.handleGetAdminSettings)
+	h.mux.HandleFunc("POST /api/admin/settings", h.handleUpdateAdminSettings)
 }
 
 // --- Auth handlers ---
@@ -1105,9 +1110,9 @@ func (h *Handler) handleUpdateNotificationSettings(w http.ResponseWriter, r *htt
 		return
 	}
 
-	// Validate webhook URL
-	if req.WebhookURL == "" {
-		writeErr(w, http.StatusBadRequest, errors.New("webhook_url is required"))
+	// Validate provider
+	if req.Provider == "" {
+		writeErr(w, http.StatusBadRequest, errors.New("provider is required"))
 		return
 	}
 
@@ -1182,6 +1187,64 @@ func (h *Handler) handleGetThreadMute(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]bool{"muted": muted})
+}
+
+func (h *Handler) handleGetProviders(w http.ResponseWriter, r *http.Request) {
+	providers := h.notifications.GetAvailableProviders()
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"providers": providers,
+	})
+}
+
+// --- Admin Settings handlers ---
+
+func (h *Handler) handleGetAdminSettings(w http.ResponseWriter, r *http.Request) {
+	user, err := h.requireAuth(r)
+	if err != nil {
+		writeErr(w, http.StatusUnauthorized, err)
+		return
+	}
+	if user.Role != "admin" {
+		http.Error(w, "admin only", http.StatusForbidden)
+		return
+	}
+
+	settings, err := h.notifications.GetAppSettings()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	json.NewEncoder(w).Encode(settings)
+}
+
+func (h *Handler) handleUpdateAdminSettings(w http.ResponseWriter, r *http.Request) {
+	user, err := h.requireAuth(r)
+	if err != nil {
+		writeErr(w, http.StatusUnauthorized, err)
+		return
+	}
+	if user.Role != "admin" {
+		http.Error(w, "admin only", http.StatusForbidden)
+		return
+	}
+
+	var req map[string]string
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if err := h.notifications.UpdateAppSettings(req); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// NOTE: Provider reload would require server restart or more complex mechanism
+	// For now, admin must restart server after changing Pushover token
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]bool{"success": true})
 }
 
 // --- Helpers ---

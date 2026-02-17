@@ -48,6 +48,16 @@ func main() {
 	reactSvc := reactions.NewService(database)
 	notifySvc := notifications.NewService(database)
 
+	// Register webhook provider (always available)
+	notifySvc.RegisterProvider("webhook", notifications.NewWebhookProvider())
+
+	// Register Pushover provider if configured
+	pushoverToken, err := notifySvc.GetAppSetting("pushover_app_token")
+	if err == nil && pushoverToken != "" {
+		notifySvc.RegisterProvider("pushover", notifications.NewPushoverProvider(pushoverToken))
+		log.Printf("Pushover provider enabled")
+	}
+
 	// Set notification callback on message service
 	msgSvc.SetNotifyFunc(func(msg *messages.Message, channelName string) {
 		if err := notifySvc.Send(msg, channelName); err != nil {

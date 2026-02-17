@@ -119,6 +119,49 @@ func (s *Service) UpdateSettings(userID int64, settings *Settings) error {
 	return nil
 }
 
+// GetAppSettings retrieves all app settings
+func (s *Service) GetAppSettings() (map[string]string, error) {
+	rows, err := s.db.Query("SELECT key, value FROM app_settings")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	settings := make(map[string]string)
+	for rows.Next() {
+		var key, value string
+		if err := rows.Scan(&key, &value); err != nil {
+			return nil, err
+		}
+		settings[key] = value
+	}
+	return settings, rows.Err()
+}
+
+// UpdateAppSettings updates app settings
+func (s *Service) UpdateAppSettings(settings map[string]string) error {
+	for key, value := range settings {
+		_, err := s.db.Exec(
+			"INSERT OR REPLACE INTO app_settings (key, value, updated_at) VALUES (?, ?, datetime('now'))",
+			key, value,
+		)
+		if err != nil {
+			return fmt.Errorf("update setting %s: %w", key, err)
+		}
+	}
+	return nil
+}
+
+// GetAppSetting retrieves a single app setting
+func (s *Service) GetAppSetting(key string) (string, error) {
+	var value string
+	err := s.db.QueryRow("SELECT value FROM app_settings WHERE key = ?", key).Scan(&value)
+	if err != nil {
+		return "", err
+	}
+	return value, nil
+}
+
 // MuteThread mutes a thread for a user.
 func (s *Service) MuteThread(userID, messageID int64) error {
 	now := time.Now().UTC().Format(time.RFC3339)

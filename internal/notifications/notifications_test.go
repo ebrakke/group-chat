@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/ebrakke/relay-chat/internal/db"
+	"github.com/ebrakke/relay-chat/internal/messages"
 )
 
 func TestNewService(t *testing.T) {
@@ -122,5 +123,43 @@ func TestThreadMuting(t *testing.T) {
 	}
 	if muted {
 		t.Error("thread should not be muted after unmute")
+	}
+}
+
+func TestBuildPayload(t *testing.T) {
+	database, _ := db.Open(":memory:")
+	defer database.Close()
+	svc := NewService(database)
+
+	msg := &messages.Message{
+		ID:          123,
+		ChannelID:   1,
+		UserID:      2,
+		Content:     "@alice check this out",
+		DisplayName: "Bob",
+		Username:    "bob",
+	}
+
+	settings := &Settings{
+		BaseURL: "https://chat.example.com",
+	}
+
+	payload := svc.buildPayload(msg, "general", "", "mention", settings)
+
+	if payload["message"] != "@alice check this out" {
+		t.Errorf("message = %q, want %q", payload["message"], "@alice check this out")
+	}
+	if payload["sender"] != "Bob" {
+		t.Errorf("sender = %q, want %q", payload["sender"], "Bob")
+	}
+	if payload["channel"] != "general" {
+		t.Errorf("channel = %q, want %q", payload["channel"], "general")
+	}
+	if payload["notificationType"] != "mention" {
+		t.Errorf("notificationType = %q, want %q", payload["notificationType"], "mention")
+	}
+	expectedURL := "https://chat.example.com/#/channel/1"
+	if payload["url"] != expectedURL {
+		t.Errorf("url = %q, want %q", payload["url"], expectedURL)
 	}
 }

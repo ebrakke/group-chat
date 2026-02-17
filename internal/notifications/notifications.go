@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ebrakke/relay-chat/internal/db"
+	"github.com/ebrakke/relay-chat/internal/messages"
 )
 
 // Service handles notification delivery via webhooks.
@@ -125,4 +126,51 @@ func (s *Service) IsThreadMuted(userID, messageID int64) (bool, error) {
 		return false, fmt.Errorf("check thread mute: %w", err)
 	}
 	return count > 0, nil
+}
+
+// buildPayload constructs the JSON payload for a webhook notification.
+func (s *Service) buildPayload(msg *messages.Message, channelName, threadContext, notificationType string, settings *Settings) map[string]interface{} {
+	// Truncate message if too long
+	content := msg.Content
+	if len(content) > 500 {
+		content = content[:500] + "..."
+	}
+
+	// Build title based on notification type
+	var title string
+	switch notificationType {
+	case "mention":
+		title = "@you mentioned in #" + channelName
+	case "thread_reply":
+		title = "New reply in #" + channelName
+	case "all_messages":
+		title = "New message in #" + channelName
+	default:
+		title = "New message in #" + channelName
+	}
+
+	// Build deep link URL
+	url := settings.BaseURL + "/#/channel/" + fmt.Sprintf("%d", msg.ChannelID)
+	if msg.ParentID != nil {
+		url += "/thread/" + fmt.Sprintf("%d", *msg.ParentID)
+	}
+
+	payload := map[string]interface{}{
+		"title":            title,
+		"message":          content,
+		"sender":           msg.DisplayName,
+		"channel":          channelName,
+		"channelId":        msg.ChannelID,
+		"url":              url,
+		"timestamp":        msg.CreatedAt,
+		"notificationType": notificationType,
+	}
+
+	if threadContext != "" {
+		payload["threadContext"] = threadContext
+	} else {
+		payload["threadContext"] = nil
+	}
+
+	return payload
 }

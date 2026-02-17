@@ -1,73 +1,135 @@
-import { PluginAPI } from './types';
+import { PluginAPI, RelayMessage } from './types';
 
 /**
- * Dispatch a message to OpenClaw Gateway.
+ * Dispatch a message to OpenClaw Gateway using the plugin runtime API.
  *
- * TODO: This is a placeholder implementation. The actual dispatch mechanism
- * depends on OpenClaw's plugin API documentation.
- *
- * Likely API (pseudo-code):
- * - api.chat.sendMessage({ sessionId, text, sender, ... })
- * - api.sessions.get(sessionId) / create(sessionId)
- * - Event-based dispatch (emit message event)
+ * Implementation based on Nextcloud Talk plugin pattern from openclaw/openclaw repository.
+ * Reference: extensions/nextcloud-talk/src/inbound.ts (handleNextcloudTalkInbound function)
  *
  * @param api - OpenClaw plugin API
- * @param sessionId - OpenClaw session ID
- * @param text - Message text (with @mention stripped)
- * @param context - Additional context (sender, channel, timestamp)
+ * @param runtime - Plugin runtime (from getRelayRuntime())
+ * @param config - OpenClaw configuration
+ * @param params - Dispatch parameters
  */
 export async function dispatchMessageToOpenClaw(
   api: PluginAPI,
-  sessionId: string,
-  text: string,
-  context: {
-    username: string;
-    displayName: string;
-    channel: string;
-    timestamp: string;
+  runtime: any, // PluginRuntime from openclaw/plugin-sdk
+  config: any, // OpenClawConfig
+  params: {
+    sessionKey: string;
+    accountId: string;
+    message: RelayMessage;
+    botUsername: string;
   }
 ): Promise<void> {
-  // Log what we would send
-  api.logger.info(`[dispatch] Session: ${sessionId}`);
-  api.logger.info(`[dispatch] From: ${context.displayName} (@${context.username})`);
-  api.logger.info(`[dispatch] Channel: ${context.channel}`);
-  api.logger.info(`[dispatch] Text: ${text}`);
+  const { sessionKey, accountId, message, botUsername } = params;
 
-  // TODO: Replace with actual OpenClaw API call
-  // Examples of what this might look like:
+  // Strip @mention from message content
+  const rawBody = stripMention(message.content, botUsername);
 
-  // Option 1: Direct chat API
-  // await api.chat.sendMessage({
-  //   sessionId,
-  //   text,
-  //   sender: {
-  //     username: context.username,
-  //     displayName: context.displayName,
-  //   },
-  //   metadata: {
-  //     channel: context.channel,
-  //     timestamp: context.timestamp,
-  //   },
-  // });
+  if (!rawBody.trim()) {
+    return;
+  }
 
-  // Option 2: Event-based
-  // api.events.emit('message.incoming', {
-  //   sessionId,
-  //   text,
-  //   ...context,
-  // });
+  const channelId = message.channelId;
+  const threadId = message.parentId ?? message.id;
 
-  // Option 3: Session-based
-  // const session = await api.sessions.getOrCreate(sessionId);
-  // await session.addMessage({
-  //   role: 'user',
-  //   content: text,
-  //   metadata: context,
-  // });
+  // Check if bot was mentioned
+  const wasMentioned = message.mentions.some(
+    mention => mention.toLowerCase() === botUsername.toLowerCase()
+  );
 
-  // For now, we just log
-  api.logger.warn('[dispatch] Using placeholder implementation - message not sent to OpenClaw');
-  api.logger.warn('[dispatch] See src/openclaw-dispatch.ts for integration TODO');
+  // Format display label
+  const fromLabel = `${message.displayName} (@${message.username})`;
+
+  // Resolve storage path for session
+  const storePath = runtime.channel.session.resolveStorePath(
+    config.session?.store,
+    { agentId: config.agent?.id || 'default' }
+  );
+
+  // Get previous timestamp for envelope formatting
+  const previousTimestamp = runtime.channel.session.readSessionUpdatedAt({
+    storePath,
+    sessionKey,
+  });
+
+  // Get envelope formatting options
+  const envelopeOptions = runtime.channel.reply.resolveEnvelopeFormatOptions(config);
+
+  // Format the agent envelope
+  const body = runtime.channel.reply.formatAgentEnvelope({
+    channel: 'Relay Chat',
+    from: fromLabel,
+    timestamp: new Date(message.createdAt).getTime(),
+    previousTimestamp,
+    envelope: envelopeOptions,
+    body: rawBody,
+  });
+
+  // Build context payload for the agent
+  const ctxPayload = runtime.channel.reply.finalizeInboundContext({
+    Body: body,
+    BodyForAgent: rawBody,
+    RawBody: message.content,
+    CommandBody: rawBody,
+    From: `relaychat:user:${message.userId}`,
+    To: `relaychat:channel:${channelId}:thread:${threadId}`,
+    SessionKey: sessionKey,
+    AccountId: accountId,
+    ChatType: 'direct',
+    ConversationLabel: fromLabel,
+    SenderName: message.displayName,
+    SenderId: String(message.userId),
+    Provider: 'relaychat',
+    Surface: 'relaychat',
+    WasMentioned: wasMentioned,
+    MessageSid: String(message.id),
+    Timestamp: new Date(message.createdAt).getTime(),
+    OriginatingChannel: 'relaychat',
+    OriginatingTo: `relaychat:channel:${channelId}:thread:${threadId}`,
+    CommandAuthorized: true,
+  });
+
+  // Record inbound session
+  await runtime.channel.session.recordInboundSession({
+    storePath,
+    sessionKey: ctxPayload.SessionKey ?? sessionKey,
+    ctx: ctxPayload,
+    onRecordError: (err: Error) => {
+      api.logger.error(`relaychat: failed updating session meta: ${String(err)}`);
+    },
+  });
+
+  // Create reply prefix options
+  const { onModelSelected, ...prefixOptions } = runtime.channel.reply.createReplyPrefixOptions({
+    cfg: config,
+    agentId: config.agent?.id || 'default',
+    channel: 'relaychat',
+    accountId,
+  });
+
+  // Dispatch to agent - triggers agent execution
+  // OpenClaw will call our channel plugin's outbound.sendText() with the response
+  await runtime.channel.reply.dispatchReplyWithBufferedBlockDispatcher({
+    ctx: ctxPayload,
+    cfg: config,
+    dispatcherOptions: {
+      ...prefixOptions,
+      deliver: async (payload: any) => {
+        // This callback is invoked when agent has a response
+        // OpenClaw routes it through our channel's outbound.sendText()
+        api.logger.info(`[dispatch] Agent response ready for session ${sessionKey}`);
+      },
+      onError: (err: Error, info: any) => {
+        api.logger.error(`relaychat ${info.kind} reply failed: ${String(err)}`);
+      },
+    },
+    replyOptions: {
+      onModelSelected,
+      disableBlockStreaming: false,
+    },
+  });
 }
 
 /**

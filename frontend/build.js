@@ -1,8 +1,8 @@
 #!/usr/bin/env bun
-// Build script: copies static assets and adds content-hash cache busting
+// Build script: bundles app with dependencies and adds content-hash cache busting
 // to app.js and style.css references in index.html and sw.js
 
-import { readFileSync, writeFileSync, copyFileSync, mkdirSync, rmSync, readdirSync } from "fs";
+import { readFileSync, writeFileSync, copyFileSync, mkdirSync, rmSync } from "fs";
 import { createHash } from "crypto";
 import { join } from "path";
 
@@ -13,6 +13,20 @@ const DIST = "dist";
 rmSync(DIST, { recursive: true, force: true });
 mkdirSync(DIST, { recursive: true });
 
+// Bundle app.js with dependencies using Bun
+const buildResult = await Bun.build({
+  entrypoints: [join(SRC, "app.js")],
+  outdir: DIST,
+  naming: "[dir]/app.bundle.js",
+  minify: false,
+  target: "browser",
+});
+
+if (!buildResult.success) {
+  console.error("Build failed:", buildResult.logs);
+  process.exit(1);
+}
+
 // Hash a file's contents and return short hex string
 function contentHash(filePath) {
   const content = readFileSync(filePath);
@@ -20,14 +34,19 @@ function contentHash(filePath) {
 }
 
 // Hash the cacheable assets
-const jsHash = contentHash(join(SRC, "app.js"));
+const jsBundlePath = join(DIST, "app.bundle.js");
+const jsHash = contentHash(jsBundlePath);
 const cssHash = contentHash(join(SRC, "style.css"));
 
 const jsName = `app.${jsHash}.js`;
 const cssName = `style.${cssHash}.css`;
 
-// Copy hashed assets
-copyFileSync(join(SRC, "app.js"), join(DIST, jsName));
+// Rename bundled JS with hash
+const bundledContent = readFileSync(jsBundlePath);
+writeFileSync(join(DIST, jsName), bundledContent);
+rmSync(jsBundlePath);
+
+// Copy CSS
 copyFileSync(join(SRC, "style.css"), join(DIST, cssName));
 
 // Rewrite index.html with hashed references

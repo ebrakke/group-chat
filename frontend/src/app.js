@@ -1,4 +1,6 @@
 // Relay Chat - Minimal SPA Frontend
+import { renderMarkdown, escapeHtml } from './markdown.js';
+
 const app = document.getElementById("app");
 
 let currentUser = null;
@@ -965,7 +967,7 @@ function appendMessage(msg) {
       <strong>${esc(msg.displayName)}</strong>${botBadge}
       <span class="msg-time">${fmtTime(msg.createdAt)}</span>
     </div>
-    <div class="msg-body">${esc(msg.content)}</div>
+    <div class="msg-body">${renderMarkdown(msg.content)}</div>
     ${reactionsHtml}
     <div class="msg-actions">${replyBtn}</div>
   `;
@@ -997,12 +999,12 @@ async function openThread(parentId, fromRoute = false) {
   const msgEl = document.querySelector(`[data-msg-id="${parentId}"]`);
   if (msgEl) {
     const name = msgEl.querySelector("strong").textContent;
-    const body = msgEl.querySelector(".msg-body").textContent;
+    const body = msgEl.querySelector(".msg-body").innerHTML;
     const time = msgEl.querySelector(".msg-time").textContent;
     parentEl.innerHTML = `
       <div class="message">
         <div class="msg-header"><strong>${esc(name)}</strong><span class="msg-time">${esc(time)}</span></div>
-        <div class="msg-body">${esc(body)}</div>
+        <div class="msg-body">${body}</div>
       </div>
     `;
   }
@@ -1043,7 +1045,7 @@ function appendReply(reply) {
       <strong>${esc(reply.displayName)}</strong>${botBadge}
       <span class="msg-time">${fmtTime(reply.createdAt)}</span>
     </div>
-    <div class="msg-body">${esc(reply.content)}</div>
+    <div class="msg-body">${renderMarkdown(reply.content)}</div>
     ${reactionsHtml}
   `;
   attachReactionHandlers(div, reply.id);
@@ -1599,9 +1601,7 @@ function showBotTokenModal(token) {
 // --- Helpers ---
 
 function esc(s) {
-  const d = document.createElement("div");
-  d.textContent = s || "";
-  return d.innerHTML;
+  return escapeHtml(s);
 }
 
 function fmtTime(ts) {

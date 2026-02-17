@@ -248,6 +248,108 @@ button.btn-sm { padding: 0.25rem 0.5rem; font-size: 0.75rem; }
 .msg-header strong { color: #58a6ff; font-size: 0.85rem; }
 .msg-time { font-size: 0.7rem; color: #484f58; }
 .msg-body { font-size: 0.9rem; line-height: 1.4; word-break: break-word; color: #b1bac4; }
+
+/* Markdown styles in message body */
+.msg-body p {
+  margin: 0.25rem 0;
+}
+.msg-body p:first-child {
+  margin-top: 0;
+}
+.msg-body p:last-child {
+  margin-bottom: 0;
+}
+.msg-body h1, .msg-body h2, .msg-body h3, .msg-body h4, .msg-body h5, .msg-body h6 {
+  margin: 0.5rem 0 0.25rem;
+  color: #e6edf3;
+  font-weight: 600;
+}
+.msg-body h1 { font-size: 1.25rem; border-bottom: 1px solid #30363d; padding-bottom: 0.25rem; }
+.msg-body h2 { font-size: 1.15rem; border-bottom: 1px solid #30363d; padding-bottom: 0.25rem; }
+.msg-body h3 { font-size: 1.05rem; }
+.msg-body h4 { font-size: 0.95rem; }
+.msg-body h5 { font-size: 0.9rem; }
+.msg-body h6 { font-size: 0.85rem; color: #7d8590; }
+.msg-body strong {
+  font-weight: 600;
+  color: #e6edf3;
+}
+.msg-body em {
+  font-style: italic;
+  color: #e6edf3;
+}
+.msg-body code {
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 3px;
+  padding: 0.1rem 0.3rem;
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Monaco, Consolas, monospace;
+  font-size: 0.85em;
+  color: #79c0ff;
+}
+.msg-body pre {
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  padding: 0.75rem;
+  margin: 0.5rem 0;
+  overflow-x: auto;
+}
+.msg-body pre code {
+  background: none;
+  border: none;
+  padding: 0;
+  color: #e6edf3;
+  font-size: 0.85rem;
+}
+.msg-body blockquote {
+  border-left: 3px solid #30363d;
+  padding-left: 0.75rem;
+  margin: 0.5rem 0;
+  color: #7d8590;
+  font-style: italic;
+}
+.msg-body ul, .msg-body ol {
+  margin: 0.25rem 0;
+  padding-left: 1.5rem;
+}
+.msg-body li {
+  margin: 0.1rem 0;
+}
+.msg-body a {
+  color: #58a6ff;
+  text-decoration: none;
+}
+.msg-body a:hover {
+  text-decoration: underline;
+}
+.msg-body hr {
+  border: none;
+  border-top: 1px solid #30363d;
+  margin: 0.75rem 0;
+}
+.msg-body table {
+  border-collapse: collapse;
+  margin: 0.5rem 0;
+  width: 100%;
+}
+.msg-body th, .msg-body td {
+  border: 1px solid #30363d;
+  padding: 0.35rem 0.5rem;
+  text-align: left;
+}
+.msg-body th {
+  background: #161b22;
+  font-weight: 600;
+  color: #e6edf3;
+}
+.msg-body img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 4px;
+  margin: 0.5rem 0;
+}
+
 .msg-actions { margin-top: 0.2rem; }
 .reply-btn { font-size: 0.7rem !important; padding: 0.15rem 0.4rem !important; }
 

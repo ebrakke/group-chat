@@ -163,6 +163,8 @@ button.btn-sm { padding: 0.25rem 0.5rem; font-size: 0.75rem; }
   font-size: 0.9rem;
   cursor: pointer;
   transition: background 0.1s;
+  display: flex;
+  align-items: center;
 }
 .channel-list li::before {
   content: "# ";
@@ -170,6 +172,22 @@ button.btn-sm { padding: 0.25rem 0.5rem; font-size: 0.75rem; }
 }
 .channel-list li:hover { background: #1c2333; }
 .channel-list li.active { background: #1c2333; font-weight: bold; }
+.channel-list li.has-unread { font-weight: bold; color: #e6edf3; }
+.mention-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #f85149;
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 700;
+  border-radius: 8px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  margin-left: auto;
+  line-height: 1;
+}
 
 /* Main panel */
 .main-panel {

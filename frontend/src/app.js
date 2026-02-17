@@ -7,6 +7,7 @@ let currentChannel = null;
 let openThreadId = null;
 let viewingThreads = false;
 let wsConn = null;
+let unreadState = new Map(); // channelId -> { count, hasMention }
 
 const REACTION_EMOJIS = ["👍", "👎", "❤️", "😂", "😮", "😢", "🔥", "🎉", "👀", "🙏"];
 
@@ -87,6 +88,15 @@ function handleWSEvent(data) {
     const msg = data.payload;
     if (currentChannel && msg.channelId === currentChannel.id && !msg.parentId) {
       appendMessage(msg);
+      markChannelRead(msg.channelId, msg.id);
+    } else if (!msg.parentId) {
+      const state = unreadState.get(msg.channelId) || { count: 0, hasMention: false };
+      state.count++;
+      if (msg.mentions && currentUser && msg.mentions.includes(currentUser.username)) {
+        state.hasMention = true;
+      }
+      unreadState.set(msg.channelId, state);
+      updateChannelBadge(msg.channelId);
     }
   } else if (data.type === "new_reply") {
     const msg = data.payload;
@@ -104,6 +114,7 @@ function handleWSEvent(data) {
     updateReactionUI(r.messageId, r.emoji, r.userId, false);
   } else if (data.type === "channel_created") {
     const ch = data.payload;
+    unreadState.set(ch.id, { count: 0, hasMention: false });
     const list = document.getElementById("channel-list");
     if (list && !list.querySelector(`li[data-id="${ch.id}"]`)) {
       const li = document.createElement("li");
@@ -113,6 +124,31 @@ function handleWSEvent(data) {
       list.appendChild(li);
     }
   }
+}
+
+// --- Unread Tracking ---
+
+function updateChannelBadge(channelId) {
+  const li = document.querySelector(`#channel-list li[data-id="${channelId}"]`);
+  if (!li) return;
+  const u = unreadState.get(channelId) || { count: 0, hasMention: false };
+  li.classList.toggle('has-unread', u.count > 0);
+  let badge = li.querySelector('.mention-badge');
+  if (u.hasMention) {
+    if (!badge) {
+      badge = document.createElement('span');
+      badge.className = 'mention-badge';
+      badge.textContent = '@';
+      li.appendChild(badge);
+    }
+  } else if (badge) {
+    badge.remove();
+  }
+}
+
+function markChannelRead(channelId, messageId) {
+  if (!messageId || messageId <= 0) return;
+  api("POST", `/api/channels/${channelId}/read`, { messageId }).catch(() => {});
 }
 
 // --- Create Channel Modal ---
@@ -523,6 +559,10 @@ async function renderMain() {
   let channelsList = [];
   try {
     channelsList = await api("GET", "/api/channels");
+    unreadState.clear();
+    channelsList.forEach(c => {
+      unreadState.set(c.id, { count: c.unreadCount || 0, hasMention: c.hasMention || false });
+    });
   } catch {}
 
   const isAdmin = currentUser && currentUser.role === "admin";
@@ -566,7 +606,12 @@ async function renderMain() {
           <button class="my-threads-btn" id="my-threads-btn">My Threads</button>
           <div class="channel-list-header"><h3>Channels</h3><button id="create-channel-btn" class="channel-create-btn" aria-label="Create channel">+</button></div>
           <ul class="channel-list" id="channel-list">
-            ${channelsList.map(c => `<li data-id="${c.id}" data-name="${esc(c.name)}">${esc(c.name)}</li>`).join("")}
+            ${channelsList.map(c => {
+              const u = unreadState.get(c.id) || { count: 0, hasMention: false };
+              const cls = u.count > 0 ? ' class="has-unread"' : '';
+              const badge = u.hasMention ? '<span class="mention-badge">@</span>' : '';
+              return `<li data-id="${c.id}" data-name="${esc(c.name)}"${cls}>${esc(c.name)}${badge}</li>`;
+            }).join("")}
           </ul>
         </div>
       </div>
@@ -879,6 +924,16 @@ async function selectChannel(channel, fromRoute = false) {
   }
 
   await loadMessages(channel.id);
+
+  // Mark channel as read
+  const lastMsg = document.querySelector('#message-list .message:last-child');
+  if (lastMsg) {
+    const msgId = parseInt(lastMsg.dataset.msgId, 10);
+    markChannelRead(channel.id, msgId);
+  }
+  unreadState.set(channel.id, { count: 0, hasMention: false });
+  updateChannelBadge(channel.id);
+
   if (!isMobile()) document.getElementById("msg-input").focus();
 }
 

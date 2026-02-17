@@ -57,6 +57,7 @@ func (h *Handler) routes() {
 	// Channels
 	h.mux.HandleFunc("GET /api/channels", h.handleListChannels)
 	h.mux.HandleFunc("POST /api/channels", h.handleCreateChannel)
+	h.mux.HandleFunc("POST /api/channels/{id}/read", h.handleMarkRead)
 
 	// Messages
 	h.mux.HandleFunc("GET /api/channels/{id}/messages", h.handleListMessages)
@@ -282,21 +283,54 @@ func (h *Handler) handleListInvites(w http.ResponseWriter, r *http.Request) {
 // --- Channel handlers ---
 
 func (h *Handler) handleListChannels(w http.ResponseWriter, r *http.Request) {
-	_, err := h.requireAuth(r)
+	user, err := h.requireAuth(r)
 	if err != nil {
 		writeErr(w, http.StatusUnauthorized, err)
 		return
 	}
 
-	chs, err := h.channels.List()
+	chs, err := h.channels.ListForUser(user.ID, user.Username)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, err)
 		return
 	}
 	if chs == nil {
-		chs = []channels.Channel{}
+		chs = []channels.ChannelWithUnread{}
 	}
 	writeJSON(w, http.StatusOK, chs)
+}
+
+func (h *Handler) handleMarkRead(w http.ResponseWriter, r *http.Request) {
+	user, err := h.requireAuth(r)
+	if err != nil {
+		writeErr(w, http.StatusUnauthorized, err)
+		return
+	}
+
+	channelID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, errors.New("invalid channel id"))
+		return
+	}
+
+	var req struct {
+		MessageID int64 `json:"messageId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
+	if req.MessageID <= 0 {
+		writeErr(w, http.StatusBadRequest, errors.New("messageId required"))
+		return
+	}
+
+	if err := h.channels.MarkRead(channelID, user.ID, req.MessageID); err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 var channelNameRe = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)

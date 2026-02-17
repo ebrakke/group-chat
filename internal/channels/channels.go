@@ -124,3 +124,57 @@ func (s *Service) IsMember(channelID, userID int64) (bool, error) {
 	).Scan(&count)
 	return count > 0, err
 }
+
+// ChannelWithUnread extends Channel with unread tracking info.
+type ChannelWithUnread struct {
+	Channel
+	UnreadCount int  `json:"unreadCount"`
+	HasMention  bool `json:"hasMention"`
+}
+
+// ListForUser returns all channels with unread counts for a specific user.
+func (s *Service) ListForUser(userID int64, username string) ([]ChannelWithUnread, error) {
+	rows, err := s.db.Query(`
+		SELECT
+			c.id, c.name, c.created_at,
+			(SELECT COUNT(*) FROM messages m
+			 WHERE m.channel_id = c.id
+			   AND m.parent_id IS NULL
+			   AND m.id > COALESCE(cm.last_read_msg_id, 0)) AS unread_count,
+			EXISTS(
+				SELECT 1 FROM messages m2
+				WHERE m2.channel_id = c.id
+				  AND m2.parent_id IS NULL
+				  AND m2.id > COALESCE(cm.last_read_msg_id, 0)
+				  AND m2.content LIKE '%@' || ? || '%'
+			) AS has_mention
+		FROM channels c
+		LEFT JOIN channel_members cm ON cm.channel_id = c.id AND cm.user_id = ?
+		ORDER BY c.name
+	`, username, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var channels []ChannelWithUnread
+	for rows.Next() {
+		var ch ChannelWithUnread
+		if err := rows.Scan(&ch.ID, &ch.Name, &ch.CreatedAt, &ch.UnreadCount, &ch.HasMention); err != nil {
+			return nil, err
+		}
+		channels = append(channels, ch)
+	}
+	return channels, rows.Err()
+}
+
+// MarkRead updates the last-read message ID for a user in a channel.
+// The cursor only moves forward (MAX prevents going backward).
+func (s *Service) MarkRead(channelID, userID, msgID int64) error {
+	_, err := s.db.Exec(`
+		UPDATE channel_members
+		SET last_read_msg_id = MAX(COALESCE(last_read_msg_id, 0), ?)
+		WHERE channel_id = ? AND user_id = ?
+	`, msgID, channelID, userID)
+	return err
+}

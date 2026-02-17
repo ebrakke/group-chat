@@ -12,6 +12,19 @@
   "keywords": ["openclaw", "plugin", "channel", "relay-chat", "nostr"],
   "author": "relay-chat",
   "license": "MIT",
+  "files": [
+    "dist/",
+    "openclaw.plugin.json",
+    "README.md",
+    "LICENSE"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/openclaw-plugin-relaychat.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/openclaw-plugin-relaychat/issues"
+  },
   "openclaw": {
     "entrypoint": "dist/index.js"
   },

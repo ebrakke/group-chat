@@ -21,7 +21,7 @@ func TestIntegration_NotificationFlow(t *testing.T) {
 
 	// Create services
 	notifySvc := NewService(database)
-	msgSvc := messages.NewService(database, "test-relay-key")
+	msgSvc := messages.NewService(database)
 
 	// Setup webhook mock
 	var receivedNotifications []map[string]interface{}

@@ -717,7 +717,10 @@ async function renderMain() {
           <div class="thread-resize-handle" id="thread-resize-handle"></div>
           <div class="thread-header">
             <h3>Thread</h3>
-            <button id="close-thread" class="secondary btn-sm" aria-label="Close thread">&#8592; <span class="close-text">Close</span></button>
+            <div class="thread-actions">
+              <button id="mute-thread" class="icon-button" title="Mute/Unmute thread" aria-label="Mute thread">🔔</button>
+              <button id="close-thread" class="secondary btn-sm" aria-label="Close thread">&#8592; <span class="close-text">Close</span></button>
+            </div>
           </div>
           <div class="thread-parent" id="thread-parent"></div>
           <div class="thread-replies" id="thread-replies"></div>
@@ -735,6 +738,40 @@ async function renderMain() {
             <div class="admin-page-content">
               <div class="admin-user-info">
                 Logged in as <strong>${esc(currentUser.displayName)}</strong> (${esc(currentUser.role)})
+              </div>
+              <div class="card">
+                <h3>Notifications</h3>
+                <div id="notification-error" class="error hidden"></div>
+                <div id="notification-success" class="success hidden"></div>
+                <div class="form-group">
+                  <label>Webhook URL</label>
+                  <input type="text" id="webhook-url" placeholder="https://ntfy.sh/your-topic or https://api.pushover.net/1/messages.json?token=..." class="input-sm">
+                  <small>Examples: Pushover, ntfy.sh, or any custom webhook endpoint</small>
+                </div>
+                <div class="form-group">
+                  <label>Base URL</label>
+                  <input type="text" id="base-url" placeholder="https://chat.example.com" class="input-sm">
+                  <small>Used for deep links in notifications (defaults to current URL)</small>
+                </div>
+                <div class="form-group">
+                  <label class="checkbox-label">
+                    <input type="checkbox" id="notify-mentions" checked>
+                    Notify on @mentions
+                  </label>
+                </div>
+                <div class="form-group">
+                  <label class="checkbox-label">
+                    <input type="checkbox" id="notify-thread-replies" checked>
+                    Notify on thread replies
+                  </label>
+                </div>
+                <div class="form-group">
+                  <label class="checkbox-label">
+                    <input type="checkbox" id="notify-all-messages">
+                    Notify on all messages
+                  </label>
+                </div>
+                <button id="save-notifications" class="btn-sm">Save Notification Settings</button>
               </div>
               <div class="card">
                 <h3>Invites</h3>
@@ -910,6 +947,9 @@ async function renderMain() {
       adminCreateBot.onclick = () => showCreateBotModal();
     }
     loadBots("admin-bot-list");
+
+    // Notification settings handler
+    document.getElementById("save-notifications").onclick = saveNotificationSettings;
   }
 
   await handleRoute(channelsList);
@@ -959,11 +999,12 @@ function attachCopyHandler(container) {
 
 // --- Admin Page ---
 
-function openAdminPage() {
+async function openAdminPage() {
   const panel = document.getElementById("admin-page");
   panel.classList.add("visible");
   loadAdminInvites();
   loadBots("admin-bot-list");
+  await loadNotificationSettings();
 }
 
 function closeAdminPage() {
@@ -980,6 +1021,66 @@ async function loadAdminInvites() {
     ).join("");
     list.querySelectorAll("li").forEach(li => attachCopyHandler(li));
   } catch {}
+}
+
+async function loadNotificationSettings() {
+  try {
+    const res = await api("GET", "/api/notifications/settings");
+    const webhookUrl = document.getElementById("webhook-url");
+    const baseUrl = document.getElementById("base-url");
+    const notifyMentions = document.getElementById("notify-mentions");
+    const notifyThreadReplies = document.getElementById("notify-thread-replies");
+    const notifyAllMessages = document.getElementById("notify-all-messages");
+
+    if (!webhookUrl) return;
+
+    if (res.configured !== false) {
+      webhookUrl.value = res.webhookUrl || "";
+      baseUrl.value = res.baseUrl || window.location.origin;
+      notifyMentions.checked = res.notifyMentions !== false;
+      notifyThreadReplies.checked = res.notifyThreadReplies !== false;
+      notifyAllMessages.checked = res.notifyAllMessages === true;
+    } else {
+      baseUrl.value = window.location.origin;
+    }
+  } catch (e) {
+    console.log("No notification settings configured yet");
+  }
+}
+
+async function saveNotificationSettings() {
+  const webhookUrl = document.getElementById("webhook-url").value.trim();
+  const baseUrl = document.getElementById("base-url").value.trim();
+  const notifyMentions = document.getElementById("notify-mentions").checked;
+  const notifyThreadReplies = document.getElementById("notify-thread-replies").checked;
+  const notifyAllMessages = document.getElementById("notify-all-messages").checked;
+  const errEl = document.getElementById("notification-error");
+  const successEl = document.getElementById("notification-success");
+
+  errEl.classList.add("hidden");
+  successEl.classList.add("hidden");
+
+  if (!webhookUrl) {
+    errEl.textContent = "Webhook URL is required";
+    errEl.classList.remove("hidden");
+    return;
+  }
+
+  try {
+    await api("POST", "/api/notifications/settings", {
+      webhookUrl,
+      baseUrl: baseUrl || window.location.origin,
+      notifyMentions,
+      notifyThreadReplies,
+      notifyAllMessages,
+    });
+    successEl.textContent = "Notification settings saved successfully";
+    successEl.classList.remove("hidden");
+    setTimeout(() => successEl.classList.add("hidden"), 3000);
+  } catch (e) {
+    errEl.textContent = "Failed to save settings: " + e.message;
+    errEl.classList.remove("hidden");
+  }
 }
 
 // --- Channel + Messages ---
@@ -1098,6 +1199,9 @@ async function openThread(parentId, fromRoute = false) {
     `;
   }
 
+  // Check and update mute status
+  await updateThreadMuteButton(parentId);
+
   if (!fromRoute && currentChannel) {
     navigate(`/${currentChannel.name}/t/${parentId}`);
   }
@@ -1150,6 +1254,40 @@ function closeThread() {
     navigate("/threads");
   } else if (currentChannel) {
     navigate(`/${currentChannel.name}`);
+  }
+}
+
+async function updateThreadMuteButton(parentId) {
+  const muteBtn = document.getElementById("mute-thread");
+  if (!muteBtn) return;
+
+  try {
+    const res = await api("GET", `/api/threads/${parentId}/mute`);
+    const isMuted = res.muted;
+    muteBtn.textContent = isMuted ? "🔔" : "🔕";
+    muteBtn.title = isMuted ? "Unmute thread" : "Mute thread";
+    muteBtn.dataset.muted = isMuted;
+
+    // Set up click handler
+    muteBtn.onclick = async () => {
+      try {
+        if (muteBtn.dataset.muted === "true") {
+          await api("DELETE", `/api/threads/${parentId}/mute`);
+          muteBtn.textContent = "🔕";
+          muteBtn.title = "Mute thread";
+          muteBtn.dataset.muted = "false";
+        } else {
+          await api("POST", `/api/threads/${parentId}/mute`);
+          muteBtn.textContent = "🔔";
+          muteBtn.title = "Unmute thread";
+          muteBtn.dataset.muted = "true";
+        }
+      } catch (e) {
+        console.error("Failed to toggle mute", e);
+      }
+    };
+  } catch (e) {
+    console.error("Failed to check mute status", e);
   }
 }
 
@@ -1796,6 +1934,44 @@ function extractInviteCode() {
   return match ? match[1] : null;
 }
 
+// Handle deep links from notifications (e.g., #/channel/1/thread/5)
+async function handleDeepLink() {
+  const hash = window.location.hash;
+  if (!hash || !currentUser) return;
+
+  // Parse: #/channel/123/thread/456 or #/channel/123
+  const match = hash.match(/#\/channel\/(\d+)(?:\/thread\/(\d+))?/);
+  if (!match) return;
+
+  const channelId = parseInt(match[1], 10);
+  const threadId = match[2] ? parseInt(match[2], 10) : null;
+
+  // Find the channel by ID
+  const channelEls = document.querySelectorAll(".channel-list li");
+  let targetChannel = null;
+  channelEls.forEach(li => {
+    if (parseInt(li.dataset.id, 10) === channelId) {
+      targetChannel = { id: channelId, name: li.dataset.name };
+    }
+  });
+
+  if (!targetChannel) {
+    console.log("Channel not found for deep link");
+    return;
+  }
+
+  // Switch to that channel
+  await selectChannel(targetChannel, false);
+
+  // Open thread if specified
+  if (threadId) {
+    setTimeout(() => openThread(threadId, false), 300);
+  }
+
+  // Clear the hash
+  window.location.hash = "";
+}
+
 async function boot() {
   const inviteCode = extractInviteCode();
 
@@ -1812,10 +1988,19 @@ async function boot() {
 
   try {
     currentUser = await api("GET", "/api/auth/me");
-    renderMain();
+    await renderMain();
+    // Handle deep links after main renders
+    setTimeout(() => handleDeepLink(), 500);
   } catch {
     renderLogin(inviteCode);
   }
 }
+
+// Also handle hash changes for when user clicks notification while app is open
+window.addEventListener("hashchange", () => {
+  if (currentUser) {
+    handleDeepLink();
+  }
+});
 
 boot();

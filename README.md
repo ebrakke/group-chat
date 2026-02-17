@@ -14,6 +14,11 @@ internal/
   api/                    # JSON API handlers (/api/*)
   ws/                     # WebSocket stub (/ws)
 frontend/                 # Minimal SPA (bun build)
+  src/
+    app.js                # Main application logic
+    markdown.js           # Markdown rendering (marked.js wrapper)
+    style.css             # Styles with markdown support
+  build.js                # Bun bundler with content-hash cache busting
 relay/                    # Original relay entrypoint (preserved)
 archive/                  # Previous SvelteKit frontend + tests (preserved)
 ```
@@ -27,10 +32,28 @@ archive/                  # Previous SvelteKit frontend + tests (preserved)
 | `/relay` | NIP-29 relay (WebSocket) |
 | `/*` | SPA static assets (falls back to index.html) |
 
+## Features
+
+### Markdown Support
+
+Messages support full markdown rendering via `marked.js`:
+
+- **Headers** (h1-h6) with GitHub-style underlines
+- **Text formatting**: bold, italic, inline code
+- **Code blocks** with syntax preservation
+- **Blockquotes** with left border styling
+- **Lists**: ordered and unordered
+- **Links**: open in new tab with security attributes
+- **Tables** with proper borders
+- **Images**: responsive, max-width 100%
+- **Horizontal rules**
+
+Implementation: `frontend/src/markdown.js` wraps marked.js with security defaults (noopener/noreferrer on links). Messages are rendered via `renderMarkdown()` in `app.js`.
+
 ## Quick Start
 
 ```bash
-# Build frontend
+# Build frontend (bundles app.js + markdown.js + marked library)
 cd frontend && bun install && bun run build && cd ..
 
 # Copy static assets

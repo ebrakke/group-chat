@@ -33,7 +33,14 @@ async function dispatchToOpenClaw(accountId: string, message: RelayMessage): Pro
   }
 
   await dispatchMessageToOpenClaw(
-    { logger: { info: console.log, error: console.error } },
+    {
+      logger: {
+        info: (msg: string) => console.log(msg),
+        error: (msg: string, err?: any) => console.error(msg, err),
+        warn: (msg: string) => console.warn(msg),
+        debug: (msg: string) => console.debug(msg),
+      }
+    },
     runtime,
     config,
     {

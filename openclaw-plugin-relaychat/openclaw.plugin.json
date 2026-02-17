@@ -1,8 +1,9 @@
 {
   "id": "relaychat",
-  "name": "Relay Chat",
-  "version": "1.0.0",
-  "description": "OpenClaw channel plugin for Relay Chat (self-hosted NIP-29 group chat)",
-  "author": "relay-chat",
-  "license": "MIT"
+  "channels": ["relaychat"],
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
 }

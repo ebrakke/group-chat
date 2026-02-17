@@ -44,11 +44,17 @@ Share the zip file with:
 
 ```
 1. Extract the zip file
-2. Run ./install.sh
+2. Run ./install.sh (auto-installs dependencies and enables plugin)
 3. Get a bot token from the relay-chat admin panel
-4. Edit ~/.openclaw/openclaw.json with your server details
+4. Add relay-chat server config to ~/.openclaw/openclaw.json channels section
 5. Restart OpenClaw
 ```
+
+The installer now automatically:
+- Installs `ws` and `node-fetch` dependencies
+- Adds plugin entry to OpenClaw config
+- Creates config backup
+- Installs `jq` if needed for JSON manipulation
 
 ## What Users Need
 
@@ -81,15 +87,17 @@ Server Details:
 - URL: https://chat.example.com
 - Suggested bot username: openclaw
 
-Installation:
-1. Extract the attached zip file
-2. cd openclaw-plugin-relaychat
-3. ./install.sh
-4. Get a bot token from [admin panel URL]
-5. Edit ~/.openclaw/openclaw.json with the token
-6. Restart OpenClaw
+Installation (3 steps):
+1. Extract: unzip openclaw-plugin-relaychat-v1.0.0.zip
+2. Install: cd openclaw-plugin-relaychat && ./install.sh
+3. Configure: Add server details to ~/.openclaw/openclaw.json
+   (See QUICKSTART.md for the exact config format)
+4. Restart: systemctl restart openclaw
 
-See QUICKSTART.md for detailed instructions.
+The installer automatically handles dependencies and plugin configuration.
+Get your bot token from: [admin panel URL]
+
+See QUICKSTART.md for detailed instructions and examples.
 
 Let me know if you run into any issues!
 ```

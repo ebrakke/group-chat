@@ -6,19 +6,23 @@
 - ✅ Relay-chat server URL (e.g., `https://chat.example.com`)
 - ✅ Bot token from relay-chat admin
 
-## Installation (3 steps)
+## Installation (2 steps)
 
-### 1. Install the plugin
+### 1. Run the installer
 
 ```bash
 ./install.sh
 ```
 
-This copies the plugin to `~/.openclaw/extensions/openclaw-plugin-relaychat/`
+This automatically:
+- Copies plugin to `~/.openclaw/extensions/openclaw-plugin-relaychat/`
+- Installs dependencies (`ws`, `node-fetch`)
+- Enables plugin in OpenClaw config
+- Creates config backup
 
-### 2. Configure OpenClaw
+### 2. Add relay-chat server details
 
-Edit `~/.openclaw/openclaw.json`:
+Edit `~/.openclaw/openclaw.json` and add to the `channels` section:
 
 ```json
 {
@@ -39,15 +43,23 @@ Edit `~/.openclaw/openclaw.json`:
 ```
 
 **Replace:**
-- `YOUR-CHAT-SERVER` → Your relay-chat domain (e.g., `chat.example.com`)
+- `YOUR-CHAT-SERVER` → Your relay-chat domain (e.g., `chat.brakke.cc`)
 - `YOUR-BOT-TOKEN` → Token from relay-chat admin panel
 - `YOUR-BOT-USERNAME` → Bot username (e.g., `openclaw`)
+
+**Example for production:**
+```json
+"url": "wss://chat.brakke.cc/ws",
+"apiBase": "https://chat.brakke.cc/api",
+"token": "2d15b3ed8376f227b0ef...",
+"username": "openclaw"
+```
 
 ### 3. Restart OpenClaw
 
 ```bash
 systemctl restart openclaw
-# or manually stop and start if not using systemd
+# or: pkill openclaw-gateway && openclaw-gateway &
 ```
 
 ## Verify It's Working

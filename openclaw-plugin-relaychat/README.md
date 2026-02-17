@@ -33,15 +33,24 @@ If you received a pre-built plugin zip file:
    ./install.sh
    ```
 
+   This automatically:
+   - Copies plugin files to `~/.openclaw/extensions/openclaw-plugin-relaychat/`
+   - Installs dependencies (`ws` and `node-fetch`)
+   - Enables plugin in OpenClaw config
+   - Creates backup at `~/.openclaw/openclaw.json.backup`
+
    Or manually install:
    ```bash
    mkdir -p ~/.openclaw/extensions/openclaw-plugin-relaychat
    cp -r dist package.json openclaw.plugin.json ~/.openclaw/extensions/openclaw-plugin-relaychat/
    cd ~/.openclaw/extensions/openclaw-plugin-relaychat
    npm install --production
+
+   # Manually enable plugin in ~/.openclaw/openclaw.json:
+   # "plugins": {"entries": {"openclaw-plugin-relaychat": {"enabled": true}}}
    ```
 
-3. **Configure** `~/.openclaw/openclaw.json`:
+3. **Add relay-chat server details** to `~/.openclaw/openclaw.json`:
    ```json
    {
      "channels": {

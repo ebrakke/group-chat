@@ -18,7 +18,8 @@ import (
 
 // Service handles notification delivery via webhooks.
 type Service struct {
-	db *db.DB
+	db        *db.DB
+	providers map[string]Provider
 }
 
 // Settings represents user notification preferences.
@@ -39,7 +40,26 @@ var httpClient = &http.Client{
 
 // NewService creates a new notification service.
 func NewService(database *db.DB) *Service {
-	return &Service{db: database}
+	return &Service{
+		db:        database,
+		providers: make(map[string]Provider),
+	}
+}
+
+// RegisterProvider adds a notification provider to the registry
+func (s *Service) RegisterProvider(name string, provider Provider) {
+	s.providers[name] = provider
+}
+
+// GetAvailableProviders returns list of properly configured providers
+func (s *Service) GetAvailableProviders() []string {
+	var available []string
+	for name, provider := range s.providers {
+		if provider.ValidateConfig() == nil {
+			available = append(available, name)
+		}
+	}
+	return available
 }
 
 var ErrSettingsNotFound = errors.New("notification settings not found")

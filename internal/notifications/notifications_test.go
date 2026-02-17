@@ -1,6 +1,9 @@
 package notifications
 
 import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/ebrakke/relay-chat/internal/db"
@@ -161,5 +164,36 @@ func TestBuildPayload(t *testing.T) {
 	expectedURL := "https://chat.example.com/#/channel/1"
 	if payload["url"] != expectedURL {
 		t.Errorf("url = %q, want %q", payload["url"], expectedURL)
+	}
+}
+
+func TestSendWebhook(t *testing.T) {
+	database, _ := db.Open(":memory:")
+	defer database.Close()
+	svc := NewService(database)
+
+	// Mock webhook server
+	var receivedPayload map[string]interface{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != "POST" {
+			t.Errorf("method = %s, want POST", r.Method)
+		}
+		json.NewDecoder(r.Body).Decode(&receivedPayload)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	payload := map[string]interface{}{
+		"title":   "Test",
+		"message": "Test message",
+	}
+
+	err := svc.sendWebhook(server.URL, payload)
+	if err != nil {
+		t.Fatalf("sendWebhook failed: %v", err)
+	}
+
+	if receivedPayload["title"] != "Test" {
+		t.Errorf("received title = %v, want Test", receivedPayload["title"])
 	}
 }

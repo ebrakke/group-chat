@@ -2,9 +2,12 @@
 package notifications
 
 import (
+	"bytes"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"time"
 
 	"github.com/ebrakke/relay-chat/internal/db"
@@ -26,6 +29,10 @@ type Settings struct {
 	NotifyAllMessages   bool   `json:"notifyAllMessages"`
 	CreatedAt           string `json:"createdAt"`
 	UpdatedAt           string `json:"updatedAt"`
+}
+
+var httpClient = &http.Client{
+	Timeout: 5 * time.Second,
 }
 
 // NewService creates a new notification service.
@@ -173,4 +180,30 @@ func (s *Service) buildPayload(msg *messages.Message, channelName, threadContext
 	}
 
 	return payload
+}
+
+// sendWebhook sends a JSON payload to a webhook URL via HTTP POST.
+func (s *Service) sendWebhook(webhookURL string, payload map[string]interface{}) error {
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("marshal payload: %w", err)
+	}
+
+	req, err := http.NewRequest("POST", webhookURL, bytes.NewBuffer(jsonData))
+	if err != nil {
+		return fmt.Errorf("create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("send webhook: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("webhook returned status %d", resp.StatusCode)
+	}
+
+	return nil
 }

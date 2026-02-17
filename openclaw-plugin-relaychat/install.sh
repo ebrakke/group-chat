@@ -54,27 +54,44 @@ npm install --production --no-save 2>&1 | grep -v "^npm WARN"
 echo "✓ Plugin files copied and dependencies installed"
 echo ""
 
-# Check if openclaw.json exists
+# Update openclaw.json to enable the plugin
 CONFIG_FILE="$OPENCLAW_DIR/openclaw.json"
-if [ ! -f "$CONFIG_FILE" ]; then
-    echo "⚠️  Configuration file not found: $CONFIG_FILE"
-    echo "Creating default configuration..."
-    cat > "$CONFIG_FILE" <<'EOF'
-{
-  "channels": {
-    "relaychat": {
-      "accounts": {}
-    }
-  }
-}
-EOF
+echo "📝 Updating OpenClaw configuration..."
+
+# Check if jq is available for JSON manipulation
+if ! command -v jq &> /dev/null; then
+    echo "⚠️  jq not found, installing..."
+    if command -v apt-get &> /dev/null; then
+        apt-get install -y jq >/dev/null 2>&1
+    elif command -v yum &> /dev/null; then
+        yum install -y jq >/dev/null 2>&1
+    elif command -v brew &> /dev/null; then
+        brew install jq >/dev/null 2>&1
+    else
+        echo "⚠️  Could not install jq automatically. Please install it manually and re-run."
+        exit 1
+    fi
 fi
+
+# Create config if it doesn't exist
+if [ ! -f "$CONFIG_FILE" ]; then
+    echo '{}' > "$CONFIG_FILE"
+fi
+
+# Backup existing config
+cp "$CONFIG_FILE" "$CONFIG_FILE.backup"
+
+# Update the config using jq
+jq '.plugins.entries["openclaw-plugin-relaychat"] = {"enabled": true}' "$CONFIG_FILE" > "$CONFIG_FILE.tmp" && mv "$CONFIG_FILE.tmp" "$CONFIG_FILE"
+
+echo "✓ Plugin enabled in OpenClaw configuration"
+echo ""
 
 echo "=== Installation Complete! ==="
 echo ""
 echo "Next steps:"
 echo "1. Get a bot token from your relay-chat admin panel"
-echo "2. Edit $CONFIG_FILE and add:"
+echo "2. Edit $CONFIG_FILE and add your relay-chat server details to the 'channels' section:"
 echo ""
 cat <<'EOF'
 {
@@ -102,3 +119,4 @@ echo "   openclaw status"
 echo "   tail -f $OPENCLAW_DIR/logs/openclaw.log"
 echo ""
 echo "📖 See README.md for detailed configuration options"
+echo "💾 Config backup saved to: $CONFIG_FILE.backup"

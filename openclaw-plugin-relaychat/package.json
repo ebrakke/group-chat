@@ -1,0 +1,27 @@
+{
+  "name": "openclaw-plugin-relaychat",
+  "version": "1.0.0",
+  "description": "OpenClaw channel plugin for Relay Chat (self-hosted NIP-29 group chat)",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": ["openclaw", "plugin", "channel", "relay-chat", "nostr"],
+  "author": "relay-chat",
+  "license": "MIT",
+  "openclaw": {
+    "entrypoint": "dist/index.js"
+  },
+  "dependencies": {
+    "ws": "^8.16.0",
+    "node-fetch": "^3.3.2"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3",
+    "@types/node": "^20.11.5",
+    "@types/ws": "^8.5.10"
+  }
+}

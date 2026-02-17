@@ -14,46 +14,43 @@ OpenClaw channel plugin for [Relay Chat](https://github.com/ebrakke/relay-chat) 
 
 - OpenClaw installed and running
 - Relay-chat server (self-hosted or remote)
-- Admin access to create bots in relay-chat
+- Bot token from your relay-chat instance (see "Creating a Bot Token" below)
 
-## Installation
+## Installation Methods
 
-### Option 1: Quick Setup (Recommended)
+### Method 1: Pre-built Zip (Easiest)
 
-1. Clone or download this plugin
-2. Run the setup script:
+If you received a pre-built plugin zip file:
+
+1. **Extract the zip**:
    ```bash
-   ./scripts/setup-bot.sh
+   unzip openclaw-plugin-relaychat.zip
+   cd openclaw-plugin-relaychat
    ```
-3. Follow the interactive prompts to:
-   - Create a bot in relay-chat
-   - Generate configuration
-   - Get installation instructions
 
-### Option 2: Manual Setup
+2. **Run the installer**:
+   ```bash
+   ./install.sh
+   ```
 
-1. **Create a bot in relay-chat:**
-   - Open your relay-chat admin panel
-   - Navigate to "Bots" section
-   - Create a new bot (username: `claude-bot`, display name: `Claude`)
-   - Generate a token
-   - Bind the bot to desired channels (read+write permissions)
+   Or manually install:
+   ```bash
+   mkdir -p ~/.openclaw/extensions/openclaw-plugin-relaychat
+   cp -r dist package.json openclaw.plugin.json ~/.openclaw/extensions/openclaw-plugin-relaychat/
+   ```
 
-2. **Configure OpenClaw:**
-
-   Edit `~/.config/openclaw/config.json` and add:
-
+3. **Configure** `~/.openclaw/openclaw.json`:
    ```json
    {
      "channels": {
        "relaychat": {
          "accounts": {
-           "default": {
+           "main": {
              "enabled": true,
-             "url": "ws://localhost:8080/ws",
-             "apiBase": "http://localhost:8080",
+             "url": "wss://chat.example.com/ws",
+             "apiBase": "https://chat.example.com/api",
              "token": "your-bot-token-here",
-             "username": "claude-bot"
+             "username": "your-bot-username"
            }
          }
        }
@@ -61,33 +58,53 @@ OpenClaw channel plugin for [Relay Chat](https://github.com/ebrakke/relay-chat) 
    }
    ```
 
-3. **Install the plugin:**
+4. **Restart OpenClaw**:
    ```bash
-   openclaw plugins install openclaw-plugin-relaychat
+   systemctl restart openclaw  # or manually restart
    ```
 
-   Or for local development:
+5. **Verify**:
    ```bash
-   openclaw plugins install -l ./path/to/openclaw-plugin-relaychat
+   openclaw status  # Should show relaychat plugin loaded
+   tail -f ~/.openclaw/logs/openclaw.log  # Watch for connection
    ```
 
-4. **Restart OpenClaw**
+### Method 2: Build from Source
 
-## Configuration
+### 1. Build the Plugin
 
-### Single Account
+```bash
+cd openclaw-plugin-relaychat
+npm install
+npm run build
+```
+
+This creates `dist/index.js` - the compiled plugin.
+
+### 2. Install to OpenClaw
+
+Copy the built plugin to OpenClaw's extensions directory:
+
+```bash
+mkdir -p ~/.openclaw/extensions/openclaw-plugin-relaychat
+cp -r dist package.json openclaw.plugin.json ~/.openclaw/extensions/openclaw-plugin-relaychat/
+```
+
+### 3. Configure OpenClaw
+
+Edit `~/.openclaw/openclaw.json` and add your relay-chat connection:
 
 ```json
 {
   "channels": {
     "relaychat": {
       "accounts": {
-        "default": {
+        "main": {
           "enabled": true,
-          "url": "ws://localhost:8080/ws",
-          "apiBase": "http://localhost:8080",
-          "token": "bot-token",
-          "username": "claude-bot"
+          "url": "wss://chat.example.com/ws",
+          "apiBase": "https://chat.example.com/api",
+          "token": "your-bot-token-here",
+          "username": "your-bot-username"
         }
       }
     }
@@ -95,9 +112,99 @@ OpenClaw channel plugin for [Relay Chat](https://github.com/ebrakke/relay-chat) 
 }
 ```
 
+**Configuration Fields:**
+
+| Field | Description | Example |
+|-------|-------------|---------|
+| `enabled` | Enable/disable this account | `true` |
+| `url` | WebSocket URL (must include `/ws` path) | `wss://chat.example.com/ws` |
+| `apiBase` | HTTP base URL with `/api` path | `https://chat.example.com/api` |
+| `token` | Bot token from relay-chat | `2d15b3ed8376f22...` |
+| `username` | Bot username for @mention detection | `openclaw` |
+
+**Important:**
+- `url` must use `ws://` (local) or `wss://` (production) protocol and include `/ws` path
+- `apiBase` must include the `/api` path
+- `username` must match the bot's username in relay-chat (case-insensitive)
+
+### 4. Restart OpenClaw
+
+```bash
+# If running as a service
+systemctl restart openclaw
+
+# Or if running manually
+# Stop OpenClaw (Ctrl+C) and start again
+openclaw start
+```
+
+### 5. Verify Connection
+
+Check OpenClaw logs to confirm connection:
+
+```bash
+tail -f ~/.openclaw/logs/openclaw.log
+```
+
+You should see:
+```
+Initializing relay-chat account: main
+Connected to relay-chat account: main
+Relay Chat channel registered successfully
+```
+
+## Creating a Bot Token
+
+Your relay-chat administrator needs to create a bot account for OpenClaw:
+
+1. **Access Admin Panel**: Navigate to your relay-chat admin interface
+2. **Create Bot**: Go to Bots section and create a new bot
+   - Username: Choose a name (e.g., `openclaw`, `claude-bot`)
+   - Display Name: Optional (e.g., `Claude AI`)
+3. **Generate Token**: Save the generated token securely
+4. **Bind to Channels**: Give the bot access to channels where it should respond
+   - Permissions needed: Read messages, Send messages
+
+**Example using the echo-bot as reference:**
+
+See [examples/echo-bot](../../examples/echo-bot) in the relay-chat repository for the reference bot implementation.
+
+**Production Example:**
+
+For a live relay-chat instance at `https://chat.brakke.cc`:
+
+```json
+{
+  "channels": {
+    "relaychat": {
+      "accounts": {
+        "main": {
+          "enabled": true,
+          "url": "wss://chat.brakke.cc/ws",
+          "apiBase": "https://chat.brakke.cc/api",
+          "token": "2d15b3ed8376f227b0efdf81c3e5f058412612f2785160050a1643d1b9636a23",
+          "username": "openclaw"
+        }
+      }
+    }
+  }
+}
+```
+
+This connects to the production relay-chat server using WSS (secure WebSocket) and HTTPS for API calls.
+
+## Testing the Integration
+
+1. **Join a Channel**: Open your relay-chat client and go to a channel where the bot is bound
+2. **Mention the Bot**: Send a message with `@your-bot-username hello!`
+3. **Expect Reply**: The bot should reply in a thread with an AI-generated response
+4. **Continue Conversation**: Reply in the thread to continue the same session
+
+## Advanced Configuration
+
 ### Multiple Accounts
 
-Connect to different relay-chat servers:
+Connect to different relay-chat servers simultaneously:
 
 ```json
 {
@@ -106,15 +213,15 @@ Connect to different relay-chat servers:
       "accounts": {
         "work": {
           "enabled": true,
-          "url": "ws://work.example.com/ws",
-          "apiBase": "https://work.example.com",
+          "url": "wss://work.example.com/ws",
+          "apiBase": "https://work.example.com/api",
           "token": "work-bot-token",
           "username": "work-claude"
         },
         "personal": {
           "enabled": true,
-          "url": "ws://home.example.com/ws",
-          "apiBase": "https://home.example.com",
+          "url": "wss://home.example.com/ws",
+          "apiBase": "https://home.example.com/api",
           "token": "personal-bot-token",
           "username": "personal-claude"
         }
@@ -124,15 +231,29 @@ Connect to different relay-chat servers:
 }
 ```
 
-### Configuration Fields
+Each account connects to a separate relay-chat instance with its own WebSocket connection and session management.
 
-| Field | Description |
-|-------|-------------|
-| `enabled` | Enable/disable this account |
-| `url` | WebSocket URL (must start with `ws://` or `wss://`) |
-| `apiBase` | HTTP base URL for REST API calls |
-| `token` | Bot token from relay-chat admin panel |
-| `username` | Bot username for @mention matching |
+### Disabling an Account
+
+Set `enabled: false` to temporarily disable an account without removing the configuration:
+
+```json
+{
+  "channels": {
+    "relaychat": {
+      "accounts": {
+        "main": {
+          "enabled": false,
+          "url": "wss://chat.example.com/ws",
+          "apiBase": "https://chat.example.com/api",
+          "token": "...",
+          "username": "openclaw"
+        }
+      }
+    }
+  }
+}
+```
 
 ## Usage
 
@@ -179,27 +300,145 @@ Example: `relaychat-default-1-42`
 
 ## Troubleshooting
 
-### Plugin not connecting
+### Plugin not loading
 
-1. Check OpenClaw logs for errors
-2. Verify relay-chat server is accessible
-3. Test with health check: `curl http://localhost:8080/api/health`
-4. Verify bot token is correct
-5. Check bot has channel bindings with read+write permissions
+**Symptom**: Plugin doesn't appear in `openclaw status`
 
-### Bot not responding
+**Solutions**:
+1. Verify plugin files are in `~/.openclaw/extensions/openclaw-plugin-relaychat/`
+2. Check that `dist/index.js`, `package.json`, and `openclaw.plugin.json` are present
+3. Rebuild the plugin: `npm run build`
+4. Restart OpenClaw completely
 
-1. Ensure you're @mentioning the correct username
-2. Check bot is bound to the channel
-3. Verify OpenClaw is processing messages (check logs)
-4. Try in a new thread
+### WebSocket 403 Forbidden
 
-### Connection drops
+**Symptom**: Logs show "Unexpected server response: 403"
 
-The plugin automatically reconnects with exponential backoff:
-- Max attempts: 10
-- Max delay: 30 seconds
-- Check network connectivity to relay-chat server
+**Cause**: Missing or invalid bot token
+
+**Solutions**:
+1. Verify the token in `openclaw.json` matches the token from relay-chat admin
+2. Check that the bot has been created and activated in relay-chat
+3. Ensure the token hasn't expired or been revoked
+
+### Health check failing but WebSocket connects
+
+**Symptom**: Warning about health check failure, but connection succeeds
+
+**Cause**: Health check endpoint may not be available on all relay-chat deployments
+
+**Solution**: This is normal - the plugin will continue with WebSocket connection. If messages are working, you can ignore this warning.
+
+### Bot not responding to @mentions
+
+**Symptom**: You @mention the bot but get no reply
+
+**Solutions**:
+1. **Username mismatch**: Verify `username` in config matches bot username exactly (case-insensitive)
+   ```bash
+   # Check OpenClaw logs for:
+   Received @mention from <user> in channel <id>
+   ```
+2. **Bot not bound to channel**: Ensure relay-chat admin has bound the bot to the channel
+3. **Wrong @mention format**: Use `@botname` not `@botname:` or other variations
+4. **Check OpenClaw processing**:
+   ```bash
+   tail -f ~/.openclaw/logs/openclaw.log | grep -i relay
+   ```
+
+### Connection keeps dropping
+
+**Symptom**: WebSocket disconnects frequently
+
+**Cause**: Network issues or server restarts
+
+**Solution**: The plugin auto-reconnects with exponential backoff (max 10 attempts, up to 30s delay). If it fails to reconnect:
+1. Check network connectivity to relay-chat server
+2. Verify WebSocket URL is accessible: `wscat -c wss://chat.example.com/ws`
+3. Check relay-chat server logs for errors
+4. Restart OpenClaw to reset connection attempts
+
+### 404 errors on API calls
+
+**Symptom**: Logs show 404 errors when posting replies
+
+**Cause**: Incorrect `apiBase` configuration
+
+**Solution**: Ensure `apiBase` includes `/api` path:
+- ✅ Correct: `https://chat.example.com/api`
+- ❌ Wrong: `https://chat.example.com`
+
+### Messages received but no OpenClaw response
+
+**Symptom**: Logs show "Received @mention" but no "Posted reply"
+
+**Solutions**:
+1. Check OpenClaw agent is configured and running
+2. Verify OpenClaw Gateway is processing messages
+3. Check for errors in OpenClaw dispatch:
+   ```bash
+   tail -f ~/.openclaw/logs/openclaw.log | grep -i error
+   ```
+4. Restart OpenClaw to reset session state
+
+## Creating a Distributable Plugin
+
+To create a zip file for sharing with other OpenClaw instances:
+
+**Quick method** (recommended):
+```bash
+./make-release.sh
+```
+
+This creates `openclaw-plugin-relaychat-vX.Y.Z.zip` with the current version from `package.json`.
+
+**Manual method**:
+
+1. **Build the plugin**:
+   ```bash
+   npm install
+   npm run build
+   ```
+
+2. **Create zip with required files**:
+   ```bash
+   zip -r openclaw-plugin-relaychat.zip \
+     dist/ \
+     package.json \
+     openclaw.plugin.json \
+     install.sh \
+     README.md \
+     QUICKSTART.md
+   ```
+
+3. **Share the zip** with other users along with:
+   - Relay-chat server URL (e.g., `https://chat.example.com`)
+   - Instructions for creating a bot token
+   - Bot username to use
+
+Recipients can then:
+```bash
+unzip openclaw-plugin-relaychat.zip
+cd openclaw-plugin-relaychat
+./install.sh
+# Follow prompts to configure
+```
+
+**What's included in the zip:**
+- `dist/index.js` - Compiled plugin code
+- `package.json` - Plugin metadata and dependencies
+- `openclaw.plugin.json` - OpenClaw plugin manifest
+- `install.sh` - Automated installation script
+- `README.md` - Complete setup instructions and troubleshooting
+- `QUICKSTART.md` - Quick reference for installation
+
+## For Maintainers
+
+See [DISTRIBUTION.md](./DISTRIBUTION.md) for:
+- Creating release packages
+- Distribution best practices
+- Version management
+- Security guidelines
 
 ## Development
 

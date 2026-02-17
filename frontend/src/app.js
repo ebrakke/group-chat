@@ -743,35 +743,50 @@ async function renderMain() {
                 <h3>Notifications</h3>
                 <div id="notification-error" class="error hidden"></div>
                 <div id="notification-success" class="success hidden"></div>
-                <div class="form-group">
-                  <label>Webhook URL</label>
-                  <input type="text" id="webhook-url" placeholder="https://ntfy.sh/your-topic or https://api.pushover.net/1/messages.json?token=..." class="input-sm">
-                  <small>Examples: Pushover, ntfy.sh, or any custom webhook endpoint</small>
+                <div id="notification-settings-content">
+                  <div class="form-group">
+                    <label>Notification Provider</label>
+                    <div id="provider-radios"></div>
+                  </div>
+                  <div id="provider-config-pushover" class="provider-config hidden">
+                    <div class="form-group">
+                      <label>Pushover User Key</label>
+                      <input type="text" id="pushover-key" placeholder="Your Pushover user key" class="input-sm">
+                      <small>Get your user key from <a href="https://pushover.net" target="_blank">pushover.net</a></small>
+                    </div>
+                  </div>
+                  <div id="provider-config-webhook" class="provider-config hidden">
+                    <div class="form-group">
+                      <label>Webhook URL</label>
+                      <input type="text" id="webhook-url" placeholder="https://ntfy.sh/your-topic" class="input-sm">
+                      <small>Examples: ntfy.sh or any custom webhook endpoint</small>
+                    </div>
+                  </div>
+                  <div class="form-group">
+                    <label>Base URL</label>
+                    <input type="text" id="base-url" placeholder="https://chat.example.com" class="input-sm">
+                    <small>Used for deep links in notifications (defaults to current URL)</small>
+                  </div>
+                  <div class="form-group">
+                    <label class="checkbox-label">
+                      <input type="checkbox" id="notify-mentions" checked>
+                      Notify on @mentions
+                    </label>
+                  </div>
+                  <div class="form-group">
+                    <label class="checkbox-label">
+                      <input type="checkbox" id="notify-thread-replies" checked>
+                      Notify on thread replies
+                    </label>
+                  </div>
+                  <div class="form-group">
+                    <label class="checkbox-label">
+                      <input type="checkbox" id="notify-all-messages">
+                      Notify on all messages
+                    </label>
+                  </div>
+                  <button id="save-notifications" class="btn-sm">Save Notification Settings</button>
                 </div>
-                <div class="form-group">
-                  <label>Base URL</label>
-                  <input type="text" id="base-url" placeholder="https://chat.example.com" class="input-sm">
-                  <small>Used for deep links in notifications (defaults to current URL)</small>
-                </div>
-                <div class="form-group">
-                  <label class="checkbox-label">
-                    <input type="checkbox" id="notify-mentions" checked>
-                    Notify on @mentions
-                  </label>
-                </div>
-                <div class="form-group">
-                  <label class="checkbox-label">
-                    <input type="checkbox" id="notify-thread-replies" checked>
-                    Notify on thread replies
-                  </label>
-                </div>
-                <div class="form-group">
-                  <label class="checkbox-label">
-                    <input type="checkbox" id="notify-all-messages">
-                    Notify on all messages
-                  </label>
-                </div>
-                <button id="save-notifications" class="btn-sm">Save Notification Settings</button>
               </div>
               <div class="card">
                 <h3>Invites</h3>
@@ -1025,50 +1040,152 @@ async function loadAdminInvites() {
 
 async function loadNotificationSettings() {
   try {
+    // Fetch available providers
+    const providersRes = await api("GET", "/api/notifications/providers");
+    const providers = providersRes.providers || [];
+
+    if (providers.length === 0) {
+      const content = document.getElementById("notification-settings-content");
+      if (content) {
+        content.innerHTML = '<div class="error">No notification providers are configured by the admin.</div>';
+      }
+      return;
+    }
+
+    // Render provider radio buttons
+    const radiosContainer = document.getElementById("provider-radios");
+    if (radiosContainer) {
+      radiosContainer.innerHTML = providers.map(p =>
+        `<label class="checkbox-label">
+          <input type="radio" name="provider" value="${esc(p)}">
+          ${esc(p.charAt(0).toUpperCase() + p.slice(1))}
+        </label>`
+      ).join("");
+    }
+
+    // Fetch current settings
     const res = await api("GET", "/api/notifications/settings");
-    const webhookUrl = document.getElementById("webhook-url");
     const baseUrl = document.getElementById("base-url");
     const notifyMentions = document.getElementById("notify-mentions");
     const notifyThreadReplies = document.getElementById("notify-thread-replies");
     const notifyAllMessages = document.getElementById("notify-all-messages");
 
-    if (!webhookUrl) return;
+    if (!baseUrl) return;
 
     if (res.configured !== false) {
-      webhookUrl.value = res.webhookUrl || "";
+      // Set base URL and notification preferences
       baseUrl.value = res.baseUrl || window.location.origin;
       notifyMentions.checked = res.notifyMentions !== false;
       notifyThreadReplies.checked = res.notifyThreadReplies !== false;
       notifyAllMessages.checked = res.notifyAllMessages === true;
+
+      // Select the current provider radio button
+      const providerRadio = document.querySelector(`input[name="provider"][value="${res.provider}"]`);
+      if (providerRadio) {
+        providerRadio.checked = true;
+      }
+
+      // Parse and populate provider-specific config
+      let providerConfig = {};
+      try {
+        if (res.providerConfig) {
+          providerConfig = JSON.parse(res.providerConfig);
+        }
+      } catch (e) {
+        console.error("Failed to parse provider config:", e);
+      }
+
+      if (res.provider === "pushover" && providerConfig.key) {
+        const pushoverKey = document.getElementById("pushover-key");
+        if (pushoverKey) pushoverKey.value = providerConfig.key;
+      } else if (res.provider === "webhook" && providerConfig.url) {
+        const webhookUrl = document.getElementById("webhook-url");
+        if (webhookUrl) webhookUrl.value = providerConfig.url;
+      }
+
+      // Show the appropriate provider config div
+      showProviderConfig(res.provider);
     } else {
       baseUrl.value = window.location.origin;
+      // Select first provider by default
+      if (providers.length > 0) {
+        const firstRadio = document.querySelector('input[name="provider"]');
+        if (firstRadio) {
+          firstRadio.checked = true;
+          showProviderConfig(firstRadio.value);
+        }
+      }
     }
+
+    // Add event listeners for provider radio buttons
+    document.querySelectorAll('input[name="provider"]').forEach(radio => {
+      radio.addEventListener("change", (e) => {
+        showProviderConfig(e.target.value);
+      });
+    });
   } catch (e) {
     console.log("No notification settings configured yet");
   }
 }
 
+function showProviderConfig(provider) {
+  // Hide all provider config divs
+  document.querySelectorAll(".provider-config").forEach(div => {
+    div.classList.add("hidden");
+  });
+
+  // Show the selected provider's config div
+  const configDiv = document.getElementById(`provider-config-${provider}`);
+  if (configDiv) {
+    configDiv.classList.remove("hidden");
+  }
+}
+
 async function saveNotificationSettings() {
-  const webhookUrl = document.getElementById("webhook-url").value.trim();
-  const baseUrl = document.getElementById("base-url").value.trim();
-  const notifyMentions = document.getElementById("notify-mentions").checked;
-  const notifyThreadReplies = document.getElementById("notify-thread-replies").checked;
-  const notifyAllMessages = document.getElementById("notify-all-messages").checked;
   const errEl = document.getElementById("notification-error");
   const successEl = document.getElementById("notification-success");
 
   errEl.classList.add("hidden");
   successEl.classList.add("hidden");
 
-  if (!webhookUrl) {
-    errEl.textContent = "Webhook URL is required";
+  // Get selected provider
+  const providerRadio = document.querySelector('input[name="provider"]:checked');
+  if (!providerRadio) {
+    errEl.textContent = "Please select a notification provider";
     errEl.classList.remove("hidden");
     return;
   }
 
+  const provider = providerRadio.value;
+  const baseUrl = document.getElementById("base-url").value.trim();
+  const notifyMentions = document.getElementById("notify-mentions").checked;
+  const notifyThreadReplies = document.getElementById("notify-thread-replies").checked;
+  const notifyAllMessages = document.getElementById("notify-all-messages").checked;
+
+  // Build provider-specific config
+  let providerConfig = {};
+  if (provider === "pushover") {
+    const pushoverKey = document.getElementById("pushover-key").value.trim();
+    if (!pushoverKey) {
+      errEl.textContent = "Pushover User Key is required";
+      errEl.classList.remove("hidden");
+      return;
+    }
+    providerConfig = { key: pushoverKey };
+  } else if (provider === "webhook") {
+    const webhookUrl = document.getElementById("webhook-url").value.trim();
+    if (!webhookUrl) {
+      errEl.textContent = "Webhook URL is required";
+      errEl.classList.remove("hidden");
+      return;
+    }
+    providerConfig = { url: webhookUrl };
+  }
+
   try {
     await api("POST", "/api/notifications/settings", {
-      webhookUrl,
+      provider: provider,
+      providerConfig: JSON.stringify(providerConfig),
       baseUrl: baseUrl || window.location.origin,
       notifyMentions,
       notifyThreadReplies,

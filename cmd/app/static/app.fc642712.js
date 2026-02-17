@@ -1974,7 +1974,10 @@ async function renderMain() {
           <div class="thread-resize-handle" id="thread-resize-handle"></div>
           <div class="thread-header">
             <h3>Thread</h3>
-            <button id="close-thread" class="secondary btn-sm" aria-label="Close thread">&#8592; <span class="close-text">Close</span></button>
+            <div class="thread-actions">
+              <button id="mute-thread" class="icon-button" title="Mute/Unmute thread" aria-label="Mute thread">\uD83D\uDD14</button>
+              <button id="close-thread" class="secondary btn-sm" aria-label="Close thread">&#8592; <span class="close-text">Close</span></button>
+            </div>
           </div>
           <div class="thread-parent" id="thread-parent"></div>
           <div class="thread-replies" id="thread-replies"></div>
@@ -1992,6 +1995,55 @@ async function renderMain() {
             <div class="admin-page-content">
               <div class="admin-user-info">
                 Logged in as <strong>${esc(currentUser.displayName)}</strong> (${esc(currentUser.role)})
+              </div>
+              <div class="card">
+                <h3>Notifications</h3>
+                <div id="notification-error" class="error hidden"></div>
+                <div id="notification-success" class="success hidden"></div>
+                <div id="notification-settings-content">
+                  <div class="form-group">
+                    <label>Notification Provider</label>
+                    <div id="provider-radios"></div>
+                  </div>
+                  <div id="provider-config-pushover" class="provider-config hidden">
+                    <div class="form-group">
+                      <label>Pushover User Key</label>
+                      <input type="text" id="pushover-key" placeholder="Your Pushover user key" class="input-sm">
+                      <small>Get your user key from <a href="https://pushover.net" target="_blank">pushover.net</a></small>
+                    </div>
+                  </div>
+                  <div id="provider-config-webhook" class="provider-config hidden">
+                    <div class="form-group">
+                      <label>Webhook URL</label>
+                      <input type="text" id="webhook-url" placeholder="https://ntfy.sh/your-topic" class="input-sm">
+                      <small>Examples: ntfy.sh or any custom webhook endpoint</small>
+                    </div>
+                  </div>
+                  <div class="form-group">
+                    <label>Base URL</label>
+                    <input type="text" id="base-url" placeholder="https://chat.example.com" class="input-sm">
+                    <small>Used for deep links in notifications (defaults to current URL)</small>
+                  </div>
+                  <div class="form-group">
+                    <label class="checkbox-label">
+                      <input type="checkbox" id="notify-mentions" checked>
+                      Notify on @mentions
+                    </label>
+                  </div>
+                  <div class="form-group">
+                    <label class="checkbox-label">
+                      <input type="checkbox" id="notify-thread-replies" checked>
+                      Notify on thread replies
+                    </label>
+                  </div>
+                  <div class="form-group">
+                    <label class="checkbox-label">
+                      <input type="checkbox" id="notify-all-messages">
+                      Notify on all messages
+                    </label>
+                  </div>
+                  <button id="save-notifications" class="btn-sm">Save Notification Settings</button>
+                </div>
               </div>
               <div class="card">
                 <h3>Invites</h3>
@@ -2149,6 +2201,7 @@ async function renderMain() {
       adminCreateBot.onclick = () => showCreateBotModal();
     }
     loadBots("admin-bot-list");
+    document.getElementById("save-notifications").onclick = saveNotificationSettings;
   }
   await handleRoute(channelsList);
 }
@@ -2193,11 +2246,12 @@ function attachCopyHandler(container) {
     }, 2000);
   };
 }
-function openAdminPage() {
+async function openAdminPage() {
   const panel = document.getElementById("admin-page");
   panel.classList.add("visible");
   loadAdminInvites();
   loadBots("admin-bot-list");
+  await loadNotificationSettings();
 }
 function closeAdminPage() {
   document.getElementById("admin-page").classList.remove("visible");
@@ -2211,6 +2265,137 @@ async function loadAdminInvites() {
     list.innerHTML = invites.map((i) => `<li><div class="invite-code">${esc(inviteUrl(i.code))}</div><div class="invite-meta"><span class="invite-usage">${i.useCount}${i.maxUses ? "/" + i.maxUses : ""} used</span><button class="btn-sm copy-link-btn" data-url="${esc(inviteUrl(i.code))}">Copy</button></div></li>`).join("");
     list.querySelectorAll("li").forEach((li) => attachCopyHandler(li));
   } catch {}
+}
+async function loadNotificationSettings() {
+  try {
+    const providersRes = await api("GET", "/api/notifications/providers");
+    const providers = providersRes.providers || [];
+    if (providers.length === 0) {
+      const content = document.getElementById("notification-settings-content");
+      if (content) {
+        content.innerHTML = '<div class="error">No notification providers are configured by the admin.</div>';
+      }
+      return;
+    }
+    const radiosContainer = document.getElementById("provider-radios");
+    if (radiosContainer) {
+      radiosContainer.innerHTML = providers.map((p) => `<label class="checkbox-label">
+          <input type="radio" name="provider" value="${esc(p)}">
+          ${esc(p.charAt(0).toUpperCase() + p.slice(1))}
+        </label>`).join("");
+    }
+    const res = await api("GET", "/api/notifications/settings");
+    const baseUrl = document.getElementById("base-url");
+    const notifyMentions = document.getElementById("notify-mentions");
+    const notifyThreadReplies = document.getElementById("notify-thread-replies");
+    const notifyAllMessages = document.getElementById("notify-all-messages");
+    if (!baseUrl)
+      return;
+    if (res.configured !== false) {
+      baseUrl.value = res.baseUrl || window.location.origin;
+      notifyMentions.checked = res.notifyMentions !== false;
+      notifyThreadReplies.checked = res.notifyThreadReplies !== false;
+      notifyAllMessages.checked = res.notifyAllMessages === true;
+      const providerRadio = document.querySelector(`input[name="provider"][value="${res.provider}"]`);
+      if (providerRadio) {
+        providerRadio.checked = true;
+      }
+      let providerConfig = {};
+      try {
+        if (res.providerConfig) {
+          providerConfig = JSON.parse(res.providerConfig);
+        }
+      } catch (e) {
+        console.error("Failed to parse provider config:", e);
+      }
+      if (res.provider === "pushover" && providerConfig.key) {
+        const pushoverKey = document.getElementById("pushover-key");
+        if (pushoverKey)
+          pushoverKey.value = providerConfig.key;
+      } else if (res.provider === "webhook" && providerConfig.url) {
+        const webhookUrl = document.getElementById("webhook-url");
+        if (webhookUrl)
+          webhookUrl.value = providerConfig.url;
+      }
+      showProviderConfig(res.provider);
+    } else {
+      baseUrl.value = window.location.origin;
+      if (providers.length > 0) {
+        const firstRadio = document.querySelector('input[name="provider"]');
+        if (firstRadio) {
+          firstRadio.checked = true;
+          showProviderConfig(firstRadio.value);
+        }
+      }
+    }
+    document.querySelectorAll('input[name="provider"]').forEach((radio) => {
+      radio.addEventListener("change", (e) => {
+        showProviderConfig(e.target.value);
+      });
+    });
+  } catch (e) {
+    console.log("No notification settings configured yet");
+  }
+}
+function showProviderConfig(provider) {
+  document.querySelectorAll(".provider-config").forEach((div) => {
+    div.classList.add("hidden");
+  });
+  const configDiv = document.getElementById(`provider-config-${provider}`);
+  if (configDiv) {
+    configDiv.classList.remove("hidden");
+  }
+}
+async function saveNotificationSettings() {
+  const errEl = document.getElementById("notification-error");
+  const successEl = document.getElementById("notification-success");
+  errEl.classList.add("hidden");
+  successEl.classList.add("hidden");
+  const providerRadio = document.querySelector('input[name="provider"]:checked');
+  if (!providerRadio) {
+    errEl.textContent = "Please select a notification provider";
+    errEl.classList.remove("hidden");
+    return;
+  }
+  const provider = providerRadio.value;
+  const baseUrl = document.getElementById("base-url").value.trim();
+  const notifyMentions = document.getElementById("notify-mentions").checked;
+  const notifyThreadReplies = document.getElementById("notify-thread-replies").checked;
+  const notifyAllMessages = document.getElementById("notify-all-messages").checked;
+  let providerConfig = {};
+  if (provider === "pushover") {
+    const pushoverKey = document.getElementById("pushover-key").value.trim();
+    if (!pushoverKey) {
+      errEl.textContent = "Pushover User Key is required";
+      errEl.classList.remove("hidden");
+      return;
+    }
+    providerConfig = { key: pushoverKey };
+  } else if (provider === "webhook") {
+    const webhookUrl = document.getElementById("webhook-url").value.trim();
+    if (!webhookUrl) {
+      errEl.textContent = "Webhook URL is required";
+      errEl.classList.remove("hidden");
+      return;
+    }
+    providerConfig = { url: webhookUrl };
+  }
+  try {
+    await api("POST", "/api/notifications/settings", {
+      provider,
+      providerConfig: JSON.stringify(providerConfig),
+      baseUrl: baseUrl || window.location.origin,
+      notifyMentions,
+      notifyThreadReplies,
+      notifyAllMessages
+    });
+    successEl.textContent = "Notification settings saved successfully";
+    successEl.classList.remove("hidden");
+    setTimeout(() => successEl.classList.add("hidden"), 3000);
+  } catch (e) {
+    errEl.textContent = "Failed to save settings: " + e.message;
+    errEl.classList.remove("hidden");
+  }
 }
 async function selectChannel(channel, fromRoute = false) {
   viewingThreads = false;
@@ -2315,6 +2500,7 @@ async function openThread(parentId, fromRoute = false) {
       </div>
     `;
   }
+  await updateThreadMuteButton(parentId);
   if (!fromRoute && currentChannel) {
     navigate(`/${currentChannel.name}/t/${parentId}`);
   }
@@ -2365,6 +2551,37 @@ function closeThread() {
     navigate("/threads");
   } else if (currentChannel) {
     navigate(`/${currentChannel.name}`);
+  }
+}
+async function updateThreadMuteButton(parentId) {
+  const muteBtn = document.getElementById("mute-thread");
+  if (!muteBtn)
+    return;
+  try {
+    const res = await api("GET", `/api/threads/${parentId}/mute`);
+    const isMuted = res.muted;
+    muteBtn.textContent = isMuted ? "\uD83D\uDD14" : "\uD83D\uDD15";
+    muteBtn.title = isMuted ? "Unmute thread" : "Mute thread";
+    muteBtn.dataset.muted = isMuted;
+    muteBtn.onclick = async () => {
+      try {
+        if (muteBtn.dataset.muted === "true") {
+          await api("DELETE", `/api/threads/${parentId}/mute`);
+          muteBtn.textContent = "\uD83D\uDD15";
+          muteBtn.title = "Mute thread";
+          muteBtn.dataset.muted = "false";
+        } else {
+          await api("POST", `/api/threads/${parentId}/mute`);
+          muteBtn.textContent = "\uD83D\uDD14";
+          muteBtn.title = "Unmute thread";
+          muteBtn.dataset.muted = "true";
+        }
+      } catch (e) {
+        console.error("Failed to toggle mute", e);
+      }
+    };
+  } catch (e) {
+    console.error("Failed to check mute status", e);
   }
 }
 async function showMyThreads(fromRoute = false) {
@@ -2935,6 +3152,32 @@ function extractInviteCode() {
   const match = location.pathname.match(/^\/invite\/([a-f0-9]+)$/i);
   return match ? match[1] : null;
 }
+async function handleDeepLink() {
+  const hash = window.location.hash;
+  if (!hash || !currentUser)
+    return;
+  const match = hash.match(/#\/channel\/(\d+)(?:\/thread\/(\d+))?/);
+  if (!match)
+    return;
+  const channelId = parseInt(match[1], 10);
+  const threadId = match[2] ? parseInt(match[2], 10) : null;
+  const channelEls = document.querySelectorAll(".channel-list li");
+  let targetChannel = null;
+  channelEls.forEach((li) => {
+    if (parseInt(li.dataset.id, 10) === channelId) {
+      targetChannel = { id: channelId, name: li.dataset.name };
+    }
+  });
+  if (!targetChannel) {
+    console.log("Channel not found for deep link");
+    return;
+  }
+  await selectChannel(targetChannel, false);
+  if (threadId) {
+    setTimeout(() => openThread(threadId, false), 300);
+  }
+  window.location.hash = "";
+}
 async function boot() {
   const inviteCode = extractInviteCode();
   try {
@@ -2949,9 +3192,15 @@ async function boot() {
   }
   try {
     currentUser = await api("GET", "/api/auth/me");
-    renderMain();
+    await renderMain();
+    setTimeout(() => handleDeepLink(), 500);
   } catch {
     renderLogin(inviteCode);
   }
 }
+window.addEventListener("hashchange", () => {
+  if (currentUser) {
+    handleDeepLink();
+  }
+});
 boot();

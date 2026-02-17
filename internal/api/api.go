@@ -1240,8 +1240,12 @@ func (h *Handler) handleUpdateAdminSettings(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// NOTE: Provider reload would require server restart or more complex mechanism
-	// For now, admin must restart server after changing Pushover token
+	// Reload Pushover provider if token was updated
+	if _, hasPushoverToken := req["pushover_app_token"]; hasPushoverToken {
+		if err := h.notifications.ReloadPushoverProvider(); err != nil {
+			log.Printf("Warning: failed to reload Pushover provider: %v", err)
+		}
+	}
 
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]bool{"success": true})

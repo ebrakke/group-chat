@@ -64,7 +64,7 @@ Get mobile push notifications when:
 For simplified Pushover setup:
 1. Create a Pushover application at https://pushover.net/apps/build
 2. In Relay Chat admin settings, enter your Pushover app token
-3. Restart the server
+3. Save (provider reloads automatically, no restart required)
 
 **Setup (Users):**
 

@@ -121,8 +121,9 @@ func main() {
 	}
 	mux.Handle("/", spaHandler(staticSub))
 
-	log.Printf("Relay Chat starting on :%s", port)
-	if err := http.ListenAndServe(":"+port, mux); err != nil {
+	addr := "0.0.0.0:" + port
+	log.Printf("Relay Chat starting on %s", addr)
+	if err := http.ListenAndServe(addr, mux); err != nil {
 		log.Fatal(err)
 	}
 }

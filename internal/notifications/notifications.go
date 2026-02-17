@@ -45,6 +45,32 @@ func (s *Service) RegisterProvider(name string, provider Provider) {
 	s.providers[name] = provider
 }
 
+// UnregisterProvider removes a notification provider from the registry
+func (s *Service) UnregisterProvider(name string) {
+	delete(s.providers, name)
+}
+
+// ReloadPushoverProvider reloads the Pushover provider with current config from database
+func (s *Service) ReloadPushoverProvider() error {
+	token, err := s.GetAppSetting("pushover_app_token")
+	if err != nil {
+		// No token configured, ensure provider is unregistered
+		s.UnregisterProvider("pushover")
+		return nil
+	}
+
+	if token == "" {
+		// Empty token, unregister provider
+		s.UnregisterProvider("pushover")
+		return nil
+	}
+
+	// Register/update Pushover provider with new token
+	s.RegisterProvider("pushover", NewPushoverProvider(token))
+	log.Printf("Pushover provider reloaded")
+	return nil
+}
+
 // GetAvailableProviders returns list of properly configured providers
 func (s *Service) GetAvailableProviders() []string {
 	var available []string

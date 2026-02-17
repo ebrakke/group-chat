@@ -809,9 +809,6 @@ async function renderMain() {
                     <label>Pushover Application Token (Server-wide)</label>
                     <input type="text" id="pushover-app-token" placeholder="Your Pushover app token" class="input-sm">
                     <small>Get your app token from <a href="https://pushover.net/apps/build" target="_blank">pushover.net/apps/build</a></small>
-                    <div class="warning-box" style="margin-top: 0.5rem; padding: 0.5rem; background: #f39c12; color: #000; border-radius: 4px; font-size: 0.9rem;">
-                      ⚠️ <strong>Note:</strong> Server restart is required for changes to take effect.
-                    </div>
                   </div>
                   <button id="save-pushover-settings" class="btn-sm">Save Pushover Settings</button>
                 </div>
@@ -1252,7 +1249,7 @@ async function savePushoverSettings() {
     await api("POST", "/api/admin/settings", {
       pushoverAppToken: appToken,
     });
-    successEl.textContent = "Pushover settings saved successfully. Restart server for changes to take effect.";
+    successEl.textContent = "Pushover settings saved successfully. Provider reloaded automatically.";
     successEl.classList.remove("hidden");
     setTimeout(() => successEl.classList.add("hidden"), 5000);
   } catch (e) {

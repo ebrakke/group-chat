@@ -19,6 +19,7 @@ import (
 type Service struct {
 	db        *db.DB
 	providers map[string]Provider
+	baseURL   string
 }
 
 // Settings represents user notification preferences.
@@ -26,17 +27,17 @@ type Settings struct {
 	UserID              int64  `json:"userId"`
 	Provider            string `json:"provider"`
 	ProviderConfig      string `json:"providerConfig"` // JSON string
-	BaseURL             string `json:"baseUrl"`
 	NotifyMentions      bool   `json:"notifyMentions"`
 	NotifyThreadReplies bool   `json:"notifyThreadReplies"`
 	NotifyAllMessages   bool   `json:"notifyAllMessages"`
 }
 
 // NewService creates a new notification service.
-func NewService(database *db.DB) *Service {
+func NewService(database *db.DB, baseURL string) *Service {
 	return &Service{
 		db:        database,
 		providers: make(map[string]Provider),
+		baseURL:   baseURL,
 	}
 }
 
@@ -88,7 +89,7 @@ var ErrSettingsNotFound = errors.New("notification settings not found")
 func (s *Service) GetSettings(userID int64) (*Settings, error) {
 	var settings Settings
 	err := s.db.QueryRow(`
-		SELECT user_id, provider, provider_config, base_url,
+		SELECT user_id, provider, provider_config,
 		       notify_mentions, notify_thread_replies, notify_all_messages
 		FROM user_notification_settings
 		WHERE user_id = ?
@@ -96,7 +97,6 @@ func (s *Service) GetSettings(userID int64) (*Settings, error) {
 		&settings.UserID,
 		&settings.Provider,
 		&settings.ProviderConfig,
-		&settings.BaseURL,
 		&settings.NotifyMentions,
 		&settings.NotifyThreadReplies,
 		&settings.NotifyAllMessages,
@@ -115,9 +115,9 @@ func (s *Service) UpdateSettings(userID int64, settings *Settings) error {
 	now := time.Now().UTC().Format(time.RFC3339)
 	_, err := s.db.Exec(`
 		INSERT OR REPLACE INTO user_notification_settings
-		(user_id, provider, provider_config, base_url, notify_mentions, notify_thread_replies, notify_all_messages, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, userID, settings.Provider, settings.ProviderConfig, settings.BaseURL,
+		(user_id, provider, provider_config, notify_mentions, notify_thread_replies, notify_all_messages, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+	`, userID, settings.Provider, settings.ProviderConfig,
 		settings.NotifyMentions, settings.NotifyThreadReplies, settings.NotifyAllMessages, now, now)
 	return err
 }
@@ -204,7 +204,7 @@ func (s *Service) IsThreadMuted(userID, messageID int64) (bool, error) {
 }
 
 // buildPayload constructs the notification payload.
-func (s *Service) buildPayload(msg *messages.Message, channelName, baseURL string) Payload {
+func (s *Service) buildPayload(msg *messages.Message, channelName string) Payload {
 	// Truncate message if too long
 	content := msg.Content
 	if len(content) > 500 {
@@ -212,7 +212,7 @@ func (s *Service) buildPayload(msg *messages.Message, channelName, baseURL strin
 	}
 
 	// Build deep link URL
-	url := baseURL + "/#/channel/" + fmt.Sprintf("%d", msg.ChannelID)
+	url := s.baseURL + "/#/channel/" + fmt.Sprintf("%d", msg.ChannelID)
 	if msg.ParentID != nil {
 		url += "/thread/" + fmt.Sprintf("%d", *msg.ParentID)
 	}
@@ -281,7 +281,7 @@ func (s *Service) sendToUser(userID int64, msg *messages.Message, channelName st
 	}
 
 	// Build payload
-	payload := s.buildPayload(msg, channelName, settings.BaseURL)
+	payload := s.buildPayload(msg, channelName)
 
 	// Parse provider config
 	var providerConfig map[string]string

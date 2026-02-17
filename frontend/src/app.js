@@ -763,11 +763,6 @@ async function renderMain() {
                     </div>
                   </div>
                   <div class="form-group">
-                    <label>Base URL</label>
-                    <input type="text" id="base-url" placeholder="https://chat.example.com" class="input-sm">
-                    <small>Used for deep links in notifications (defaults to current URL)</small>
-                  </div>
-                  <div class="form-group">
                     <label class="checkbox-label">
                       <input type="checkbox" id="notify-mentions" checked>
                       Notify on @mentions
@@ -1082,16 +1077,12 @@ async function loadNotificationSettings() {
 
     // Fetch current settings
     const res = await api("GET", "/api/notifications/settings");
-    const baseUrl = document.getElementById("base-url");
     const notifyMentions = document.getElementById("notify-mentions");
     const notifyThreadReplies = document.getElementById("notify-thread-replies");
     const notifyAllMessages = document.getElementById("notify-all-messages");
 
-    if (!baseUrl) return;
-
     if (res.configured !== false) {
-      // Set base URL and notification preferences
-      baseUrl.value = res.baseUrl || window.location.origin;
+      // Set notification preferences
       notifyMentions.checked = res.notifyMentions !== false;
       notifyThreadReplies.checked = res.notifyThreadReplies !== false;
       notifyAllMessages.checked = res.notifyAllMessages === true;
@@ -1123,7 +1114,6 @@ async function loadNotificationSettings() {
       // Show the appropriate provider config div
       showProviderConfig(res.provider);
     } else {
-      baseUrl.value = window.location.origin;
       // Select first provider by default
       if (providers.length > 0) {
         const firstRadio = document.querySelector('input[name="provider"]');
@@ -1146,15 +1136,22 @@ async function loadNotificationSettings() {
 }
 
 function showProviderConfig(provider) {
+  console.log("showProviderConfig called with:", provider);
+
   // Hide all provider config divs
   document.querySelectorAll(".provider-config").forEach(div => {
+    console.log("Hiding:", div.id);
     div.classList.add("hidden");
   });
 
   // Show the selected provider's config div
   const configDiv = document.getElementById(`provider-config-${provider}`);
+  console.log("Looking for config div:", `provider-config-${provider}`, "found:", configDiv);
   if (configDiv) {
     configDiv.classList.remove("hidden");
+    console.log("Showing config div for:", provider);
+  } else {
+    console.error("Config div not found for provider:", provider);
   }
 }
 
@@ -1174,7 +1171,6 @@ async function saveNotificationSettings() {
   }
 
   const provider = providerRadio.value;
-  const baseUrl = document.getElementById("base-url").value.trim();
   const notifyMentions = document.getElementById("notify-mentions").checked;
   const notifyThreadReplies = document.getElementById("notify-thread-replies").checked;
   const notifyAllMessages = document.getElementById("notify-all-messages").checked;
@@ -1203,7 +1199,6 @@ async function saveNotificationSettings() {
     await api("POST", "/api/notifications/settings", {
       provider: provider,
       providerConfig: JSON.stringify(providerConfig),
-      baseUrl: baseUrl || window.location.origin,
       notifyMentions,
       notifyThreadReplies,
       notifyAllMessages,

@@ -33,6 +33,7 @@ func main() {
 	}
 
 	port := envOr("PORT", "8080")
+	baseURL := envOr("BASE_URL", "http://localhost:8080")
 	dbPath := envOr("DATABASE_PATH", filepath.Join(dataDir(), "app.db"))
 	relayDBPath := envOr("RELAY_DATABASE_PATH", filepath.Join(dataDir(), "relay.db"))
 
@@ -52,7 +53,7 @@ func main() {
 	chanSvc := channels.NewService(database)
 	msgSvc := messages.NewService(database)
 	reactSvc := reactions.NewService(database)
-	notifySvc := notifications.NewService(database)
+	notifySvc := notifications.NewService(database, baseURL)
 
 	// Register webhook provider (always available)
 	notifySvc.RegisterProvider("webhook", notifications.NewWebhookProvider())

@@ -36,6 +36,7 @@ type Message struct {
 type Service struct {
 	db         *db.DB
 	relayPriv  string // relay private key for signing events
+	notifyFunc func(*Message, string) // callback for notifications
 }
 
 func NewService(database *db.DB) *Service {
@@ -45,6 +46,11 @@ func NewService(database *db.DB) *Service {
 // SetRelayKey sets the private key used to sign nostr events.
 func (s *Service) SetRelayKey(privkey string) {
 	s.relayPriv = privkey
+}
+
+// SetNotifyFunc sets the callback for sending notifications.
+func (s *Service) SetNotifyFunc(fn func(*Message, string)) {
+	s.notifyFunc = fn
 }
 
 // Create creates a new top-level message in a channel.
@@ -64,7 +70,20 @@ func (s *Service) Create(channelID, userID int64, content, groupID string) (*Mes
 	}
 
 	id, _ := res.LastInsertId()
-	return s.GetByID(id)
+	msg, err := s.GetByID(id)
+	if err != nil {
+		return nil, err
+	}
+
+	// Send notifications
+	if s.notifyFunc != nil {
+		// Get channel name
+		var channelName string
+		s.db.QueryRow("SELECT name FROM channels WHERE id = ?", channelID).Scan(&channelName)
+		s.notifyFunc(msg, channelName)
+	}
+
+	return msg, nil
 }
 
 // CreateReply creates a thread reply to an existing message.
@@ -96,7 +115,20 @@ func (s *Service) CreateReply(parentID, userID int64, content string, groupID st
 	}
 
 	id, _ := res.LastInsertId()
-	return s.GetByID(id)
+	msg, err := s.GetByID(id)
+	if err != nil {
+		return nil, err
+	}
+
+	// Send notifications
+	if s.notifyFunc != nil {
+		// Get channel name
+		var channelName string
+		s.db.QueryRow("SELECT name FROM channels WHERE id = ?", parent.ChannelID).Scan(&channelName)
+		s.notifyFunc(msg, channelName)
+	}
+
+	return msg, nil
 }
 
 // GetByID returns a single message by ID with user info.

@@ -16,6 +16,7 @@ import (
 	"github.com/ebrakke/relay-chat/internal/channels"
 	"github.com/ebrakke/relay-chat/internal/db"
 	"github.com/ebrakke/relay-chat/internal/messages"
+	"github.com/ebrakke/relay-chat/internal/notifications"
 	"github.com/ebrakke/relay-chat/internal/reactions"
 	internalrelay "github.com/ebrakke/relay-chat/internal/relay"
 	"github.com/ebrakke/relay-chat/internal/ws"
@@ -45,6 +46,14 @@ func main() {
 	chanSvc := channels.NewService(database)
 	msgSvc := messages.NewService(database)
 	reactSvc := reactions.NewService(database)
+	notifySvc := notifications.NewService(database)
+
+	// Set notification callback on message service
+	msgSvc.SetNotifyFunc(func(msg *messages.Message, channelName string) {
+		if err := notifySvc.Send(msg, channelName); err != nil {
+			log.Printf("Notification error: %v", err)
+		}
+	})
 
 	// Ensure #general exists
 	if _, err := chanSvc.EnsureGeneral(); err != nil {

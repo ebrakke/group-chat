@@ -1247,7 +1247,7 @@ async function savePushoverSettings() {
 
   try {
     await api("POST", "/api/admin/settings", {
-      pushoverAppToken: appToken,
+      pushover_app_token: appToken,
     });
     successEl.textContent = "Pushover settings saved successfully. Provider reloaded automatically.";
     successEl.classList.remove("hidden");

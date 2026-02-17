@@ -70,6 +70,26 @@ func (s *Service) Bootstrap(username, password, displayName string) (*User, stri
 	return s.createUser(username, password, displayName, "admin")
 }
 
+// ResetPasswordByUsername resets a user's password by username (for CLI use).
+func (s *Service) ResetPasswordByUsername(username, newPassword string) error {
+	hash := hashPassword(newPassword)
+	result, err := s.db.Exec(
+		"UPDATE users SET password_hash = ? WHERE username = ?",
+		hash, username,
+	)
+	if err != nil {
+		return err
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return fmt.Errorf("user '%s' not found", username)
+	}
+	return nil
+}
+
 // Signup creates a new member user with a valid invite code.
 func (s *Service) Signup(username, password, displayName, inviteCode string) (*User, string, error) {
 	if inviteCode == "" {

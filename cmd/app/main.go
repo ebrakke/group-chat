@@ -26,6 +26,12 @@ import (
 var staticFS embed.FS
 
 func main() {
+	// Check for CLI commands
+	if len(os.Args) > 1 && os.Args[1] == "reset-password" {
+		handleResetPassword()
+		return
+	}
+
 	port := envOr("PORT", "8080")
 	dbPath := envOr("DATABASE_PATH", filepath.Join(dataDir(), "app.db"))
 	relayDBPath := envOr("RELAY_DATABASE_PATH", filepath.Join(dataDir(), "relay.db"))
@@ -167,6 +173,30 @@ func envOr(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func handleResetPassword() {
+	if len(os.Args) != 4 {
+		fmt.Println("Usage: relay-chat reset-password <username> <new-password>")
+		os.Exit(1)
+	}
+
+	username := os.Args[2]
+	newPassword := os.Args[3]
+
+	dbPath := envOr("DATABASE_PATH", filepath.Join(dataDir(), "app.db"))
+	database, err := db.Open(dbPath)
+	if err != nil {
+		log.Fatalf("Failed to open database: %v", err)
+	}
+	defer database.Close()
+
+	authSvc := auth.NewService(database)
+	if err := authSvc.ResetPasswordByUsername(username, newPassword); err != nil {
+		log.Fatalf("Failed to reset password: %v", err)
+	}
+
+	fmt.Printf("Password reset successfully for user '%s'\n", username)
 }
 
 func dataDir() string {

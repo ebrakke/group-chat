@@ -6,7 +6,7 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "build": "bun build src/index.ts --outdir dist --target node --format esm --external openclaw/plugin-sdk",
+    "build": "bun build src/index.ts --outdir dist --target node --format esm --external openclaw/plugin-sdk --external ws --external node-fetch",
     "watch": "tsc --watch",
     "prepublishOnly": "npm run build"
   },

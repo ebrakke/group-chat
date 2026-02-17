@@ -3,6 +3,10 @@ name: Preview Deploy (Fly.io)
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'LICENSE'
   workflow_dispatch:
     inputs:
       pr_number:

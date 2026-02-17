@@ -48,8 +48,8 @@ relay/                    # Standalone NIP-29 relay binary (historical, for refe
 
 frontend/
   src/
-    app.js                # Entire SPA logic (single file, ~916 lines)
-    style.css             # All styles including mobile responsive (~661 lines)
+    app.js                # Entire SPA logic (single file, ~1650 lines)
+    style.css             # All styles including mobile responsive (~1050 lines)
     index.html            # Shell HTML with PWA meta tags
     sw.js                 # Service worker (cache-first for assets, network-first for navigation)
     manifest.json         # PWA manifest (standalone display, dark theme)
@@ -175,9 +175,11 @@ All HTML is rendered via JS functions in `app.js`:
 - `renderLogin()` - Login + signup form with tab switching
 - `renderMain()` - Main chat layout (sidebar + channels + messages + threads + admin)
 - `selectChannel()` - Loads messages, updates header, handles routing
-- `openThread()` / `closeThread()` - Thread panel management with routing
+- `openThread()` / `closeThread()` - Thread overlay panel with backdrop
 - `renderReactions()` - Emoji reaction pills per message
-- `openAdminPage()` / `closeAdminPage()` - Full-screen admin overlay (mobile)
+- `openAdminPage()` / `closeAdminPage()` - Centered modal overlay
+- `showMyThreads()` - Cross-channel "My Threads" view
+- `openThreadFromSummary()` - Navigate from thread summary to channel + thread
 
 There is no templating library. DOM is built via `innerHTML` templates + manual event binding.
 
@@ -187,14 +189,15 @@ There is no templating library. DOM is built via `innerHTML` templates + manual 
 |----------------|----------------------------------------------------------------|
 | Channels       | List, select, auto-join #general on signup                     |
 | Messages       | Send, paginate (cursor-based `before` param), real-time via WS |
-| Threads        | Open thread panel, reply, reply count on parent                |
+| Threads        | Overlay panel with backdrop, reply, reply count on parent      |
+| My Threads     | Cross-channel view of all threads user participated in, sorted by activity |
 | Reactions      | 10 emoji (👍👎❤️😂😮😢🔥🎉👀🙏), toggle, picker popup, real-time |
-| URL Routing    | `/{channel}`, `/{channel}/t/{threadId}`, browser back/forward  |
+| URL Routing    | `/{channel}`, `/{channel}/t/{threadId}`, `/threads`, browser back/forward |
 | PWA            | Service worker, manifest, installable, offline SPA shell       |
 | Mobile         | Swipe gestures for sidebar, full-screen thread/admin panels    |
 | WebSocket      | Auto-reconnect with exponential backoff (max 30s)              |
 | Connection     | Status banner shown during reconnection                        |
-| Admin          | Invite management, user list, password reset (desktop sidebar + mobile overlay) |
+| Admin          | Invite management, user list, password reset (centered modal overlay) |
 | Bots           | Bot badge on messages, admin bot management (create, tokens, channel bindings) |
 
 ### Key DOM Selectors
@@ -205,15 +208,18 @@ There is no templating library. DOM is built via `innerHTML` templates + manual 
 | `#channel-header-text` | Channel name span inside header               |
 | `#sidebar-toggle`      | Hamburger button (visible only on mobile)     |
 | `#sidebar-backdrop`    | Dark overlay behind sidebar (mobile only)     |
-| `#thread-panel`        | Thread side panel (full-screen on mobile)     |
+| `#thread-panel`        | Thread overlay panel (slide-from-right, `.visible` class) |
+| `#thread-backdrop`     | Click-to-close backdrop behind thread panel   |
+| `#my-threads-btn`      | "My Threads" sidebar button                   |
 | `#channel-list`        | UL containing channel LIs                     |
 | `#msg-input`           | Message composer input                        |
 | `#composer`            | Composer container (hidden until channel selected) |
 | `.reaction-picker`     | Fixed popup with emoji grid                   |
 | `.reaction-pill`       | Single emoji reaction badge (`.mine` = user's)|
-| `.admin-page`          | Full-screen admin overlay (mobile)            |
+| `.admin-page`          | Admin modal overlay (backdrop + centered `.admin-page-inner`) |
 | `.connection-status`   | Reconnection status banner                    |
 | `.hidden`              | Utility class: `display: none`                |
+| `.visible`             | Toggle class for thread panel and admin overlay |
 
 ### WebSocket Events
 
@@ -228,6 +234,14 @@ Client receives `{"type":"connected"}` on successful WebSocket auth.
 
 Bot clients only receive events from their bound channels (filtered by `ChannelID` on the Event struct, which is not serialized to JSON).
 
+### Desktop Panel UX
+
+- Thread panel: fixed overlay sliding from right (`width: min(480px, 90vw)`, `transform: translateX` animation, `.visible` class toggle)
+- Thread backdrop: `#thread-backdrop` click-to-close behind thread panel
+- Admin/settings: centered modal overlay (`.admin-page` backdrop + `.admin-page-inner` card)
+- Settings gear: visible on all screen sizes (`display: inline-flex`)
+- Escape key: closes thread panel and admin overlay
+
 ### Mobile Responsive Design
 
 Breakpoint: `@media (max-width: 768px)`
@@ -238,18 +252,19 @@ Breakpoint: `@media (max-width: 768px)`
 - Thread panel becomes full-screen fixed overlay (z-index: 900)
 - Admin page becomes full-screen fixed overlay (z-index: 900)
 - Hamburger button appears in channel header
-- Settings gear button appears for mobile admin access
 - Touch targets: 44px min-height on buttons/list items
 - Composer input: 16px font-size to prevent iOS zoom
 - Auth form buttons: 48px height
 
 ### Color Scheme
 
-Terminal-inspired dark aesthetic:
-- Background: `#1a1a2e` (primary), `#16213e` (secondary)
-- Accent: `#e94560` (pink/red), hover: `#c73651`
-- Secondary button: `#533483` / `#3f2768`
-- Text: `#eee` (primary), `#ccc` (secondary), `#777` (muted)
+GitHub Dark-inspired palette:
+- Background: `#0d1117` (primary), `#161b22` (panels/sidebar)
+- Accent: `#58a6ff` (blue links/buttons), hover: `#79b8ff`
+- Borders: `#30363d`
+- Error/destructive: `#f85149`
+- Bot badge: `#8b5cf6` (purple)
+- Text: `#e6edf3` (primary), `#8b949e` (secondary/muted)
 
 ### Database
 
@@ -262,6 +277,7 @@ Files in `internal/db/migrations/`:
 - `002_messages.sql` - Messages (self-referential parent_id for threads, event_id for Nostr), indexed on (channel_id, created_at) for top-level and (parent_id, created_at) for replies
 - `003_reactions.sql` - Reactions (unique per message+user+emoji), indexed on message_id
 - `004_bots.sql` - Recreates users table with `'bot'` role, adds bot_tokens (revocable opaque tokens) and bot_channel_bindings (read/write scopes per channel)
+- `005_my_threads.sql` - Index on `messages(user_id, parent_id)` for My Threads query
 
 Note: Migration runner disables `PRAGMA foreign_keys` before each migration transaction to support table recreation (SQLite cannot alter CHECK constraints in-place).
 
@@ -295,6 +311,9 @@ NIP-29 relay roles:
 - `POST /api/channels/{id}/messages` - Send message `{content}`
 - `POST /api/messages/{id}/reply` - Reply in thread `{content}`
 - `GET /api/messages/{id}/thread?limit=N&before=ID` - Thread replies (cursor pagination)
+
+**Threads:**
+- `GET /api/me/threads?limit=N` - List threads user participated in, sorted by last activity (default 30, max 100)
 
 **Reactions:**
 - `POST /api/messages/{id}/reactions` - Add reaction `{emoji}` (idempotent)
@@ -395,7 +414,7 @@ Docker build (`Dockerfile.fly`):
 | `auth`     | `HasUsers`, `Bootstrap`, `Signup`, `Login`, `Logout`, `ValidateSession`, `CreateInvite`, `ListInvites`, `ListUsers`, `SearchUsers`, `ResetPassword`, `GetUserByID` |
 | `bots`     | `Create`, `List`, `GetByID`, `Delete`, `GenerateToken`, `ValidateToken`, `ListTokens`, `RevokeToken`, `BindChannel`, `UnbindChannel`, `ListBindings`, `GetBoundChannelIDs`, `CanWrite` |
 | `channels` | `EnsureGeneral`, `Create`, `GetByID`, `GetByName`, `List`, `AddMember`, `ListMembers`, `IsMember` |
-| `messages` | `SetRelayKey`, `Create`, `CreateReply`, `GetByID`, `ListChannel`, `ListThread` |
+| `messages` | `SetRelayKey`, `Create`, `CreateReply`, `GetByID`, `ListChannel`, `ListThread`, `ListUserThreads` |
 | `reactions` | `SetRelayKey`, `Toggle`, `Add`, `Remove`, `SummaryForMessages` |
 | `ws`       | `NewHub`, `Handler`, `Broadcast`, `AuthResult`                 |
 | `relay`    | `New(Config{PrivateKey, Domain, DatabasePath, AllowedPubkeys})`|

@@ -15,22 +15,33 @@ import (
 	"github.com/ebrakke/relay-chat/internal/bots"
 	"github.com/ebrakke/relay-chat/internal/channels"
 	"github.com/ebrakke/relay-chat/internal/messages"
+	"github.com/ebrakke/relay-chat/internal/notifications"
 	"github.com/ebrakke/relay-chat/internal/reactions"
 	"github.com/ebrakke/relay-chat/internal/ws"
 )
 
 type Handler struct {
-	auth      *auth.Service
-	bots      *bots.Service
-	channels  *channels.Service
-	messages  *messages.Service
-	reactions *reactions.Service
-	hub       *ws.Hub
-	mux       *http.ServeMux
+	auth          *auth.Service
+	bots          *bots.Service
+	channels      *channels.Service
+	messages      *messages.Service
+	reactions     *reactions.Service
+	notifications *notifications.Service
+	hub           *ws.Hub
+	mux           *http.ServeMux
 }
 
-func New(authSvc *auth.Service, botSvc *bots.Service, chanSvc *channels.Service, msgSvc *messages.Service, reactSvc *reactions.Service, hub *ws.Hub) *Handler {
-	h := &Handler{auth: authSvc, bots: botSvc, channels: chanSvc, messages: msgSvc, reactions: reactSvc, hub: hub, mux: http.NewServeMux()}
+func New(authSvc *auth.Service, botSvc *bots.Service, chanSvc *channels.Service, msgSvc *messages.Service, reactSvc *reactions.Service, notifySvc *notifications.Service, hub *ws.Hub) *Handler {
+	h := &Handler{
+		auth:          authSvc,
+		bots:          botSvc,
+		channels:      chanSvc,
+		messages:      msgSvc,
+		reactions:     reactSvc,
+		notifications: notifySvc,
+		hub:           hub,
+		mux:           http.NewServeMux(),
+	}
 	h.routes()
 	return h
 }
@@ -87,6 +98,13 @@ func (h *Handler) routes() {
 	h.mux.HandleFunc("GET /api/bots/{id}/bindings", h.handleListBotBindings)
 	h.mux.HandleFunc("POST /api/bots/{id}/bindings", h.handleBindBotChannel)
 	h.mux.HandleFunc("DELETE /api/bots/{id}/bindings/{channelId}", h.handleUnbindBotChannel)
+
+	// Notifications
+	h.mux.HandleFunc("GET /api/notifications/settings", h.handleGetNotificationSettings)
+	h.mux.HandleFunc("POST /api/notifications/settings", h.handleUpdateNotificationSettings)
+	h.mux.HandleFunc("POST /api/threads/{id}/mute", h.handleMuteThread)
+	h.mux.HandleFunc("DELETE /api/threads/{id}/mute", h.handleUnmuteThread)
+	h.mux.HandleFunc("GET /api/threads/{id}/mute", h.handleGetThreadMute)
 }
 
 // --- Auth handlers ---
@@ -1048,6 +1066,122 @@ func (h *Handler) handleUnbindBotChannel(w http.ResponseWriter, r *http.Request)
 	h.hub.RefreshBotPermissions(botID)
 
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// --- Notification handlers ---
+
+func (h *Handler) handleGetNotificationSettings(w http.ResponseWriter, r *http.Request) {
+	user, err := h.requireAuth(r)
+	if err != nil {
+		writeErr(w, http.StatusUnauthorized, err)
+		return
+	}
+
+	settings, err := h.notifications.GetSettings(user.ID)
+	if errors.Is(err, notifications.ErrSettingsNotFound) {
+		writeJSON(w, http.StatusOK, map[string]interface{}{
+			"configured": false,
+		})
+		return
+	}
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, errors.New("Failed to get settings"))
+		return
+	}
+
+	writeJSON(w, http.StatusOK, settings)
+}
+
+func (h *Handler) handleUpdateNotificationSettings(w http.ResponseWriter, r *http.Request) {
+	user, err := h.requireAuth(r)
+	if err != nil {
+		writeErr(w, http.StatusUnauthorized, err)
+		return
+	}
+
+	var req notifications.Settings
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeErr(w, http.StatusBadRequest, errors.New("Invalid request"))
+		return
+	}
+
+	// Validate webhook URL
+	if req.WebhookURL == "" {
+		writeErr(w, http.StatusBadRequest, errors.New("webhook_url is required"))
+		return
+	}
+
+	req.UserID = user.ID
+	if err := h.notifications.UpdateSettings(user.ID, &req); err != nil {
+		writeErr(w, http.StatusInternalServerError, errors.New("Failed to update settings"))
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func (h *Handler) handleMuteThread(w http.ResponseWriter, r *http.Request) {
+	user, err := h.requireAuth(r)
+	if err != nil {
+		writeErr(w, http.StatusUnauthorized, err)
+		return
+	}
+
+	messageID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, errors.New("Invalid thread ID"))
+		return
+	}
+
+	if err := h.notifications.MuteThread(user.ID, messageID); err != nil {
+		writeErr(w, http.StatusInternalServerError, errors.New("Failed to mute thread"))
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func (h *Handler) handleUnmuteThread(w http.ResponseWriter, r *http.Request) {
+	user, err := h.requireAuth(r)
+	if err != nil {
+		writeErr(w, http.StatusUnauthorized, err)
+		return
+	}
+
+	messageID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, errors.New("Invalid thread ID"))
+		return
+	}
+
+	if err := h.notifications.UnmuteThread(user.ID, messageID); err != nil {
+		writeErr(w, http.StatusInternalServerError, errors.New("Failed to unmute thread"))
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func (h *Handler) handleGetThreadMute(w http.ResponseWriter, r *http.Request) {
+	user, err := h.requireAuth(r)
+	if err != nil {
+		writeErr(w, http.StatusUnauthorized, err)
+		return
+	}
+
+	messageID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, errors.New("Invalid thread ID"))
+		return
+	}
+
+	muted, err := h.notifications.IsThreadMuted(user.ID, messageID)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, errors.New("Failed to check mute status"))
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]bool{"muted": muted})
 }
 
 // --- Helpers ---

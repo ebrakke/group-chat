@@ -89,7 +89,7 @@ func main() {
 	}
 
 	// API handler
-	apiHandler := api.New(authSvc, botSvc, chanSvc, msgSvc, reactSvc, hub)
+	apiHandler := api.New(authSvc, botSvc, chanSvc, msgSvc, reactSvc, notifySvc, hub)
 
 	// Build mux
 	mux := http.NewServeMux()

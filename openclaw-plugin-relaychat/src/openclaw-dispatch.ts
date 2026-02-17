@@ -1,3 +1,4 @@
+import { createReplyPrefixOptions, type OpenClawConfig } from 'openclaw/plugin-sdk';
 import { PluginAPI, RelayMessage } from './types';
 
 /**
@@ -20,7 +21,8 @@ export async function dispatchMessageToOpenClaw(
     accountId: string;
     message: RelayMessage;
     botUsername: string;
-  }
+  },
+  replyCallback: (text: string, threadId: number) => Promise<void>
 ): Promise<void> {
   const { sessionKey, accountId, message, botUsername } = params;
 
@@ -102,9 +104,9 @@ export async function dispatchMessageToOpenClaw(
   });
 
   // Create reply prefix options
-  const { onModelSelected, ...prefixOptions } = runtime.channel.reply.createReplyPrefixOptions({
-    cfg: config,
-    agentId: config.agent?.id || 'default',
+  const { onModelSelected, ...prefixOptions } = createReplyPrefixOptions({
+    cfg: config as OpenClawConfig,
+    agentId: (config as any).agent?.id || 'default',
     channel: 'relaychat',
     accountId,
   });
@@ -118,8 +120,12 @@ export async function dispatchMessageToOpenClaw(
       ...prefixOptions,
       deliver: async (payload: any) => {
         // This callback is invoked when agent has a response
-        // OpenClaw routes it through our channel's outbound.sendText()
         api.logger.info(`[dispatch] Agent response ready for session ${sessionKey}`);
+
+        // Send the reply back to relay-chat
+        if (payload.text) {
+          await replyCallback(payload.text, threadId);
+        }
       },
       onError: (err: Error, info: any) => {
         api.logger.error(`relaychat ${info.kind} reply failed: ${String(err)}`);

@@ -32,6 +32,15 @@ async function dispatchToOpenClaw(accountId: string, message: RelayMessage): Pro
     return;
   }
 
+  // Get the relay client to send replies
+  const client = clients.get(accountId);
+  if (!client) {
+    console.error(`No client found for account ${accountId}, cannot dispatch`);
+    return;
+  }
+
+  const threadId = message.parentId ?? message.id;
+
   await dispatchMessageToOpenClaw(
     {
       logger: {
@@ -48,6 +57,11 @@ async function dispatchToOpenClaw(accountId: string, message: RelayMessage): Pro
       accountId,
       message,
       botUsername: accountConfig.username,
+    },
+    async (text: string, threadId: number) => {
+      // Reply callback - post the response back to relay-chat
+      await client.postReply(threadId, text);
+      console.log(`Posted reply to thread ${threadId}`);
     }
   );
 }
@@ -72,6 +86,9 @@ function handleMessage(accountId: string, config: AccountConfig, message: RelayM
 
   console.log(`Received @mention from ${message.username} in channel ${message.channelId}`);
 
+  // Note: Reactions API not available yet in production relay-chat
+  // Will add when the API endpoint is implemented
+
   // Dispatch to OpenClaw
   dispatchToOpenClaw(accountId, message).catch((err) => {
     console.error('Failed to dispatch message to OpenClaw:', err);
@@ -95,12 +112,11 @@ async function initializeAccount(accountId: string, config: AccountConfig): Prom
 
   console.log(`Initializing relay-chat account: ${accountId}`);
 
-  // Check health first
+  // Check health first (non-blocking - we'll try to connect anyway)
   const client = new RelayClient(config);
   const healthy = await client.checkHealth();
   if (!healthy) {
-    console.error(`Account ${accountId} failed health check at ${config.apiBase}`);
-    return;
+    console.warn(`Account ${accountId} failed health check at ${config.apiBase}, but will attempt WebSocket connection anyway`);
   }
 
   // Set up message handler

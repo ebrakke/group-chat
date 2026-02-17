@@ -29,10 +29,14 @@ export class RelayClient {
     }
 
     this.intentionallyClosed = false;
-    const wsUrl = `${this.config.url}?token=${this.config.token}`;
+    const wsUrl = `${this.config.url}?token=${encodeURIComponent(this.config.token)}`;
 
     return new Promise((resolve, reject) => {
-      this.ws = new WebSocket(wsUrl);
+      // Set origin header to match the API base URL (required by relay-chat server)
+      const origin = this.config.apiBase.replace('/api', '');
+      this.ws = new WebSocket(wsUrl, {
+        origin: origin,
+      });
 
       this.ws.on('open', () => {
         console.log('[relay-client] WebSocket connected');
@@ -142,7 +146,7 @@ export class RelayClient {
    * @returns Promise that resolves when reply is posted
    */
   async postReply(parentId: number, content: string): Promise<void> {
-    const url = `${this.config.apiBase}/api/messages/${parentId}/reply`;
+    const url = `${this.config.apiBase}/messages/${parentId}/reply`;
     const response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -161,12 +165,37 @@ export class RelayClient {
   }
 
   /**
+   * Add a reaction emoji to a message.
+   *
+   * @param messageId - ID of the message to react to
+   * @param emoji - Emoji to add (e.g., "👀", "👍")
+   */
+  async addReaction(messageId: number, emoji: string): Promise<void> {
+    const url = `${this.config.apiBase}/v1/messages/${messageId}/reactions`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${this.config.token}`,
+      },
+      body: JSON.stringify({ emoji }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to add reaction: ${response.status} ${errorText}`);
+    }
+
+    console.log(`[relay-client] Added reaction ${emoji} to message ${messageId}`);
+  }
+
+  /**
    * Check if the relay-chat server is healthy.
    * Useful for verifying configuration before connecting.
    */
   async checkHealth(): Promise<boolean> {
     try {
-      const url = `${this.config.apiBase}/api/health`;
+      const url = `${this.config.apiBase}/health`;
       const response = await fetch(url);
       return response.ok;
     } catch (err) {

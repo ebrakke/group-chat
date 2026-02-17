@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/ebrakke/relay-chat/internal/db"
 	"github.com/ebrakke/relay-chat/internal/messages"
@@ -195,5 +196,61 @@ func TestSendWebhook(t *testing.T) {
 
 	if receivedPayload["title"] != "Test" {
 		t.Errorf("received title = %v, want Test", receivedPayload["title"])
+	}
+}
+
+func TestSend_Mention(t *testing.T) {
+	database, _ := db.Open(":memory:")
+	defer database.Close()
+	svc := NewService(database)
+
+	// Create users
+	database.Exec("INSERT INTO users (id, username, display_name, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?, datetime('now'))", 1, "alice", "Alice", "hash", "member")
+	database.Exec("INSERT INTO users (id, username, display_name, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?, datetime('now'))", 2, "bob", "Bob", "hash", "member")
+
+	// Create channel
+	database.Exec("INSERT INTO channels (id, name, created_at) VALUES (?, ?, datetime('now'))", 1, "general")
+
+	// Add members
+	database.Exec("INSERT INTO channel_members (channel_id, user_id, joined_at) VALUES (?, ?, datetime('now'))", 1, 1)
+	database.Exec("INSERT INTO channel_members (channel_id, user_id, joined_at) VALUES (?, ?, datetime('now'))", 1, 2)
+
+	// Setup webhook for alice
+	var webhookCalled bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		webhookCalled = true
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	svc.UpdateSettings(1, &Settings{
+		UserID:         1,
+		WebhookURL:     server.URL,
+		BaseURL:        "https://chat.example.com",
+		NotifyMentions: true,
+	})
+
+	// Create message from bob mentioning alice
+	msg := &messages.Message{
+		ID:          1,
+		ChannelID:   1,
+		UserID:      2,
+		Content:     "Hey @alice check this out",
+		DisplayName: "Bob",
+		Username:    "bob",
+		Mentions:    []string{"alice"},
+		CreatedAt:   time.Now().UTC().Format(time.RFC3339),
+	}
+
+	err := svc.Send(msg, "general")
+	if err != nil {
+		t.Fatalf("Send failed: %v", err)
+	}
+
+	// Give goroutine time to complete
+	time.Sleep(100 * time.Millisecond)
+
+	if !webhookCalled {
+		t.Error("webhook was not called for mention")
 	}
 }

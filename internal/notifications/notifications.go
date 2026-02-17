@@ -7,7 +7,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/ebrakke/relay-chat/internal/db"
@@ -206,4 +208,137 @@ func (s *Service) sendWebhook(webhookURL string, payload map[string]interface{})
 	}
 
 	return nil
+}
+
+// Send checks notification rules and sends webhooks for a new message.
+func (s *Service) Send(msg *messages.Message, channelName string) error {
+	// Get all users in the channel
+	rows, err := s.db.Query(`
+		SELECT u.id, u.username
+		FROM users u
+		JOIN channel_members cm ON u.id = cm.user_id
+		WHERE cm.channel_id = ?
+	`, msg.ChannelID)
+	if err != nil {
+		return fmt.Errorf("query channel members: %w", err)
+	}
+	defer rows.Close()
+
+	type user struct {
+		id       int64
+		username string
+	}
+	var users []user
+	for rows.Next() {
+		var u user
+		if err := rows.Scan(&u.id, &u.username); err != nil {
+			return err
+		}
+		users = append(users, u)
+	}
+
+	// For each user, check if they should be notified
+	for _, u := range users {
+		// Don't notify the message author
+		if u.id == msg.UserID {
+			continue
+		}
+
+		// Get user's notification settings
+		settings, err := s.GetSettings(u.id)
+		if err != nil {
+			// No settings configured, skip
+			continue
+		}
+
+		if settings.WebhookURL == "" {
+			continue
+		}
+
+		// Check notification rules
+		var shouldNotify bool
+		var notificationType string
+		var threadContext string
+
+		// Check for mention
+		if settings.NotifyMentions && s.isMentioned(u.username, msg.Mentions) {
+			shouldNotify = true
+			notificationType = "mention"
+		}
+
+		// Check for thread reply
+		if !shouldNotify && settings.NotifyThreadReplies && msg.ParentID != nil {
+			// Check if user participated in this thread
+			participated, err := s.userParticipatedInThread(u.id, *msg.ParentID)
+			if err == nil && participated {
+				// Check if thread is muted
+				muted, err := s.IsThreadMuted(u.id, *msg.ParentID)
+				if err == nil && !muted {
+					shouldNotify = true
+					notificationType = "thread_reply"
+					// Get thread context (parent message preview)
+					threadContext = s.getThreadContext(*msg.ParentID)
+				}
+			}
+		}
+
+		// Check for all messages
+		if !shouldNotify && settings.NotifyAllMessages {
+			shouldNotify = true
+			notificationType = "all_messages"
+		}
+
+		if shouldNotify {
+			// Send webhook asynchronously
+			go s.sendNotification(msg, channelName, threadContext, notificationType, settings)
+		}
+	}
+
+	return nil
+}
+
+// isMentioned checks if username is in the mentions list (case-insensitive).
+func (s *Service) isMentioned(username string, mentions []string) bool {
+	for _, mention := range mentions {
+		if strings.EqualFold(username, mention) {
+			return true
+		}
+	}
+	return false
+}
+
+// userParticipatedInThread checks if a user authored or replied to a thread.
+func (s *Service) userParticipatedInThread(userID, parentID int64) (bool, error) {
+	var count int
+	err := s.db.QueryRow(`
+		SELECT COUNT(*)
+		FROM messages
+		WHERE (id = ? AND user_id = ?)
+		   OR (parent_id = ? AND user_id = ?)
+	`, parentID, userID, parentID, userID).Scan(&count)
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+// getThreadContext retrieves a preview of the parent message for thread notifications.
+func (s *Service) getThreadContext(parentID int64) string {
+	var content string
+	err := s.db.QueryRow("SELECT content FROM messages WHERE id = ?", parentID).Scan(&content)
+	if err != nil {
+		return ""
+	}
+	if len(content) > 120 {
+		return "Re: " + content[:120] + "..."
+	}
+	return "Re: " + content
+}
+
+// sendNotification sends a webhook notification (called in goroutine).
+func (s *Service) sendNotification(msg *messages.Message, channelName, threadContext, notificationType string, settings *Settings) {
+	payload := s.buildPayload(msg, channelName, threadContext, notificationType, settings)
+	if err := s.sendWebhook(settings.WebhookURL, payload); err != nil {
+		log.Printf("Failed to send webhook notification: %v", err)
+	}
 }

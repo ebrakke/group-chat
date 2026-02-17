@@ -1,5 +1,7 @@
 # Relay Chat - Agent Instructions
 
+> **⚠️ CRITICAL: This project uses [Bun](https://bun.sh) for all frontend tooling. NEVER use npm/yarn/pnpm. All build commands use `bun`.**
+
 ## What This Is
 
 Self-hosted private group chat built on Nostr (NIP-29). Ships as a single Go binary that embeds:

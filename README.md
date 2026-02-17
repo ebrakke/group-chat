@@ -2,6 +2,8 @@
 
 A self-hosted, private group chat app built on Nostr infrastructure. Single Go binary embedding a NIP-29 relay, JSON API, WebSocket endpoint, and static SPA frontend.
 
+> **⚠️ IMPORTANT: This project uses [Bun](https://bun.sh), NOT npm/yarn/pnpm. All frontend build commands use `bun`.**
+
 ## Architecture
 
 ```
@@ -52,8 +54,11 @@ Implementation: `frontend/src/markdown.js` wraps marked.js with security default
 
 ## Quick Start
 
+**Prerequisites:** Install [Bun](https://bun.sh) and Go 1.21+
+
 ```bash
 # Build frontend (bundles app.js + markdown.js + marked library)
+# ⚠️ ALWAYS use 'bun', NEVER use 'npm'
 cd frontend && bun install && bun run build && cd ..
 
 # Copy static assets
@@ -71,6 +76,8 @@ Visit http://localhost:8080. First visitor creates the admin account.
 
 ## Dev Commands
 
+**⚠️ All frontend commands use `bun`, NOT `npm`**
+
 ```bash
 # Run Go tests
 go test ./internal/...
@@ -78,8 +85,11 @@ go test ./internal/...
 # Run E2E tests (builds, starts server, runs Playwright)
 ./scripts/run-e2e.sh
 
-# Build frontend only
+# Build frontend only (uses bun)
 cd frontend && bun run build
+
+# Install frontend dependencies (uses bun)
+cd frontend && bun install
 
 # Build Go binary only
 go build -o relay-chat ./cmd/app/

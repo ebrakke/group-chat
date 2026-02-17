@@ -623,7 +623,7 @@ async function renderMain() {
           <div id="connection-status" class="connection-status hidden"></div>
           <div class="message-list" id="message-list"></div>
           <div class="composer" id="composer" style="display:none">
-            <input type="text" id="msg-input" placeholder="> message...">
+            <textarea id="msg-input" placeholder="> message..." rows="1"></textarea>
             <button id="msg-send">Send</button>
           </div>
         </div>
@@ -636,7 +636,7 @@ async function renderMain() {
           <div class="thread-parent" id="thread-parent"></div>
           <div class="thread-replies" id="thread-replies"></div>
           <div class="composer">
-            <input type="text" id="reply-input" placeholder="> reply...">
+            <textarea id="reply-input" placeholder="> reply..." rows="1"></textarea>
             <button id="reply-send">Send</button>
           </div>
         </div>
@@ -697,6 +697,7 @@ async function renderMain() {
 
   document.getElementById("msg-send").onclick = sendMessage;
   const msgInput = document.getElementById("msg-input");
+  setupAutoGrow(msgInput);
   msgInput.onkeydown = (e) => {
     if (mentionDropdown && mentionUsers.length > 0 &&
         (e.key === "Enter" || e.key === "Tab" || e.key === "ArrowUp" || e.key === "ArrowDown" || e.key === "Escape")) {
@@ -708,6 +709,7 @@ async function renderMain() {
 
   document.getElementById("reply-send").onclick = sendReply;
   const replyInput = document.getElementById("reply-input");
+  setupAutoGrow(replyInput);
   replyInput.onkeydown = (e) => {
     if (mentionDropdown && mentionUsers.length > 0 &&
         (e.key === "Enter" || e.key === "Tab" || e.key === "ArrowUp" || e.key === "ArrowDown" || e.key === "Escape")) {
@@ -1325,6 +1327,25 @@ function onMentionKeydown(e, input) {
   }
 }
 
+// --- Auto-growing textarea ---
+
+function setupAutoGrow(textarea) {
+  const maxRows = 5;
+  const computeHeight = () => {
+    textarea.style.height = 'auto';
+    const lineHeight = parseInt(getComputedStyle(textarea).lineHeight, 10);
+    const maxHeight = lineHeight * maxRows;
+    const newHeight = Math.min(textarea.scrollHeight, maxHeight);
+    textarea.style.height = `${newHeight}px`;
+  };
+
+  textarea.addEventListener('input', computeHeight);
+  // Also compute on paste
+  textarea.addEventListener('paste', () => setTimeout(computeHeight, 0));
+  // Initial computation
+  computeHeight();
+}
+
 // --- Send ---
 
 async function sendMessage() {
@@ -1332,10 +1353,13 @@ async function sendMessage() {
   const content = input.value.trim();
   if (!content || !currentChannel) return;
   input.value = "";
+  input.style.height = 'auto'; // reset height after send
   try {
     await api("POST", `/api/channels/${currentChannel.id}/messages`, { content });
   } catch (e) {
     input.value = content;
+    // Re-trigger auto-grow if restoring content
+    input.dispatchEvent(new Event('input'));
   }
 }
 
@@ -1344,10 +1368,13 @@ async function sendReply() {
   const content = input.value.trim();
   if (!content || !openThreadId) return;
   input.value = "";
+  input.style.height = 'auto'; // reset height after send
   try {
     await api("POST", `/api/messages/${openThreadId}/reply`, { content });
   } catch (e) {
     input.value = content;
+    // Re-trigger auto-grow if restoring content
+    input.dispatchEvent(new Event('input'));
   }
 }
 

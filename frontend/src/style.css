@@ -356,6 +356,7 @@ button.btn-sm { padding: 0.25rem 0.5rem; font-size: 0.75rem; }
 /* Composer */
 .composer {
   display: flex;
+  align-items: flex-end;
   padding: 0.75rem 1rem;
   padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
   gap: 0.5rem;
@@ -363,9 +364,27 @@ button.btn-sm { padding: 0.25rem 0.5rem; font-size: 0.75rem; }
   background: #161b22;
   flex-shrink: 0;
 }
-.composer input {
+.composer textarea {
   flex: 1;
   margin-bottom: 0;
+  resize: none;
+  overflow-y: auto;
+  min-height: 40px;
+  max-height: 120px;
+  line-height: 1.4;
+  font-family: inherit;
+  font-size: 0.95rem;
+  padding: 0.5rem;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  background: #0d1117;
+  color: #e6edf3;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.composer textarea:focus {
+  outline: none;
+  border-color: #58a6ff;
+  box-shadow: 0 0 0 1px rgba(88, 166, 255, 0.3);
 }
 .composer button { margin-right: 0; }
 
@@ -936,7 +955,7 @@ body.sidebar-is-open {
   .composer {
     padding: 0.5rem;
   }
-  .composer input {
+  .composer textarea {
     font-size: 16px;
   }
 

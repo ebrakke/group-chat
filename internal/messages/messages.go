@@ -285,6 +285,7 @@ func (s *Service) ListUserThreads(userID int64, limit int) ([]ThreadSummary, err
 			  SELECT m2.parent_id FROM messages m2
 			  WHERE m2.user_id = ? AND m2.parent_id IS NOT NULL
 		  )
+		  AND (SELECT COUNT(*) FROM messages r WHERE r.parent_id = p.id) > 0
 		ORDER BY last_activity DESC
 		LIMIT ?
 	`, userID, userID, limit)

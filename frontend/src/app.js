@@ -429,6 +429,91 @@ function setupSwipeGestures() {
   }, { passive: true });
 }
 
+// --- Thread Resize ---
+
+function setupThreadResize() {
+  // Only enable resizing on desktop
+  if (isMobile()) return;
+
+  const panel = document.getElementById("thread-panel");
+  const handle = document.getElementById("thread-resize-handle");
+  if (!panel || !handle) return;
+
+  const MIN_WIDTH = 320;
+  const MAX_WIDTH = window.innerWidth * 0.8;
+  const DEFAULT_WIDTH = 480;
+  const STORAGE_KEY = "thread-panel-width";
+
+  // Load saved width or use default
+  let savedWidth = parseInt(localStorage.getItem(STORAGE_KEY), 10);
+  if (!savedWidth || savedWidth < MIN_WIDTH || savedWidth > MAX_WIDTH) {
+    savedWidth = DEFAULT_WIDTH;
+  }
+
+  // Apply saved width (only when visible)
+  function applyWidth(width) {
+    const clampedWidth = Math.max(MIN_WIDTH, Math.min(width, MAX_WIDTH));
+    if (panel.classList.contains("visible")) {
+      panel.style.width = `${clampedWidth}px`;
+    }
+    return clampedWidth;
+  }
+
+  // Initialize width when thread is opened
+  const openThread = window.openThread;
+  window.openThread = async function(...args) {
+    await openThread.apply(this, args);
+    applyWidth(savedWidth);
+  };
+
+  let isResizing = false;
+  let startX = 0;
+  let startWidth = 0;
+
+  handle.addEventListener("mousedown", (e) => {
+    e.preventDefault();
+    isResizing = true;
+    startX = e.clientX;
+    startWidth = panel.offsetWidth;
+    panel.classList.add("resizing");
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+  });
+
+  document.addEventListener("mousemove", (e) => {
+    if (!isResizing) return;
+    e.preventDefault();
+
+    // Calculate new width (drag left = wider, drag right = narrower)
+    const deltaX = startX - e.clientX;
+    const newWidth = startWidth + deltaX;
+    const clampedWidth = applyWidth(newWidth);
+    savedWidth = clampedWidth;
+  });
+
+  document.addEventListener("mouseup", () => {
+    if (!isResizing) return;
+    isResizing = false;
+    panel.classList.remove("resizing");
+    document.body.style.cursor = "";
+    document.body.style.userSelect = "";
+
+    // Save to localStorage
+    localStorage.setItem(STORAGE_KEY, savedWidth.toString());
+  });
+
+  // Handle window resize
+  window.addEventListener("resize", () => {
+    if (!isMobile() && panel.classList.contains("visible")) {
+      const maxWidth = window.innerWidth * 0.8;
+      if (savedWidth > maxWidth) {
+        savedWidth = maxWidth;
+        applyWidth(savedWidth);
+      }
+    }
+  });
+}
+
 // --- Screens ---
 
 function renderBootstrap() {
@@ -629,6 +714,7 @@ async function renderMain() {
         </div>
         <div id="thread-backdrop" class="thread-backdrop"></div>
         <div id="thread-panel" class="thread-panel">
+          <div class="thread-resize-handle" id="thread-resize-handle"></div>
           <div class="thread-header">
             <h3>Thread</h3>
             <button id="close-thread" class="secondary btn-sm" aria-label="Close thread">&#8592; <span class="close-text">Close</span></button>
@@ -762,6 +848,7 @@ async function renderMain() {
   };
 
   setupSwipeGestures();
+  setupThreadResize();
 
   // Desktop admin toggle (sidebar)
   if (isAdmin) {

@@ -2,9 +2,10 @@
 export interface AccountConfig {
   enabled: boolean;
   url: string;           // WebSocket URL (e.g., ws://localhost:8080/ws)
-  apiBase: string;       // API base URL (e.g., http://localhost:8080)
+  apiBase: string;       // API base URL (e.g., http://localhost:8080/api)
   token: string;         // Bot token from admin panel
   username: string;      // Bot username for @mention matching
+  reactOnMention?: string; // Optional: emoji to react with when mentioned (e.g., "👀")
 }
 
 export interface ChannelConfig {

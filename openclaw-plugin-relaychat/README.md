@@ -61,13 +61,16 @@ If you received a pre-built plugin zip file:
              "url": "wss://chat.example.com/ws",
              "apiBase": "https://chat.example.com/api",
              "token": "your-bot-token-here",
-             "username": "your-bot-username"
+             "username": "your-bot-username",
+             "reactOnMention": "👀"
            }
          }
        }
      }
    }
    ```
+
+   **Note:** The `reactOnMention` field is optional. If set, the bot will react with this emoji when mentioned. You can use emoji characters (`"👀"`) or emoji shortcodes (`"eyes"`).
 
 4. **Restart OpenClaw**:
    ```bash
@@ -134,6 +137,7 @@ Edit `~/.openclaw/openclaw.json` and add your relay-chat connection:
 | `apiBase` | HTTP base URL with `/api` path | `https://chat.example.com/api` |
 | `token` | Bot token from relay-chat | `2d15b3ed8376f22...` |
 | `username` | Bot username for @mention detection | `openclaw` |
+| `reactOnMention` | (Optional) Emoji to react with when mentioned | `"👀"` or `"eyes"` |
 
 **Important:**
 - `url` must use `ws://` (local) or `wss://` (production) protocol and include `/ws` path

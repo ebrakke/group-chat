@@ -171,7 +171,7 @@ export class RelayClient {
    * @param emoji - Emoji to add (e.g., "👀", "👍")
    */
   async addReaction(messageId: number, emoji: string): Promise<void> {
-    const url = `${this.config.apiBase}/v1/messages/${messageId}/reactions`;
+    const url = `${this.config.apiBase}/messages/${messageId}/reactions`;
     const response = await fetch(url, {
       method: 'POST',
       headers: {

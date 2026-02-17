@@ -37,6 +37,8 @@ type Hub struct {
 	clients map[*client]struct{}
 	// AuthFunc validates a token and returns auth metadata. Set by the app.
 	AuthFunc func(token string) (*AuthResult, error)
+	// GetChannelIDsFunc retrieves current channel IDs for a bot. Set by the app.
+	GetChannelIDsFunc func(userID int64) ([]int64, error)
 }
 
 // NewHub creates a new WebSocket hub.
@@ -133,4 +135,33 @@ func (h *Hub) unregister(c *client) {
 	h.mu.Lock()
 	delete(h.clients, c)
 	h.mu.Unlock()
+}
+
+// RefreshBotPermissions updates the channel IDs for all connected bot clients with the given userID.
+// This should be called when a bot's channel bindings are modified.
+func (h *Hub) RefreshBotPermissions(botUserID int64) {
+	if h.GetChannelIDsFunc == nil {
+		return
+	}
+
+	channelIDs, err := h.GetChannelIDsFunc(botUserID)
+	if err != nil {
+		log.Printf("ws: failed to refresh bot permissions for user %d: %v", botUserID, err)
+		return
+	}
+
+	channelSet := make(map[int64]bool, len(channelIDs))
+	for _, id := range channelIDs {
+		channelSet[id] = true
+	}
+
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	for c := range h.clients {
+		if c.isBot && c.userID == botUserID {
+			c.channelIDs = channelSet
+			log.Printf("ws: refreshed permissions for bot user %d: %d channels", botUserID, len(channelIDs))
+		}
+	}
 }

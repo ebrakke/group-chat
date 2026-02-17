@@ -75,6 +75,9 @@ func main() {
 		}
 		return nil, fmt.Errorf("unauthorized")
 	}
+	hub.GetChannelIDsFunc = func(userID int64) ([]int64, error) {
+		return botSvc.GetBoundChannelIDs(userID)
+	}
 
 	// API handler
 	apiHandler := api.New(authSvc, botSvc, chanSvc, msgSvc, reactSvc, hub)

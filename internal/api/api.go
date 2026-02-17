@@ -620,6 +620,16 @@ func (h *Handler) handleAddReaction(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusNotFound, errors.New("message not found"))
 		return
 	}
+
+	// Bot permission check
+	if user.IsBot {
+		canWrite, err := h.bots.CanWrite(user.ID, msg.ChannelID)
+		if err != nil || !canWrite {
+			writeErr(w, http.StatusForbidden, errors.New("bot not authorized for this channel"))
+			return
+		}
+	}
+
 	ch, err := h.channels.GetByID(msg.ChannelID)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, err)
@@ -661,6 +671,15 @@ func (h *Handler) handleRemoveReaction(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeErr(w, http.StatusNotFound, errors.New("message not found"))
 		return
+	}
+
+	// Bot permission check
+	if user.IsBot {
+		canWrite, err := h.bots.CanWrite(user.ID, msg.ChannelID)
+		if err != nil || !canWrite {
+			writeErr(w, http.StatusForbidden, errors.New("bot not authorized for this channel"))
+			return
+		}
 	}
 
 	err = h.reactions.Remove(messageID, user.ID, emoji)
@@ -991,6 +1010,10 @@ func (h *Handler) handleBindBotChannel(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, err)
 		return
 	}
+
+	// Refresh permissions for connected bot clients
+	h.hub.RefreshBotPermissions(botID)
+
 	writeJSON(w, http.StatusCreated, binding)
 }
 
@@ -1020,6 +1043,10 @@ func (h *Handler) handleUnbindBotChannel(w http.ResponseWriter, r *http.Request)
 		writeErr(w, http.StatusInternalServerError, err)
 		return
 	}
+
+	// Refresh permissions for connected bot clients
+	h.hub.RefreshBotPermissions(botID)
+
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 

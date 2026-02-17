@@ -86,8 +86,15 @@ function handleMessage(accountId: string, config: AccountConfig, message: RelayM
 
   console.log(`Received @mention from ${message.username} in channel ${message.channelId}`);
 
-  // Note: Reactions API not available yet in production relay-chat
-  // Will add when the API endpoint is implemented
+  // React with configured emoji if enabled
+  if (config.reactOnMention) {
+    const client = clients.get(accountId);
+    if (client) {
+      client.addReaction(message.id, config.reactOnMention).catch((err) => {
+        console.error(`Failed to add reaction to message ${message.id}:`, err);
+      });
+    }
+  }
 
   // Dispatch to OpenClaw
   dispatchToOpenClaw(accountId, message).catch((err) => {

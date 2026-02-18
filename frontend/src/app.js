@@ -974,22 +974,9 @@ async function renderSettings() {
         <div id="notification-success" class="success hidden"></div>
         <div id="notification-settings-content">
           <div class="form-group">
-            <label>Notification Provider</label>
-            <div id="provider-radios"></div>
-          </div>
-          <div id="provider-config-pushover" class="provider-config hidden">
-            <div class="form-group">
-              <label>Pushover User Key</label>
-              <input type="text" id="pushover-key" placeholder="Your Pushover user key" class="input-sm">
-              <small>Get your user key from <a href="https://pushover.net" target="_blank">pushover.net</a></small>
-            </div>
-          </div>
-          <div id="provider-config-webhook" class="provider-config hidden">
-            <div class="form-group">
-              <label>Webhook URL</label>
-              <input type="text" id="webhook-url" placeholder="https://ntfy.sh/your-topic" class="input-sm">
-              <small>Examples: ntfy.sh or any custom webhook endpoint</small>
-            </div>
+            <label>Pushover User Key</label>
+            <input type="text" id="pushover-key" placeholder="Your Pushover user key" class="input-sm">
+            <small>Get your user key from <a href="https://pushover.net" target="_blank">pushover.net</a></small>
           </div>
           <div class="form-group">
             <label class="checkbox-label">
@@ -1089,30 +1076,19 @@ async function loadAdminInvites() {
 
 async function loadNotificationSettings() {
   try {
-    // Fetch available providers
+    // Check if Pushover is configured by the admin
     const providersRes = await api("GET", "/api/notifications/providers");
     const providers = providersRes.providers || [];
 
-    if (providers.length === 0) {
+    if (!providers.includes("pushover")) {
       const content = document.getElementById("notification-settings-content");
       if (content) {
-        content.innerHTML = '<div class="error">No notification providers are configured by the admin.</div>';
+        content.innerHTML = '<div class="error">Pushover is not configured by the admin. Please ask an administrator to set up the Pushover application token.</div>';
       }
       return;
     }
 
-    // Render provider radio buttons
-    const radiosContainer = document.getElementById("provider-radios");
-    if (radiosContainer) {
-      radiosContainer.innerHTML = providers.map(p =>
-        `<label class="checkbox-label">
-          <input type="radio" name="provider" value="${esc(p)}">
-          ${esc(p.charAt(0).toUpperCase() + p.slice(1))}
-        </label>`
-      ).join("");
-    }
-
-    // Fetch current settings
+    // Fetch current user settings
     const res = await api("GET", "/api/notifications/settings");
     const notifyMentions = document.getElementById("notify-mentions");
     const notifyThreadReplies = document.getElementById("notify-thread-replies");
@@ -1124,13 +1100,7 @@ async function loadNotificationSettings() {
       notifyThreadReplies.checked = res.notifyThreadReplies !== false;
       notifyAllMessages.checked = res.notifyAllMessages === true;
 
-      // Select the current provider radio button
-      const providerRadio = document.querySelector(`input[name="provider"][value="${res.provider}"]`);
-      if (providerRadio) {
-        providerRadio.checked = true;
-      }
-
-      // Parse and populate provider-specific config
+      // Parse and populate Pushover user key
       let providerConfig = {};
       try {
         if (res.providerConfig) {
@@ -1140,58 +1110,17 @@ async function loadNotificationSettings() {
         console.error("Failed to parse provider config:", e);
       }
 
-      if (res.provider === "pushover" && providerConfig.key) {
+      if (providerConfig.key) {
         const pushoverKey = document.getElementById("pushover-key");
         if (pushoverKey) pushoverKey.value = providerConfig.key;
-      } else if (res.provider === "webhook" && providerConfig.url) {
-        const webhookUrl = document.getElementById("webhook-url");
-        if (webhookUrl) webhookUrl.value = providerConfig.url;
-      }
-
-      // Show the appropriate provider config div
-      showProviderConfig(res.provider);
-    } else {
-      // Select first provider by default
-      if (providers.length > 0) {
-        const firstRadio = document.querySelector('input[name="provider"]');
-        if (firstRadio) {
-          firstRadio.checked = true;
-          showProviderConfig(firstRadio.value);
-        }
       }
     }
-
-    // Add event listeners for provider radio buttons
-    document.querySelectorAll('input[name="provider"]').forEach(radio => {
-      radio.addEventListener("change", (e) => {
-        showProviderConfig(e.target.value);
-      });
-      // Also trigger for currently checked radio on page load
-      if (radio.checked) {
-        showProviderConfig(radio.value);
-      }
-    });
   } catch (e) {
     console.error("Error loading notification settings:", e);
     console.error("Stack:", e.stack);
   }
 }
 
-function showProviderConfig(provider) {
-  // Hide all provider config divs
-  const allConfigs = document.querySelectorAll(".provider-config");
-  allConfigs.forEach(div => {
-    div.classList.add("hidden");
-  });
-
-  // Show the selected provider's config div
-  const configDiv = document.getElementById(`provider-config-${provider}`);
-  if (configDiv) {
-    configDiv.classList.remove("hidden");
-    // Force display to block to override any CSS issues
-    configDiv.style.display = "block";
-  }
-}
 
 async function saveNotificationSettings() {
   const errEl = document.getElementById("notification-error");
@@ -1200,43 +1129,22 @@ async function saveNotificationSettings() {
   errEl.classList.add("hidden");
   successEl.classList.add("hidden");
 
-  // Get selected provider
-  const providerRadio = document.querySelector('input[name="provider"]:checked');
-  if (!providerRadio) {
-    errEl.textContent = "Please select a notification provider";
-    errEl.classList.remove("hidden");
-    return;
-  }
-
-  const provider = providerRadio.value;
   const notifyMentions = document.getElementById("notify-mentions").checked;
   const notifyThreadReplies = document.getElementById("notify-thread-replies").checked;
   const notifyAllMessages = document.getElementById("notify-all-messages").checked;
 
-  // Build provider-specific config
-  let providerConfig = {};
-  if (provider === "pushover") {
-    const pushoverKey = document.getElementById("pushover-key").value.trim();
-    if (!pushoverKey) {
-      errEl.textContent = "Pushover User Key is required";
-      errEl.classList.remove("hidden");
-      return;
-    }
-    providerConfig = { key: pushoverKey };
-  } else if (provider === "webhook") {
-    const webhookUrl = document.getElementById("webhook-url").value.trim();
-    if (!webhookUrl) {
-      errEl.textContent = "Webhook URL is required";
-      errEl.classList.remove("hidden");
-      return;
-    }
-    providerConfig = { url: webhookUrl };
+  // Get Pushover user key
+  const pushoverKey = document.getElementById("pushover-key").value.trim();
+  if (!pushoverKey) {
+    errEl.textContent = "Pushover User Key is required";
+    errEl.classList.remove("hidden");
+    return;
   }
 
   try {
     await api("POST", "/api/notifications/settings", {
-      provider: provider,
-      providerConfig: JSON.stringify(providerConfig),
+      provider: "pushover",
+      providerConfig: JSON.stringify({ key: pushoverKey }),
       notifyMentions,
       notifyThreadReplies,
       notifyAllMessages,

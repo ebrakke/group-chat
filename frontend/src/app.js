@@ -1203,6 +1203,7 @@ async function savePushoverSettings() {
 
 async function selectChannel(channel, fromRoute = false) {
   viewingThreads = false;
+  viewingSettings = false;
   currentChannel = channel;
   openThreadId = null;
   document.getElementById("thread-panel").classList.remove("visible");

@@ -49,6 +49,19 @@ func main() {
 
 	// Services
 	authSvc := auth.NewService(database)
+
+	// Dev mode: auto-bootstrap admin/admin user if no users exist
+	if os.Getenv("DEV_MODE") == "true" {
+		hasUsers, err := authSvc.HasUsers()
+		if err == nil && !hasUsers {
+			_, _, err := authSvc.Bootstrap("admin", "admin", "Dev Admin")
+			if err != nil {
+				log.Printf("Dev mode: failed to auto-bootstrap admin user: %v", err)
+			} else {
+				log.Printf("Dev mode: auto-bootstrapped admin/admin user")
+			}
+		}
+	}
 	botSvc := bots.NewService(database)
 	chanSvc := channels.NewService(database)
 	msgSvc := messages.NewService(database)

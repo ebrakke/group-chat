@@ -675,7 +675,8 @@ async function renderMain() {
     </div>
   ` : "";
 
-  const settingsBtn = isAdmin ? `<button class="settings-btn" id="open-admin" aria-label="Settings">&#9881;</button>` : "";
+  // Show settings button for all users (not just admins)
+  const settingsBtn = `<button class="settings-btn" id="open-admin" aria-label="Settings">&#9881;</button>`;
 
   app.innerHTML = `
     <div class="chat-layout">
@@ -910,8 +911,20 @@ async function renderMain() {
   setupSwipeGestures();
   setupThreadResize();
 
-  // Desktop admin toggle (sidebar)
+  // Settings page handlers (for all users)
+  const openAdmin = document.getElementById("open-admin");
+  if (openAdmin) {
+    openAdmin.onclick = () => openAdminPage();
+  }
+  document.getElementById("close-admin").onclick = closeAdminPage;
+  document.getElementById("admin-logout").onclick = doLogout;
+
+  // Notification settings handler (for all users)
+  document.getElementById("save-notifications").onclick = saveNotificationSettings;
+
+  // Admin-only handlers
   if (isAdmin) {
+    // Desktop admin toggle (sidebar)
     const toggleAdmin = document.getElementById("toggle-admin");
     if (toggleAdmin) {
       toggleAdmin.onclick = () => {
@@ -943,13 +956,7 @@ async function renderMain() {
     }
     loadBots("bot-list");
 
-    // Mobile admin page
-    const openAdmin = document.getElementById("open-admin");
-    if (openAdmin) {
-      openAdmin.onclick = () => openAdminPage();
-    }
-    document.getElementById("close-admin").onclick = closeAdminPage;
-    document.getElementById("admin-logout").onclick = doLogout;
+    // Admin invite handler
     document.getElementById("admin-create-invite").onclick = async () => {
       try {
         const invite = await api("POST", "/api/invites", {});
@@ -971,10 +978,7 @@ async function renderMain() {
     }
     loadBots("admin-bot-list");
 
-    // Notification settings handler
-    document.getElementById("save-notifications").onclick = saveNotificationSettings;
-
-    // Pushover settings handler
+    // Pushover settings handler (admin only)
     document.getElementById("save-pushover-settings").onclick = savePushoverSettings;
   }
 
@@ -1028,10 +1032,16 @@ function attachCopyHandler(container) {
 async function openAdminPage() {
   const panel = document.getElementById("admin-page");
   panel.classList.add("visible");
-  loadAdminInvites();
-  loadBots("admin-bot-list");
+
+  // Load notification settings for all users
   await loadNotificationSettings();
-  await loadPushoverSettings();
+
+  // Load admin-only sections
+  if (currentUser && currentUser.role === "admin") {
+    loadAdminInvites();
+    loadBots("admin-bot-list");
+    await loadPushoverSettings();
+  }
 }
 
 function closeAdminPage() {
@@ -1129,29 +1139,30 @@ async function loadNotificationSettings() {
       radio.addEventListener("change", (e) => {
         showProviderConfig(e.target.value);
       });
+      // Also trigger for currently checked radio on page load
+      if (radio.checked) {
+        showProviderConfig(radio.value);
+      }
     });
   } catch (e) {
-    console.log("No notification settings configured yet");
+    console.error("Error loading notification settings:", e);
+    console.error("Stack:", e.stack);
   }
 }
 
 function showProviderConfig(provider) {
-  console.log("showProviderConfig called with:", provider);
-
   // Hide all provider config divs
-  document.querySelectorAll(".provider-config").forEach(div => {
-    console.log("Hiding:", div.id);
+  const allConfigs = document.querySelectorAll(".provider-config");
+  allConfigs.forEach(div => {
     div.classList.add("hidden");
   });
 
   // Show the selected provider's config div
   const configDiv = document.getElementById(`provider-config-${provider}`);
-  console.log("Looking for config div:", `provider-config-${provider}`, "found:", configDiv);
   if (configDiv) {
     configDiv.classList.remove("hidden");
-    console.log("Showing config div for:", provider);
-  } else {
-    console.error("Config div not found for provider:", provider);
+    // Force display to block to override any CSS issues
+    configDiv.style.display = "block";
   }
 }
 

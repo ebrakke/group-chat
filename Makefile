@@ -29,9 +29,9 @@ dev: build
 	@mkdir -p tmp
 	@echo "--- Starting relay-chat on http://localhost:8080 ---"
 	@echo "    DB: ./tmp/app.db (persists between restarts)"
-	@echo "    First visit → bootstrap (create admin account)"
+	@echo "    DEV_MODE: admin/admin user auto-created if no users exist"
 	@echo "    Ctrl+C to stop"
-	DATA_DIR=./tmp ./relay-chat
+	DEV_MODE=true DATA_DIR=./tmp ./relay-chat serve
 
 test:
 	go test ./internal/... -count=1

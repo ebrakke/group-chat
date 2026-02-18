@@ -737,12 +737,12 @@ async function renderMain() {
 
   document.getElementById("logout").onclick = doLogout;
 
-  document.getElementById("channel-list").onclick = (e) => {
+  document.getElementById("channel-list").onclick = async (e) => {
     const li = e.target.closest("li");
     if (!li) return;
     const id = parseInt(li.dataset.id, 10);
     const name = li.dataset.name;
-    selectChannel({ id, name });
+    await selectChannel({ id, name });
   };
 
   document.getElementById("create-channel-btn").onclick = showCreateChannelModal;
@@ -787,17 +787,26 @@ async function renderMain() {
   document.getElementById("thread-backdrop").onclick = closeThread;
 
   // Escape key handler for panels
-  document.addEventListener("keydown", (e) => {
+  document.addEventListener("keydown", async (e) => {
     if (e.key === "Escape") {
       // Don't close panels if a mention dropdown is open (handled by mention keydown)
       if (mentionDropdown && mentionUsers.length > 0) return;
       if (openThreadId) {
         closeThread();
       } else if (viewingSettings) {
-        // Navigate back from settings
-        const lastChannel = currentChannel || { name: "general" };
-        navigate(`/${lastChannel.name}`);
-        location.reload();
+        // Navigate back from settings to last channel or general
+        try {
+          const channelsList = await api("GET", "/api/channels");
+          let targetChannel = channelsList.find(c => c.name === "general");
+          if (!targetChannel && channelsList.length > 0) {
+            targetChannel = channelsList[0];
+          }
+          if (targetChannel) {
+            await selectChannel(targetChannel);
+          }
+        } catch (e) {
+          console.error("Failed to navigate from settings:", e);
+        }
       }
     }
   });
@@ -1202,10 +1211,57 @@ async function savePushoverSettings() {
 // --- Channel + Messages ---
 
 async function selectChannel(channel, fromRoute = false) {
+  const wasViewingSettings = viewingSettings;
+
   viewingThreads = false;
   viewingSettings = false;
   currentChannel = channel;
   openThreadId = null;
+
+  // If we were viewing settings, we need to restore the main channel view first
+  if (wasViewingSettings) {
+    const channelView = document.getElementById("channel-view");
+    const settingsBtn = `<button class="settings-btn" id="open-settings-btn" aria-label="Settings">&#9881;</button>`;
+    channelView.innerHTML = `
+      <div class="channel-header" id="channel-header"><button class="hamburger-btn" id="sidebar-toggle" aria-label="Toggle sidebar">&#9776;</button><span id="channel-header-text"># ${esc(channel.name)}</span>${settingsBtn}</div>
+      <div id="connection-status" class="connection-status hidden"></div>
+      <div class="message-list" id="message-list"></div>
+      <div class="composer" id="composer" style="display:flex">
+        <textarea id="msg-input" placeholder="> message..." rows="1"></textarea>
+        <button id="msg-send">Send</button>
+      </div>
+    `;
+
+    // Re-attach event handlers
+    const sidebar = document.querySelector(".sidebar");
+    const backdrop = document.getElementById("sidebar-backdrop");
+    document.getElementById("sidebar-toggle").onclick = () => {
+      sidebar.classList.toggle("sidebar-open");
+      backdrop.classList.toggle("sidebar-backdrop-visible");
+      document.body.classList.toggle("sidebar-is-open");
+    };
+
+    document.getElementById("msg-send").onclick = sendMessage;
+    const msgInput = document.getElementById("msg-input");
+    setupAutoGrow(msgInput);
+    msgInput.onkeydown = (e) => {
+      if (mentionDropdown && mentionUsers.length > 0 &&
+          (e.key === "Enter" || e.key === "Tab" || e.key === "ArrowUp" || e.key === "ArrowDown" || e.key === "Escape")) {
+        return;
+      }
+      if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+    };
+    setupMentionAutocomplete(msgInput);
+
+    const openSettingsBtn = document.getElementById("open-settings-btn");
+    if (openSettingsBtn) {
+      openSettingsBtn.onclick = () => {
+        navigate("/settings");
+        renderSettings();
+      };
+    }
+  }
+
   document.getElementById("thread-panel").classList.remove("visible");
   const threadBackdrop = document.getElementById("thread-backdrop");
   if (threadBackdrop) threadBackdrop.classList.remove("visible");
@@ -2054,14 +2110,36 @@ async function handleRoute(channelsList) {
   }
 }
 
-window.addEventListener("popstate", () => {
+window.addEventListener("popstate", async () => {
   if (!currentUser) return;
+
+  // Check if navigating to settings
+  const path = location.pathname.replace(/\/+$/, "") || "/";
+  const parts = path.split("/").filter(Boolean);
+
+  if (parts.length === 1 && parts[0] === "settings") {
+    await renderSettings();
+    return;
+  }
+
+  // If we're currently viewing settings, we need to reconstruct the channels list from API
+  if (viewingSettings) {
+    try {
+      const channelsList = await api("GET", "/api/channels");
+      await handleRoute(channelsList);
+    } catch (e) {
+      console.error("Failed to load channels:", e);
+    }
+    return;
+  }
+
+  // Otherwise, use the DOM to get channels list
   const channelEls = document.querySelectorAll(".channel-list li");
   const channelsList = Array.from(channelEls).map(li => ({
     id: parseInt(li.dataset.id, 10),
     name: li.dataset.name,
   }));
-  handleRoute(channelsList);
+  await handleRoute(channelsList);
 });
 
 // --- Boot ---

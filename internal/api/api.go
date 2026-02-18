@@ -359,7 +359,7 @@ func (h *Handler) handleMarkRead(w http.ResponseWriter, r *http.Request) {
 var channelNameRe = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
 
 func (h *Handler) handleCreateChannel(w http.ResponseWriter, r *http.Request) {
-	_, err := h.requireAuth(r)
+	user, err := h.requireAuth(r)
 	if err != nil {
 		writeErr(w, http.StatusUnauthorized, err)
 		return
@@ -395,6 +395,11 @@ func (h *Handler) handleCreateChannel(w http.ResponseWriter, r *http.Request) {
 		}
 		writeErr(w, http.StatusInternalServerError, err)
 		return
+	}
+
+	// Add creator as a member of the new channel
+	if err := h.channels.AddMember(ch.ID, user.ID); err != nil {
+		log.Printf("Warning: failed to add creator to channel %s: %v", ch.Name, err)
 	}
 
 	h.hub.Broadcast(ws.Event{Type: "channel_created", Payload: ch})

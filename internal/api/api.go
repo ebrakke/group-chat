@@ -500,6 +500,11 @@ func (h *Handler) handleCreateMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Send notifications
+	if err := h.notifications.Send(msg, ch.Name); err != nil {
+		log.Printf("Failed to send notifications for message %d: %v", msg.ID, err)
+	}
+
 	// Broadcast to WebSocket clients
 	h.hub.Broadcast(ws.Event{Type: "new_message", Payload: msg, ChannelID: channelID})
 
@@ -584,6 +589,11 @@ func (h *Handler) handleCreateReply(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, err)
 		return
+	}
+
+	// Send notifications
+	if err := h.notifications.Send(msg, ch.Name); err != nil {
+		log.Printf("Failed to send notifications for reply %d: %v", msg.ID, err)
 	}
 
 	// Broadcast to WebSocket clients

@@ -1,8 +1,8 @@
-const CACHE_NAME = 'relay-chat-0fc5cb6c';
+const CACHE_NAME = 'relay-chat-2fe1cb6c';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
-  '/app.0fc540da.js',
+  '/app.2fe19622.js',
   '/style.cb6c4a7b.css',
   '/icon-192.png',
   '/icon-512.png',

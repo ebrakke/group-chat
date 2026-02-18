@@ -1315,7 +1315,14 @@ async function loadMessages(channelId) {
   list.innerHTML = "";
   try {
     const msgs = await api("GET", `/api/channels/${channelId}/messages?limit=50`);
-    msgs.reverse().forEach(msg => appendMessage(msg));
+    msgs.reverse().forEach(msg => {
+      try {
+        appendMessage(msg);
+      } catch (e) {
+        console.error("Failed to render message:", msg.id, e);
+        // Still try to render other messages even if one fails
+      }
+    });
     list.scrollTop = list.scrollHeight;
   } catch (e) {
     list.innerHTML = `<div class="error">Failed to load messages</div>`;
@@ -1396,7 +1403,14 @@ async function loadReplies(parentId) {
   list.innerHTML = "";
   try {
     const replies = await api("GET", `/api/messages/${parentId}/thread?limit=50`);
-    replies.forEach(reply => appendReply(reply));
+    replies.forEach(reply => {
+      try {
+        appendReply(reply);
+      } catch (e) {
+        console.error("Failed to render reply:", reply.id, e);
+        // Still try to render other replies even if one fails
+      }
+    });
     list.scrollTop = list.scrollHeight;
   } catch {
     list.innerHTML = `<div class="error">Failed to load replies</div>`;
@@ -2121,7 +2135,8 @@ async function handleDeepLink() {
   if (!hash || !currentUser) return;
 
   // Parse: #/channel/123/thread/456 or #/channel/123
-  const match = hash.match(/#\/channel\/(\d+)(?:\/thread\/(\d+))?/);
+  // Only match if it starts with #/ to avoid matching URLs in message content
+  const match = hash.match(/^#\/channel\/(\d+)(?:\/thread\/(\d+))?$/);
   if (!match) return;
 
   const channelId = parseInt(match[1], 10);

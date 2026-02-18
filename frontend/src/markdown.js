@@ -28,7 +28,13 @@ marked.use({ renderer });
  */
 export function renderMarkdown(content) {
   if (!content) return '';
-  return marked.parse(content);
+  try {
+    return marked.parse(content);
+  } catch (e) {
+    console.error("Markdown rendering failed:", e);
+    // Fallback to escaped HTML if markdown parsing fails
+    return escapeHtml(content);
+  }
 }
 
 /**

@@ -755,64 +755,33 @@ input[readonly] {
   margin-bottom: 0.5rem;
 }
 
-/* Admin/Settings page - modal overlay */
-.admin-page {
-  display: none;
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 2000;
-  background: rgba(0,0,0,0.6);
-  align-items: center;
-  justify-content: center;
-}
-.admin-page.visible {
-  display: flex;
-}
-.admin-page-inner {
-  background: #161b22;
-  border: 1px solid #30363d;
-  border-radius: 8px;
-  width: 90%;
-  max-width: 560px;
-  max-height: 80vh;
-  display: flex;
-  flex-direction: column;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.6);
-  overflow: hidden;
-}
-.admin-page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.75rem 1rem;
-  border-bottom: 1px solid #30363d;
-  background: #161b22;
-  flex-shrink: 0;
-}
-.admin-page-header h3 {
-  margin-bottom: 0;
-  color: #58a6ff;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  font-size: 0.85rem;
-}
-.admin-page-content {
-  flex: 1;
+/* Settings page - uses channel view */
+.settings-page-content {
   overflow-y: auto;
   padding: 1rem;
+  max-width: 800px;
+  margin: 0 auto;
 }
-.admin-page-content .card {
+.settings-page-content .card {
   margin-bottom: 1.5rem;
 }
-.admin-page-content h3 {
+.settings-page-content h3 {
   color: #7d8590;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   font-size: 0.75rem;
   margin-bottom: 0.75rem;
+}
+.settings-user-info {
+  padding: 1rem;
+  background: #161b22;
+  border-radius: 6px;
+  border-left: 2px solid #58a6ff;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+.settings-user-info strong {
+  color: #58a6ff;
 }
 .settings-btn {
   display: inline-flex;
@@ -834,16 +803,6 @@ input[readonly] {
 .settings-btn:hover {
   background: rgba(255, 255, 255, 0.08);
   border-color: #484f58;
-}
-.admin-user-info {
-  font-size: 0.85rem;
-  color: #7d8590;
-  margin-bottom: 1rem;
-  padding-bottom: 1rem;
-  border-bottom: 1px solid #30363d;
-}
-.admin-user-info strong {
-  color: #b1bac4;
 }
 
 /* Scroll lock when sidebar overlay is open */
@@ -967,26 +926,6 @@ body.sidebar-is-open {
   /* Hide admin section from sidebar on mobile */
   .admin-section {
     display: none;
-  }
-
-  /* Admin page - full screen overlay on mobile */
-  .admin-page.visible {
-    background: #0d1117;
-    align-items: stretch;
-    justify-content: stretch;
-  }
-  .admin-page-inner {
-    width: 100%;
-    max-width: 100%;
-    max-height: 100%;
-    height: 100%;
-    border-radius: 0;
-    border: none;
-    box-shadow: none;
-  }
-  .admin-page-header {
-    padding-top: max(0.75rem, env(safe-area-inset-top));
-    min-height: 48px;
   }
 
   /* Thread panel - full screen on mobile */

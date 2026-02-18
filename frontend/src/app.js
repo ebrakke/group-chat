@@ -8,6 +8,7 @@ let sessionToken = null;
 let currentChannel = null;
 let openThreadId = null;
 let viewingThreads = false;
+let viewingSettings = false;
 let wsConn = null;
 let unreadState = new Map(); // channelId -> { count, hasMention }
 
@@ -675,8 +676,8 @@ async function renderMain() {
     </div>
   ` : "";
 
-  // Show settings button for all users (not just admins)
-  const settingsBtn = `<button class="settings-btn" id="open-admin" aria-label="Settings">&#9881;</button>`;
+  // Show settings link for all users (not just admins)
+  const settingsBtn = `<button class="settings-btn" id="open-settings-btn" aria-label="Settings">&#9881;</button>`;
 
   app.innerHTML = `
     <div class="chat-layout">
@@ -728,92 +729,6 @@ async function renderMain() {
           <div class="composer">
             <textarea id="reply-input" placeholder="> reply..." rows="1"></textarea>
             <button id="reply-send">Send</button>
-          </div>
-        </div>
-        <div id="admin-page" class="admin-page">
-          <div class="admin-page-inner">
-            <div class="admin-page-header">
-              <h3>Settings</h3>
-              <button id="close-admin" class="secondary btn-sm" aria-label="Close settings">&#8592; <span class="close-text">Close</span></button>
-            </div>
-            <div class="admin-page-content">
-              <div class="admin-user-info">
-                Logged in as <strong>${esc(currentUser.displayName)}</strong> (${esc(currentUser.role)})
-              </div>
-              <div class="card">
-                <h3>Notifications</h3>
-                <div id="notification-error" class="error hidden"></div>
-                <div id="notification-success" class="success hidden"></div>
-                <div id="notification-settings-content">
-                  <div class="form-group">
-                    <label>Notification Provider</label>
-                    <div id="provider-radios"></div>
-                  </div>
-                  <div id="provider-config-pushover" class="provider-config hidden">
-                    <div class="form-group">
-                      <label>Pushover User Key</label>
-                      <input type="text" id="pushover-key" placeholder="Your Pushover user key" class="input-sm">
-                      <small>Get your user key from <a href="https://pushover.net" target="_blank">pushover.net</a></small>
-                    </div>
-                  </div>
-                  <div id="provider-config-webhook" class="provider-config hidden">
-                    <div class="form-group">
-                      <label>Webhook URL</label>
-                      <input type="text" id="webhook-url" placeholder="https://ntfy.sh/your-topic" class="input-sm">
-                      <small>Examples: ntfy.sh or any custom webhook endpoint</small>
-                    </div>
-                  </div>
-                  <div class="form-group">
-                    <label class="checkbox-label">
-                      <input type="checkbox" id="notify-mentions" checked>
-                      Notify on @mentions
-                    </label>
-                  </div>
-                  <div class="form-group">
-                    <label class="checkbox-label">
-                      <input type="checkbox" id="notify-thread-replies" checked>
-                      Notify on thread replies
-                    </label>
-                  </div>
-                  <div class="form-group">
-                    <label class="checkbox-label">
-                      <input type="checkbox" id="notify-all-messages">
-                      Notify on all messages
-                    </label>
-                  </div>
-                  <button id="save-notifications" class="btn-sm">Save Notification Settings</button>
-                </div>
-              </div>
-              <div class="card">
-                <h3>Invites</h3>
-                <div id="admin-invite-error" class="error hidden"></div>
-                <div id="admin-invite-result"></div>
-                <button id="admin-create-invite" class="btn-sm">Create Invite</button>
-                <ul class="invite-list" id="admin-invite-list"></ul>
-              </div>
-              <div class="card">
-                <h3>Bots</h3>
-                <button id="admin-create-bot" class="btn-sm">Create Bot</button>
-                <ul class="bot-list" id="admin-bot-list"></ul>
-              </div>
-              <div class="card">
-                <h3>Pushover Integration</h3>
-                <div id="pushover-settings-error" class="error hidden"></div>
-                <div id="pushover-settings-success" class="success hidden"></div>
-                <div id="pushover-settings-content">
-                  <div class="form-group">
-                    <label>Pushover Application Token (Server-wide)</label>
-                    <input type="text" id="pushover-app-token" placeholder="Your Pushover app token" class="input-sm">
-                    <small>Get your app token from <a href="https://pushover.net/apps/build" target="_blank">pushover.net/apps/build</a></small>
-                  </div>
-                  <button id="save-pushover-settings" class="btn-sm">Save Pushover Settings</button>
-                </div>
-              </div>
-              <div class="card">
-                <h3>Account</h3>
-                <button id="admin-logout" class="secondary">Logout</button>
-              </div>
-            </div>
           </div>
         </div>
       </div>
@@ -871,13 +786,6 @@ async function renderMain() {
   // Thread backdrop click-to-close
   document.getElementById("thread-backdrop").onclick = closeThread;
 
-  // Admin page backdrop click-to-close (click on overlay, not inner modal)
-  document.getElementById("admin-page").onclick = (e) => {
-    if (e.target === document.getElementById("admin-page")) {
-      closeAdminPage();
-    }
-  };
-
   // Escape key handler for panels
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") {
@@ -885,11 +793,11 @@ async function renderMain() {
       if (mentionDropdown && mentionUsers.length > 0) return;
       if (openThreadId) {
         closeThread();
-      } else {
-        const adminPage = document.getElementById("admin-page");
-        if (adminPage && adminPage.classList.contains("visible")) {
-          closeAdminPage();
-        }
+      } else if (viewingSettings) {
+        // Navigate back from settings
+        const lastChannel = currentChannel || { name: "general" };
+        navigate(`/${lastChannel.name}`);
+        location.reload();
       }
     }
   });
@@ -911,16 +819,14 @@ async function renderMain() {
   setupSwipeGestures();
   setupThreadResize();
 
-  // Settings page handlers (for all users)
-  const openAdmin = document.getElementById("open-admin");
-  if (openAdmin) {
-    openAdmin.onclick = () => openAdminPage();
+  // Settings page handler (for all users)
+  const openSettingsBtn = document.getElementById("open-settings-btn");
+  if (openSettingsBtn) {
+    openSettingsBtn.onclick = () => {
+      navigate("/settings");
+      renderSettings();
+    };
   }
-  document.getElementById("close-admin").onclick = closeAdminPage;
-  document.getElementById("admin-logout").onclick = doLogout;
-
-  // Notification settings handler (for all users)
-  document.getElementById("save-notifications").onclick = saveNotificationSettings;
 
   // Admin-only handlers
   if (isAdmin) {
@@ -955,31 +861,6 @@ async function renderMain() {
       createBot.onclick = () => showCreateBotModal();
     }
     loadBots("bot-list");
-
-    // Admin invite handler
-    document.getElementById("admin-create-invite").onclick = async () => {
-      try {
-        const invite = await api("POST", "/api/invites", {});
-        const resultEl = document.getElementById("admin-invite-result");
-        resultEl.innerHTML = renderInviteLink(invite.code);
-        attachCopyHandler(resultEl);
-        loadAdminInvites();
-      } catch (e) {
-        const errEl = document.getElementById("admin-invite-error");
-        errEl.textContent = e.message;
-        errEl.classList.remove("hidden");
-      }
-    };
-
-    // Mobile bot handlers
-    const adminCreateBot = document.getElementById("admin-create-bot");
-    if (adminCreateBot) {
-      adminCreateBot.onclick = () => showCreateBotModal();
-    }
-    loadBots("admin-bot-list");
-
-    // Pushover settings handler (admin only)
-    document.getElementById("save-pushover-settings").onclick = savePushoverSettings;
   }
 
   await handleRoute(channelsList);
@@ -1027,25 +908,171 @@ function attachCopyHandler(container) {
   };
 }
 
-// --- Admin Page ---
+// --- Settings Page ---
 
-async function openAdminPage() {
-  const panel = document.getElementById("admin-page");
-  panel.classList.add("visible");
+async function renderSettings() {
+  viewingSettings = true;
+  viewingThreads = false;
+  currentChannel = null;
+  openThreadId = null;
+
+  // Close thread panel if open
+  document.getElementById("thread-panel").classList.remove("visible");
+  const threadBackdrop = document.getElementById("thread-backdrop");
+  if (threadBackdrop) threadBackdrop.classList.remove("visible");
+
+  const isAdmin = currentUser && currentUser.role === "admin";
+
+  // Build admin-only sections
+  const adminInvitesSection = isAdmin ? `
+    <div class="card">
+      <h3>Invites</h3>
+      <div id="admin-invite-error" class="error hidden"></div>
+      <div id="admin-invite-result"></div>
+      <button id="admin-create-invite" class="btn-sm">Create Invite</button>
+      <ul class="invite-list" id="admin-invite-list"></ul>
+    </div>
+  ` : '';
+
+  const adminBotsSection = isAdmin ? `
+    <div class="card">
+      <h3>Bots</h3>
+      <button id="admin-create-bot" class="btn-sm">Create Bot</button>
+      <ul class="bot-list" id="admin-bot-list"></ul>
+    </div>
+  ` : '';
+
+  const adminPushoverSection = isAdmin ? `
+    <div class="card">
+      <h3>Pushover Integration</h3>
+      <div id="pushover-settings-error" class="error hidden"></div>
+      <div id="pushover-settings-success" class="success hidden"></div>
+      <div id="pushover-settings-content">
+        <div class="form-group">
+          <label>Pushover Application Token (Server-wide)</label>
+          <input type="text" id="pushover-app-token" placeholder="Your Pushover app token" class="input-sm">
+          <small>Get your app token from <a href="https://pushover.net/apps/build" target="_blank">pushover.net/apps/build</a></small>
+        </div>
+        <button id="save-pushover-settings" class="btn-sm">Save Pushover Settings</button>
+      </div>
+    </div>
+  ` : '';
+
+  const channelView = document.getElementById("channel-view");
+  channelView.innerHTML = `
+    <div class="channel-header">
+      <button class="hamburger-btn" id="settings-sidebar-toggle" aria-label="Toggle sidebar">&#9776;</button>
+      <span>Settings</span>
+    </div>
+    <div class="settings-page-content">
+      <div class="settings-user-info">
+        Logged in as <strong>${esc(currentUser.displayName)}</strong> (${esc(currentUser.role)})
+      </div>
+      <div class="card">
+        <h3>Notifications</h3>
+        <div id="notification-error" class="error hidden"></div>
+        <div id="notification-success" class="success hidden"></div>
+        <div id="notification-settings-content">
+          <div class="form-group">
+            <label>Notification Provider</label>
+            <div id="provider-radios"></div>
+          </div>
+          <div id="provider-config-pushover" class="provider-config hidden">
+            <div class="form-group">
+              <label>Pushover User Key</label>
+              <input type="text" id="pushover-key" placeholder="Your Pushover user key" class="input-sm">
+              <small>Get your user key from <a href="https://pushover.net" target="_blank">pushover.net</a></small>
+            </div>
+          </div>
+          <div id="provider-config-webhook" class="provider-config hidden">
+            <div class="form-group">
+              <label>Webhook URL</label>
+              <input type="text" id="webhook-url" placeholder="https://ntfy.sh/your-topic" class="input-sm">
+              <small>Examples: ntfy.sh or any custom webhook endpoint</small>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="notify-mentions" checked>
+              Notify on @mentions
+            </label>
+          </div>
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="notify-thread-replies" checked>
+              Notify on thread replies
+            </label>
+          </div>
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="notify-all-messages">
+              Notify on all messages
+            </label>
+          </div>
+          <button id="save-notifications" class="btn-sm">Save Notification Settings</button>
+        </div>
+      </div>
+      ${adminInvitesSection}
+      ${adminBotsSection}
+      ${adminPushoverSection}
+      <div class="card">
+        <h3>Account</h3>
+        <button id="settings-logout" class="secondary">Logout</button>
+      </div>
+    </div>
+  `;
+
+  // Attach event handlers
+  const settingsSidebarToggle = document.getElementById("settings-sidebar-toggle");
+  if (settingsSidebarToggle) {
+    settingsSidebarToggle.onclick = () => {
+      const sidebar = document.querySelector(".sidebar");
+      const backdrop = document.getElementById("sidebar-backdrop");
+      sidebar.classList.toggle("sidebar-open");
+      backdrop.classList.toggle("sidebar-backdrop-visible");
+      document.body.classList.toggle("sidebar-is-open");
+    };
+  }
+
+  document.getElementById("settings-logout").onclick = doLogout;
+  document.getElementById("save-notifications").onclick = saveNotificationSettings;
 
   // Load notification settings for all users
   await loadNotificationSettings();
 
-  // Load admin-only sections
-  if (currentUser && currentUser.role === "admin") {
+  // Admin-only event handlers and data loading
+  if (isAdmin) {
+    const adminCreateInvite = document.getElementById("admin-create-invite");
+    if (adminCreateInvite) {
+      adminCreateInvite.onclick = async () => {
+        try {
+          const invite = await api("POST", "/api/invites", {});
+          const resultEl = document.getElementById("admin-invite-result");
+          resultEl.innerHTML = renderInviteLink(invite.code);
+          attachCopyHandler(resultEl);
+          loadAdminInvites();
+        } catch (e) {
+          const errEl = document.getElementById("admin-invite-error");
+          errEl.textContent = e.message;
+          errEl.classList.remove("hidden");
+        }
+      };
+    }
+
+    const adminCreateBot = document.getElementById("admin-create-bot");
+    if (adminCreateBot) {
+      adminCreateBot.onclick = () => showCreateBotModal();
+    }
+
+    const savePushoverSettingsBtn = document.getElementById("save-pushover-settings");
+    if (savePushoverSettingsBtn) {
+      savePushoverSettingsBtn.onclick = savePushoverSettings;
+    }
+
     loadAdminInvites();
     loadBots("admin-bot-list");
     await loadPushoverSettings();
   }
-}
-
-function closeAdminPage() {
-  document.getElementById("admin-page").classList.remove("visible");
 }
 
 async function loadAdminInvites() {
@@ -2073,6 +2100,12 @@ function navigate(path, replace = false) {
 async function handleRoute(channelsList) {
   const path = location.pathname.replace(/\/+$/, "") || "/";
   const parts = path.split("/").filter(Boolean);
+
+  // Handle /settings route
+  if (parts.length === 1 && parts[0] === "settings") {
+    await renderSettings();
+    return;
+  }
 
   // Handle /threads route
   if (parts.length === 1 && parts[0] === "threads") {

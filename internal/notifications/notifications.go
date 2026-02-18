@@ -231,15 +231,13 @@ func (s *Service) buildPayload(msg *messages.Message, channelName string) Payloa
 
 // Send checks notification rules and sends notifications for a new message.
 func (s *Service) Send(msg *messages.Message, channelName string) error {
-	// Get all users in the channel (excluding message author)
+	// Get all users except the message author
+	// Since all users can see all channels, we don't filter by channel membership
 	rows, err := s.db.Query(`
-		SELECT u.id
-		FROM users u
-		JOIN channel_members cm ON u.id = cm.user_id
-		WHERE cm.channel_id = ? AND u.id != ?
-	`, msg.ChannelID, msg.UserID)
+		SELECT id FROM users WHERE id != ? AND role != 'bot'
+	`, msg.UserID)
 	if err != nil {
-		return fmt.Errorf("query channel members: %w", err)
+		return fmt.Errorf("query users: %w", err)
 	}
 	defer rows.Close()
 

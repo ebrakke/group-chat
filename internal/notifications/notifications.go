@@ -211,8 +211,14 @@ func (s *Service) buildPayload(msg *messages.Message, channelName string) Payloa
 		content = content[:500] + "..."
 	}
 
+	// Use configured base URL from settings, fallback to default
+	baseURL := s.baseURL
+	if configuredURL, err := s.GetAppSetting("base_url"); err == nil && configuredURL != "" {
+		baseURL = configuredURL
+	}
+
 	// Build deep link URL
-	url := s.baseURL + "/#/channel/" + fmt.Sprintf("%d", msg.ChannelID)
+	url := baseURL + "/#/channel/" + fmt.Sprintf("%d", msg.ChannelID)
 	if msg.ParentID != nil {
 		url += "/thread/" + fmt.Sprintf("%d", *msg.ParentID)
 	}

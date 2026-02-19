@@ -953,6 +953,19 @@ async function renderSettings() {
 
   const adminPushoverSection = isAdmin ? `
     <div class="card">
+      <h3>General Settings</h3>
+      <div id="general-settings-error" class="error hidden"></div>
+      <div id="general-settings-success" class="success hidden"></div>
+      <div id="general-settings-content">
+        <div class="form-group">
+          <label>Base URL</label>
+          <input type="text" id="base-url" placeholder="https://chat.example.com" class="input-sm">
+          <small>Used in notification links. Include protocol (http:// or https://)</small>
+        </div>
+        <button id="save-general-settings" class="btn-sm">Save General Settings</button>
+      </div>
+    </div>
+    <div class="card">
       <h3>Pushover Integration</h3>
       <div id="pushover-settings-error" class="error hidden"></div>
       <div id="pushover-settings-success" class="success hidden"></div>
@@ -1060,6 +1073,11 @@ async function renderSettings() {
       adminCreateBot.onclick = () => showCreateBotModal();
     }
 
+    const saveGeneralSettingsBtn = document.getElementById("save-general-settings");
+    if (saveGeneralSettingsBtn) {
+      saveGeneralSettingsBtn.onclick = saveGeneralSettings;
+    }
+
     const savePushoverSettingsBtn = document.getElementById("save-pushover-settings");
     if (savePushoverSettingsBtn) {
       savePushoverSettingsBtn.onclick = savePushoverSettings;
@@ -1067,6 +1085,7 @@ async function renderSettings() {
 
     loadAdminInvites();
     loadBots("admin-bot-list");
+    await loadGeneralSettings();
     await loadPushoverSettings();
   }
 }
@@ -1161,6 +1180,54 @@ async function saveNotificationSettings() {
     successEl.textContent = "Notification settings saved successfully";
     successEl.classList.remove("hidden");
     setTimeout(() => successEl.classList.add("hidden"), 3000);
+  } catch (e) {
+    errEl.textContent = "Failed to save settings: " + e.message;
+    errEl.classList.remove("hidden");
+  }
+}
+
+async function loadGeneralSettings() {
+  try {
+    const res = await api("GET", "/api/admin/settings");
+    const baseUrlInput = document.getElementById("base-url");
+    if (!baseUrlInput) return;
+
+    if (res.baseUrl) {
+      baseUrlInput.value = res.baseUrl;
+    }
+  } catch (e) {
+    console.log("No general settings configured yet");
+  }
+}
+
+async function saveGeneralSettings() {
+  const errEl = document.getElementById("general-settings-error");
+  const successEl = document.getElementById("general-settings-success");
+
+  errEl.classList.add("hidden");
+  successEl.classList.add("hidden");
+
+  const baseUrl = document.getElementById("base-url").value.trim();
+  if (!baseUrl) {
+    errEl.textContent = "Base URL is required";
+    errEl.classList.remove("hidden");
+    return;
+  }
+
+  // Basic URL validation
+  if (!baseUrl.startsWith("http://") && !baseUrl.startsWith("https://")) {
+    errEl.textContent = "Base URL must start with http:// or https://";
+    errEl.classList.remove("hidden");
+    return;
+  }
+
+  try {
+    await api("POST", "/api/admin/settings", {
+      base_url: baseUrl,
+    });
+    successEl.textContent = "General settings saved successfully.";
+    successEl.classList.remove("hidden");
+    setTimeout(() => successEl.classList.add("hidden"), 5000);
   } catch (e) {
     errEl.textContent = "Failed to save settings: " + e.message;
     errEl.classList.remove("hidden");

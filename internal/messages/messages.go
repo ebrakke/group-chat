@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
@@ -60,10 +61,14 @@ func (s *Service) Create(channelID, userID int64, content, groupID string) (*Mes
 		return nil, fmt.Errorf("create event: %w", err)
 	}
 
+	// Extract and serialize mentions
+	mentions := extractMentions(content)
+	mentionsJSON, _ := json.Marshal(mentions)
+
 	now := time.Now().UTC().Format(time.RFC3339)
 	res, err := s.db.Exec(
-		"INSERT INTO messages (channel_id, user_id, content, event_id, created_at) VALUES (?, ?, ?, ?, ?)",
-		channelID, userID, content, eventID, now,
+		"INSERT INTO messages (channel_id, user_id, content, event_id, mentions, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+		channelID, userID, content, eventID, mentionsJSON, now,
 	)
 	if err != nil {
 		return nil, err
@@ -105,10 +110,14 @@ func (s *Service) CreateReply(parentID, userID int64, content string, groupID st
 		return nil, fmt.Errorf("create event: %w", err)
 	}
 
+	// Extract and serialize mentions
+	mentions := extractMentions(content)
+	mentionsJSON, _ := json.Marshal(mentions)
+
 	now := time.Now().UTC().Format(time.RFC3339)
 	res, err := s.db.Exec(
-		"INSERT INTO messages (channel_id, user_id, parent_id, content, event_id, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-		parent.ChannelID, userID, parentID, content, eventID, now,
+		"INSERT INTO messages (channel_id, user_id, parent_id, content, event_id, mentions, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+		parent.ChannelID, userID, parentID, content, eventID, mentionsJSON, now,
 	)
 	if err != nil {
 		return nil, err

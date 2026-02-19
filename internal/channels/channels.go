@@ -142,11 +142,11 @@ func (s *Service) ListForUser(userID int64, username string) ([]ChannelWithUnrea
 			   AND m.parent_id IS NULL
 			   AND m.id > COALESCE(cm.last_read_msg_id, 0)) AS unread_count,
 			EXISTS(
-				SELECT 1 FROM messages m2
+				SELECT 1 FROM messages m2, json_each(COALESCE(m2.mentions, '[]'))
 				WHERE m2.channel_id = c.id
 				  AND m2.parent_id IS NULL
 				  AND m2.id > COALESCE(cm.last_read_msg_id, 0)
-				  AND m2.content LIKE '%@' || ? || '%'
+				  AND lower(json_each.value) = lower(?)
 			) AS has_mention
 		FROM channels c
 		LEFT JOIN channel_members cm ON cm.channel_id = c.id AND cm.user_id = ?

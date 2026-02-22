@@ -240,6 +240,23 @@ function showCreateChannelModal() {
 
 // --- Reactions ---
 
+function renderLinkPreviews(previews) {
+  if (!previews || previews.length === 0) return '';
+  return previews.filter(p => p.title).map(p => `
+    <div class="link-preview">
+      <button class="link-preview-dismiss" title="Dismiss">&times;</button>
+      <div class="link-preview-content">
+        <div class="link-preview-text">
+          ${p.siteName ? `<div class="link-preview-site">${esc(p.siteName)}</div>` : ''}
+          <a href="${esc(p.url)}" target="_blank" rel="noopener noreferrer" class="link-preview-title">${esc(p.title)}</a>
+          ${p.description ? `<div class="link-preview-desc">${esc(p.description)}</div>` : ''}
+        </div>
+        ${p.image ? `<img class="link-preview-img" src="${esc(p.image)}" alt="" loading="lazy">` : ''}
+      </div>
+    </div>
+  `).join('');
+}
+
 function renderReactions(msgId, reactions) {
   let html = '<div class="reactions-bar">';
   for (const r of reactions) {
@@ -1398,6 +1415,7 @@ function appendMessage(msg) {
   div.dataset.msgId = msg.id;
   const replyBtn = `<button class="reply-btn btn-sm secondary" data-msg-id="${msg.id}">Reply${msg.replyCount ? ` (${msg.replyCount})` : ""}</button>`;
   const reactionsHtml = renderReactions(msg.id, msg.reactions || []);
+  const linkPreviewsHtml = renderLinkPreviews(msg.linkPreviews);
   const botBadge = msg.isBot ? '<span class="bot-badge">BOT</span>' : '';
   div.innerHTML = `
     <div class="msg-header">
@@ -1405,11 +1423,15 @@ function appendMessage(msg) {
       <span class="msg-time">${fmtTime(msg.createdAt)}</span>
     </div>
     <div class="msg-body">${renderMarkdown(msg.content)}</div>
+    ${linkPreviewsHtml}
     ${reactionsHtml}
     <div class="msg-actions">${replyBtn}</div>
   `;
   div.querySelector(".reply-btn").onclick = () => openThread(msg.id);
   attachReactionHandlers(div, msg.id);
+  div.querySelectorAll(".link-preview-dismiss").forEach(btn => {
+    btn.onclick = () => btn.closest(".link-preview").style.display = "none";
+  });
   list.appendChild(div);
   list.scrollTop = list.scrollHeight;
 }
@@ -1486,6 +1508,7 @@ function appendReply(reply) {
   div.dataset.replyId = reply.id;
   div.dataset.msgId = reply.id;
   const reactionsHtml = renderReactions(reply.id, reply.reactions || []);
+  const linkPreviewsHtml = renderLinkPreviews(reply.linkPreviews);
   const botBadge = reply.isBot ? '<span class="bot-badge">BOT</span>' : '';
   div.innerHTML = `
     <div class="msg-header">
@@ -1493,9 +1516,13 @@ function appendReply(reply) {
       <span class="msg-time">${fmtTime(reply.createdAt)}</span>
     </div>
     <div class="msg-body">${renderMarkdown(reply.content)}</div>
+    ${linkPreviewsHtml}
     ${reactionsHtml}
   `;
   attachReactionHandlers(div, reply.id);
+  div.querySelectorAll(".link-preview-dismiss").forEach(btn => {
+    btn.onclick = () => btn.closest(".link-preview").style.display = "none";
+  });
   list.appendChild(div);
   list.scrollTop = list.scrollHeight;
 }

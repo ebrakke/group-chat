@@ -173,6 +173,32 @@ func TestGetByIDNotFound(t *testing.T) {
 	}
 }
 
+func TestExtractURLs(t *testing.T) {
+	tests := []struct {
+		content string
+		want    []string
+	}{
+		{"no links here", nil},
+		{"check https://example.com out", []string{"https://example.com"}},
+		{"http://a.com and https://b.com/path?q=1", []string{"http://a.com", "https://b.com/path?q=1"}},
+		{"https://a.com https://b.com https://c.com https://d.com", []string{"https://a.com", "https://b.com", "https://c.com"}}, // max 3
+		{"no trailing punc https://example.com.", []string{"https://example.com"}},
+		{"parens (https://example.com)", []string{"https://example.com"}},
+	}
+	for _, tt := range tests {
+		got := extractURLs(tt.content)
+		if len(got) != len(tt.want) {
+			t.Errorf("extractURLs(%q) = %v, want %v", tt.content, got, tt.want)
+			continue
+		}
+		for i := range got {
+			if got[i] != tt.want[i] {
+				t.Errorf("extractURLs(%q)[%d] = %q, want %q", tt.content, i, got[i], tt.want[i])
+			}
+		}
+	}
+}
+
 func TestNostrEventTags(t *testing.T) {
 	d := setupTestDB(t)
 	svc := NewService(d)

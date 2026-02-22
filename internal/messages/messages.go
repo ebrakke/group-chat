@@ -16,6 +16,9 @@ import (
 )
 
 var mentionRe = regexp.MustCompile(`@([a-zA-Z0-9_-]+)`)
+var urlRe = regexp.MustCompile(`https?://[^\s<>\[\]()]+[^\s<>\[\]().,;:!?'")\]}]`)
+
+const maxPreviews = 3
 
 var ErrNotFound = errors.New("message not found")
 
@@ -31,7 +34,16 @@ type Message struct {
 	DisplayName string   `json:"displayName"`
 	ReplyCount  int      `json:"replyCount,omitempty"`
 	IsBot       bool     `json:"isBot,omitempty"`
-	Mentions    []string `json:"mentions,omitempty"`
+	Mentions     []string      `json:"mentions,omitempty"`
+	LinkPreviews []LinkPreview `json:"linkPreviews,omitempty"`
+}
+
+type LinkPreview struct {
+	URL         string `json:"url"`
+	Title       string `json:"title,omitempty"`
+	Description string `json:"description,omitempty"`
+	Image       string `json:"image,omitempty"`
+	SiteName    string `json:"siteName,omitempty"`
 }
 
 type Service struct {
@@ -411,6 +423,15 @@ func extractMentions(content string) []string {
 		}
 	}
 	return mentions
+}
+
+// extractURLs finds up to maxPreviews URLs in message content.
+func extractURLs(content string) []string {
+	matches := urlRe.FindAllString(content, maxPreviews)
+	if len(matches) == 0 {
+		return nil
+	}
+	return matches
 }
 
 func randomHex(n int) string {

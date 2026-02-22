@@ -14,8 +14,8 @@ const renderer = new marked.Renderer();
 
 // Override link rendering to add security attributes
 const originalLink = renderer.link.bind(renderer);
-renderer.link = function(href, title, text) {
-  const html = originalLink(href, title, text);
+renderer.link = function(token) {
+  const html = originalLink(token);
   return html.replace(/^<a /, '<a target="_blank" rel="noopener noreferrer" ');
 };
 

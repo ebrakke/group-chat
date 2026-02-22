@@ -23,17 +23,17 @@ const maxPreviews = 3
 var ErrNotFound = errors.New("message not found")
 
 type Message struct {
-	ID          int64    `json:"id"`
-	ChannelID   int64    `json:"channelId"`
-	UserID      int64    `json:"userId"`
-	ParentID    *int64   `json:"parentId,omitempty"`
-	Content     string   `json:"content"`
-	EventID     string   `json:"eventId,omitempty"`
-	CreatedAt   string   `json:"createdAt"`
-	Username    string   `json:"username"`
-	DisplayName string   `json:"displayName"`
-	ReplyCount  int      `json:"replyCount,omitempty"`
-	IsBot       bool     `json:"isBot,omitempty"`
+	ID           int64         `json:"id"`
+	ChannelID    int64         `json:"channelId"`
+	UserID       int64         `json:"userId"`
+	ParentID     *int64        `json:"parentId,omitempty"`
+	Content      string        `json:"content"`
+	EventID      string        `json:"eventId,omitempty"`
+	CreatedAt    string        `json:"createdAt"`
+	Username     string        `json:"username"`
+	DisplayName  string        `json:"displayName"`
+	ReplyCount   int           `json:"replyCount,omitempty"`
+	IsBot        bool          `json:"isBot,omitempty"`
 	Mentions     []string      `json:"mentions,omitempty"`
 	LinkPreviews []LinkPreview `json:"linkPreviews,omitempty"`
 }
@@ -48,7 +48,7 @@ type LinkPreview struct {
 
 type Service struct {
 	db         *db.DB
-	relayPriv  string // relay private key for signing events
+	relayPriv  string                 // relay private key for signing events
 	notifyFunc func(*Message, string) // callback for notifications
 }
 

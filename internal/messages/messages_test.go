@@ -199,6 +199,29 @@ func TestExtractURLs(t *testing.T) {
 	}
 }
 
+func TestMessageLinkPreviews(t *testing.T) {
+	d := setupTestDB(t)
+	svc := NewService(d)
+
+	// Message with no URLs — linkPreviews should be nil
+	msg, err := svc.Create(1, 1, "no links here", "general")
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if msg.LinkPreviews != nil {
+		t.Errorf("expected nil linkPreviews, got %v", msg.LinkPreviews)
+	}
+
+	// Verify link_previews column is readable (NULL case)
+	got, err := svc.GetByID(msg.ID)
+	if err != nil {
+		t.Fatalf("getByID: %v", err)
+	}
+	if got.LinkPreviews != nil {
+		t.Errorf("expected nil linkPreviews from GetByID, got %v", got.LinkPreviews)
+	}
+}
+
 func TestNostrEventTags(t *testing.T) {
 	d := setupTestDB(t)
 	svc := NewService(d)

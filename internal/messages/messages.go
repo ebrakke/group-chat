@@ -77,10 +77,17 @@ func (s *Service) Create(channelID, userID int64, content, groupID string) (*Mes
 	mentions := extractMentions(content)
 	mentionsJSON, _ := json.Marshal(mentions)
 
+	// Extract URLs and fetch OG metadata
+	previews := fetchLinkPreviews(content)
+	var previewsJSON []byte
+	if len(previews) > 0 {
+		previewsJSON, _ = json.Marshal(previews)
+	}
+
 	now := time.Now().UTC().Format(time.RFC3339)
 	res, err := s.db.Exec(
-		"INSERT INTO messages (channel_id, user_id, content, event_id, mentions, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-		channelID, userID, content, eventID, mentionsJSON, now,
+		"INSERT INTO messages (channel_id, user_id, content, event_id, mentions, link_previews, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+		channelID, userID, content, eventID, mentionsJSON, previewsJSON, now,
 	)
 	if err != nil {
 		return nil, err
@@ -126,10 +133,17 @@ func (s *Service) CreateReply(parentID, userID int64, content string, groupID st
 	mentions := extractMentions(content)
 	mentionsJSON, _ := json.Marshal(mentions)
 
+	// Extract URLs and fetch OG metadata
+	previews := fetchLinkPreviews(content)
+	var previewsJSON []byte
+	if len(previews) > 0 {
+		previewsJSON, _ = json.Marshal(previews)
+	}
+
 	now := time.Now().UTC().Format(time.RFC3339)
 	res, err := s.db.Exec(
-		"INSERT INTO messages (channel_id, user_id, parent_id, content, event_id, mentions, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-		parent.ChannelID, userID, parentID, content, eventID, mentionsJSON, now,
+		"INSERT INTO messages (channel_id, user_id, parent_id, content, event_id, mentions, link_previews, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+		parent.ChannelID, userID, parentID, content, eventID, mentionsJSON, previewsJSON, now,
 	)
 	if err != nil {
 		return nil, err
@@ -157,15 +171,16 @@ func (s *Service) GetByID(id int64) (*Message, error) {
 	var m Message
 	var parentID sql.NullInt64
 	var eventID sql.NullString
+	var previewsJSON sql.NullString
 	var role string
 	err := s.db.QueryRow(`
-		SELECT m.id, m.channel_id, m.user_id, m.parent_id, m.content, m.event_id, m.created_at,
+		SELECT m.id, m.channel_id, m.user_id, m.parent_id, m.content, m.event_id, m.link_previews, m.created_at,
 		       u.username, u.display_name, u.role,
 		       (SELECT COUNT(*) FROM messages r WHERE r.parent_id = m.id) as reply_count
 		FROM messages m
 		JOIN users u ON m.user_id = u.id
 		WHERE m.id = ?
-	`, id).Scan(&m.ID, &m.ChannelID, &m.UserID, &parentID, &m.Content, &eventID, &m.CreatedAt,
+	`, id).Scan(&m.ID, &m.ChannelID, &m.UserID, &parentID, &m.Content, &eventID, &previewsJSON, &m.CreatedAt,
 		&m.Username, &m.DisplayName, &role, &m.ReplyCount)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
@@ -181,6 +196,9 @@ func (s *Service) GetByID(id int64) (*Message, error) {
 	if eventID.Valid {
 		m.EventID = eventID.String
 	}
+	if previewsJSON.Valid {
+		json.Unmarshal([]byte(previewsJSON.String), &m.LinkPreviews)
+	}
 	return &m, nil
 }
 
@@ -195,7 +213,7 @@ func (s *Service) ListChannel(channelID int64, limit int, before int64) ([]Messa
 	var err error
 	if before > 0 {
 		rows, err = s.db.Query(`
-			SELECT m.id, m.channel_id, m.user_id, m.content, m.event_id, m.created_at,
+			SELECT m.id, m.channel_id, m.user_id, m.content, m.event_id, m.link_previews, m.created_at,
 			       u.username, u.display_name, u.role,
 			       (SELECT COUNT(*) FROM messages r WHERE r.parent_id = m.id) as reply_count
 			FROM messages m
@@ -205,7 +223,7 @@ func (s *Service) ListChannel(channelID int64, limit int, before int64) ([]Messa
 		`, channelID, before, limit)
 	} else {
 		rows, err = s.db.Query(`
-			SELECT m.id, m.channel_id, m.user_id, m.content, m.event_id, m.created_at,
+			SELECT m.id, m.channel_id, m.user_id, m.content, m.event_id, m.link_previews, m.created_at,
 			       u.username, u.display_name, u.role,
 			       (SELECT COUNT(*) FROM messages r WHERE r.parent_id = m.id) as reply_count
 			FROM messages m
@@ -223,8 +241,9 @@ func (s *Service) ListChannel(channelID int64, limit int, before int64) ([]Messa
 	for rows.Next() {
 		var m Message
 		var eventID sql.NullString
+		var previewsJSON sql.NullString
 		var role string
-		if err := rows.Scan(&m.ID, &m.ChannelID, &m.UserID, &m.Content, &eventID, &m.CreatedAt,
+		if err := rows.Scan(&m.ID, &m.ChannelID, &m.UserID, &m.Content, &eventID, &previewsJSON, &m.CreatedAt,
 			&m.Username, &m.DisplayName, &role, &m.ReplyCount); err != nil {
 			return nil, err
 		}
@@ -232,6 +251,9 @@ func (s *Service) ListChannel(channelID int64, limit int, before int64) ([]Messa
 		m.Mentions = extractMentions(m.Content)
 		if eventID.Valid {
 			m.EventID = eventID.String
+		}
+		if previewsJSON.Valid {
+			json.Unmarshal([]byte(previewsJSON.String), &m.LinkPreviews)
 		}
 		msgs = append(msgs, m)
 	}
@@ -248,7 +270,7 @@ func (s *Service) ListThread(parentID int64, limit int, before int64) ([]Message
 	var err error
 	if before > 0 {
 		rows, err = s.db.Query(`
-			SELECT m.id, m.channel_id, m.user_id, m.parent_id, m.content, m.event_id, m.created_at,
+			SELECT m.id, m.channel_id, m.user_id, m.parent_id, m.content, m.event_id, m.link_previews, m.created_at,
 			       u.username, u.display_name, u.role
 			FROM messages m
 			JOIN users u ON m.user_id = u.id
@@ -257,7 +279,7 @@ func (s *Service) ListThread(parentID int64, limit int, before int64) ([]Message
 		`, parentID, before, limit)
 	} else {
 		rows, err = s.db.Query(`
-			SELECT m.id, m.channel_id, m.user_id, m.parent_id, m.content, m.event_id, m.created_at,
+			SELECT m.id, m.channel_id, m.user_id, m.parent_id, m.content, m.event_id, m.link_previews, m.created_at,
 			       u.username, u.display_name, u.role
 			FROM messages m
 			JOIN users u ON m.user_id = u.id
@@ -275,8 +297,9 @@ func (s *Service) ListThread(parentID int64, limit int, before int64) ([]Message
 		var m Message
 		var parentID sql.NullInt64
 		var eventID sql.NullString
+		var previewsJSON sql.NullString
 		var role string
-		if err := rows.Scan(&m.ID, &m.ChannelID, &m.UserID, &parentID, &m.Content, &eventID, &m.CreatedAt,
+		if err := rows.Scan(&m.ID, &m.ChannelID, &m.UserID, &parentID, &m.Content, &eventID, &previewsJSON, &m.CreatedAt,
 			&m.Username, &m.DisplayName, &role); err != nil {
 			return nil, err
 		}
@@ -287,6 +310,9 @@ func (s *Service) ListThread(parentID int64, limit int, before int64) ([]Message
 		}
 		if eventID.Valid {
 			m.EventID = eventID.String
+		}
+		if previewsJSON.Valid {
+			json.Unmarshal([]byte(previewsJSON.String), &m.LinkPreviews)
 		}
 		msgs = append(msgs, m)
 	}
@@ -432,6 +458,23 @@ func extractURLs(content string) []string {
 		return nil
 	}
 	return matches
+}
+
+// fetchLinkPreviews extracts URLs and fetches OG metadata for each.
+func fetchLinkPreviews(content string) []LinkPreview {
+	urls := extractURLs(content)
+	if len(urls) == 0 {
+		return nil
+	}
+	var previews []LinkPreview
+	for _, u := range urls {
+		lp := fetchOGMetadata(u)
+		if lp != nil {
+			lp.URL = u
+			previews = append(previews, *lp)
+		}
+	}
+	return previews
 }
 
 func randomHex(n int) string {

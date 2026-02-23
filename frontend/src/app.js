@@ -14,6 +14,31 @@ let unreadState = new Map(); // channelId -> { count, hasMention }
 
 const REACTION_EMOJIS = ["👍", "👎", "❤️", "😂", "😮", "😢", "🔥", "🎉", "👀", "🙏"];
 
+// --- Server URL (native app) ---
+
+function getApiBase() {
+  if (window.Capacitor?.isNativePlatform()) {
+    return localStorage.getItem('serverUrl') || '';
+  }
+  return '';
+}
+
+function getWsUrl() {
+  if (window.Capacitor?.isNativePlatform()) {
+    const base = localStorage.getItem('serverUrl') || '';
+    if (!base) return '';
+    try {
+      const url = new URL(base);
+      const proto = url.protocol === 'https:' ? 'wss:' : 'ws:';
+      return `${proto}//${url.host}/ws`;
+    } catch {
+      return '';
+    }
+  }
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  return `${proto}//${location.host}/ws`;
+}
+
 // Register service worker
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/sw.js').catch(() => {});
@@ -28,9 +53,17 @@ let wsReconnectAttempt = 0;
 let connectionStatusTimeout = null;
 
 async function api(method, path, body) {
-  const opts = { method, headers: { "Content-Type": "application/json" }, credentials: "include" };
+  const headers = { "Content-Type": "application/json" };
+  const opts = { method, headers };
+  // Native app uses Bearer token; web uses cookies
+  if (window.Capacitor?.isNativePlatform() && sessionToken) {
+    headers["Authorization"] = `Bearer ${sessionToken}`;
+  } else {
+    opts.credentials = "include";
+  }
   if (body) opts.body = JSON.stringify(body);
-  const res = await fetch(path, opts);
+  const base = getApiBase();
+  const res = await fetch(`${base}${path}`, opts);
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || "Request failed");
   return data;
@@ -60,8 +93,7 @@ function updateConnectionStatus(connected) {
 
 function connectWS() {
   if (wsConn) { wsConn.close(); wsConn = null; }
-  const proto = location.protocol === "https:" ? "wss:" : "ws:";
-  let url = `${proto}//${location.host}/ws`;
+  let url = getWsUrl();
   if (sessionToken) url += `?token=${encodeURIComponent(sessionToken)}`;
   const ws = new WebSocket(url);
   ws.onopen = () => {

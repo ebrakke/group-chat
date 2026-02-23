@@ -566,6 +566,38 @@ function setupThreadResize() {
 
 // --- Screens ---
 
+function renderServerConfig() {
+  const saved = localStorage.getItem('serverUrl') || '';
+  app.innerHTML = `
+    <div class="auth-page">
+      <h1>Relay Chat</h1>
+      <p class="subtitle">Enter your server address</p>
+      <form id="server-config-form">
+        <input type="url" id="server-url" placeholder="https://chat.example.com" value="${esc(saved)}" required>
+        <div class="error hidden" id="server-config-error"></div>
+        <button type="submit">Connect</button>
+      </form>
+    </div>
+  `;
+  document.getElementById("server-config-form").onsubmit = async (e) => {
+    e.preventDefault();
+    const errEl = document.getElementById("server-config-error");
+    errEl.classList.add("hidden");
+    let url = document.getElementById("server-url").value.trim();
+    url = url.replace(/\/+$/, '');
+    try {
+      const res = await fetch(`${url}/api/health`);
+      const data = await res.json();
+      if (data.status !== 'ok') throw new Error('Unexpected response');
+      localStorage.setItem('serverUrl', url);
+      boot();
+    } catch {
+      errEl.textContent = "Could not connect to server. Check the URL and try again.";
+      errEl.classList.remove("hidden");
+    }
+  };
+}
+
 function renderBootstrap() {
   app.innerHTML = `
     <div class="auth-container">
@@ -1075,6 +1107,7 @@ async function renderSettings() {
       ${adminPushoverSection}
       <div class="card">
         <h3>Account</h3>
+        ${window.Capacitor?.isNativePlatform() ? '<button id="settings-change-server" class="secondary" style="margin-bottom: 8px;">Change Server</button>' : ''}
         <button id="settings-logout" class="secondary">Logout</button>
       </div>
     </div>
@@ -1093,6 +1126,17 @@ async function renderSettings() {
   }
 
   document.getElementById("settings-logout").onclick = doLogout;
+
+  const changeServerEl = document.getElementById("settings-change-server");
+  if (changeServerEl) {
+    changeServerEl.onclick = () => {
+      localStorage.removeItem('serverUrl');
+      sessionToken = null;
+      currentUser = null;
+      renderServerConfig();
+    };
+  }
+
   document.getElementById("save-notifications").onclick = saveNotificationSettings;
 
   // Load notification settings for all users
@@ -2315,6 +2359,11 @@ async function handleDeepLink() {
 }
 
 async function boot() {
+  if (window.Capacitor?.isNativePlatform() && !localStorage.getItem('serverUrl')) {
+    renderServerConfig();
+    return;
+  }
+
   const inviteCode = extractInviteCode();
 
   try {

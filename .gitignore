@@ -34,6 +34,9 @@ Thumbs.db
 *.swp
 *.swo
 
+# Worktrees
+.worktrees/
+
 # build artifacts
 app
 relay-chat

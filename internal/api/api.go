@@ -47,7 +47,7 @@ func New(authSvc *auth.Service, botSvc *bots.Service, chanSvc *channels.Service,
 }
 
 func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	h.mux.ServeHTTP(w, r)
+	corsMiddleware(h.mux).ServeHTTP(w, r)
 }
 
 func (h *Handler) routes() {

@@ -78,11 +78,11 @@ func main() {
 	// Register webhook provider (always available)
 	notifySvc.RegisterProvider("webhook", notifications.NewWebhookProvider())
 
-	// Register Pushover provider if configured
-	pushoverToken, err := notifySvc.GetAppSetting("pushover_app_token")
-	if err == nil && pushoverToken != "" {
-		notifySvc.RegisterProvider("pushover", notifications.NewPushoverProvider(pushoverToken))
-		log.Printf("Pushover provider enabled")
+	// Register ntfy provider if configured
+	ntfyURL, err := notifySvc.GetAppSetting("ntfy_server_url")
+	if err == nil && ntfyURL != "" {
+		notifySvc.RegisterProvider("ntfy", notifications.NewNtfyProvider(ntfyURL))
+		log.Printf("Ntfy provider enabled: %s", ntfyURL)
 	}
 
 	// Set notification callback on message service

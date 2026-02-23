@@ -38,6 +38,6 @@ Thumbs.db
 .worktrees/
 
 # build artifacts
-app
+/app
 relay-chat
 

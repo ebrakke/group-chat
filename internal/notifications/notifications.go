@@ -51,24 +51,21 @@ func (s *Service) UnregisterProvider(name string) {
 	delete(s.providers, name)
 }
 
-// ReloadPushoverProvider reloads the Pushover provider with current config from database
-func (s *Service) ReloadPushoverProvider() error {
-	token, err := s.GetAppSetting("pushover_app_token")
+// ReloadNtfyProvider reloads the ntfy provider with current config from database
+func (s *Service) ReloadNtfyProvider() error {
+	serverURL, err := s.GetAppSetting("ntfy_server_url")
 	if err != nil {
-		// No token configured, ensure provider is unregistered
-		s.UnregisterProvider("pushover")
+		s.UnregisterProvider("ntfy")
 		return nil
 	}
 
-	if token == "" {
-		// Empty token, unregister provider
-		s.UnregisterProvider("pushover")
+	if serverURL == "" {
+		s.UnregisterProvider("ntfy")
 		return nil
 	}
 
-	// Register/update Pushover provider with new token
-	s.RegisterProvider("pushover", NewPushoverProvider(token))
-	log.Printf("Pushover provider reloaded")
+	s.RegisterProvider("ntfy", NewNtfyProvider(serverURL))
+	log.Printf("Ntfy provider reloaded with URL: %s", serverURL)
 	return nil
 }
 
@@ -269,7 +266,13 @@ func (s *Service) sendToUser(userID int64, msg *messages.Message, channelName st
 	// Get user's notification settings
 	settings, err := s.GetSettings(userID)
 	if err != nil || settings == nil {
-		return // User has no settings, skip silently
+		// Even without settings, check for push subscriptions with default rules
+		// (default: notify on mentions and thread replies)
+		settings = &Settings{
+			UserID:              userID,
+			NotifyMentions:      true,
+			NotifyThreadReplies: true,
+		}
 	}
 
 	// Check notification rules
@@ -277,17 +280,34 @@ func (s *Service) sendToUser(userID int64, msg *messages.Message, channelName st
 		return
 	}
 
-	// Get the provider
-	provider, ok := s.providers[settings.Provider]
-	if !ok {
-		log.Printf("Unknown provider: %s", settings.Provider)
-		return
-	}
-
 	// Build payload
 	payload := s.buildPayload(msg, channelName)
 
-	// Parse provider config
+	// Try push subscriptions first (ntfy)
+	topics, _ := s.GetPushTopics(userID)
+	if len(topics) > 0 {
+		if ntfyProvider, ok := s.providers["ntfy"]; ok {
+			for _, topic := range topics {
+				recipient := Recipient{UserID: userID, ProviderKey: topic}
+				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				if err := ntfyProvider.Send(ctx, recipient, payload); err != nil {
+					log.Printf("Ntfy send error (user %d, topic %s): %v", userID, topic, err)
+				}
+				cancel()
+			}
+		}
+		return
+	}
+
+	// Fall back to configured provider (webhook, etc.)
+	if settings.Provider == "" {
+		return
+	}
+	provider, ok := s.providers[settings.Provider]
+	if !ok {
+		return
+	}
+
 	var providerConfig map[string]string
 	json.Unmarshal([]byte(settings.ProviderConfig), &providerConfig)
 
@@ -296,7 +316,6 @@ func (s *Service) sendToUser(userID int64, msg *messages.Message, channelName st
 		ProviderKey: providerConfig["key"],
 	}
 
-	// Send with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 

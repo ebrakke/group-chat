@@ -5,6 +5,8 @@ import (
 	"context"
 	"fmt"
 	"testing"
+
+	"github.com/ebrakke/relay-chat/internal/db"
 )
 
 // MockProvider for testing
@@ -61,5 +63,60 @@ func TestService_GetAvailableProviders(t *testing.T) {
 	available = svc.GetAvailableProviders()
 	if len(available) != 1 || available[0] != "valid" {
 		t.Errorf("invalid provider should not appear, got %v", available)
+	}
+}
+
+func TestService_PushSubscriptions(t *testing.T) {
+	database, err := db.Open(":memory:")
+	if err != nil {
+		t.Fatalf("failed to open db: %v", err)
+	}
+	defer database.Close()
+
+	svc := NewService(database, "http://localhost:8080")
+
+	// Create test user
+	_, err = database.Exec("INSERT INTO users (id, username, display_name, password_hash, role, created_at) VALUES (?, ?, ?, ?, ?, datetime('now'))", 1, "alice", "Alice", "hash", "member")
+	if err != nil {
+		t.Fatalf("failed to create user: %v", err)
+	}
+
+	// No subscriptions initially
+	topics, err := svc.GetPushTopics(1)
+	if err != nil {
+		t.Fatalf("GetPushTopics failed: %v", err)
+	}
+	if len(topics) != 0 {
+		t.Errorf("expected 0 topics, got %d", len(topics))
+	}
+
+	// Subscribe
+	err = svc.SubscribePush(1, "topic-abc123", "android")
+	if err != nil {
+		t.Fatalf("SubscribePush failed: %v", err)
+	}
+
+	// Verify subscription
+	topics, err = svc.GetPushTopics(1)
+	if err != nil {
+		t.Fatalf("GetPushTopics failed: %v", err)
+	}
+	if len(topics) != 1 || topics[0] != "topic-abc123" {
+		t.Errorf("expected ['topic-abc123'], got %v", topics)
+	}
+
+	// Unsubscribe
+	err = svc.UnsubscribePush("topic-abc123")
+	if err != nil {
+		t.Fatalf("UnsubscribePush failed: %v", err)
+	}
+
+	// Verify removed
+	topics, err = svc.GetPushTopics(1)
+	if err != nil {
+		t.Fatalf("GetPushTopics failed: %v", err)
+	}
+	if len(topics) != 0 {
+		t.Errorf("expected 0 topics after unsubscribe, got %d", len(topics))
 	}
 }

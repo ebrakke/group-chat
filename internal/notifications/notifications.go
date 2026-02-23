@@ -363,3 +363,44 @@ func (s *Service) userParticipatedInThread(userID, parentID int64) (bool, error)
 }
 
 
+
+// SubscribePush registers a push subscription for a user.
+func (s *Service) SubscribePush(userID int64, ntfyTopic, platform string) error {
+	now := time.Now().UTC().Format(time.RFC3339)
+	_, err := s.db.Exec(`
+		INSERT OR REPLACE INTO push_subscriptions (user_id, ntfy_topic, platform, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?)
+	`, userID, ntfyTopic, platform, now, now)
+	if err != nil {
+		return fmt.Errorf("subscribe push: %w", err)
+	}
+	return nil
+}
+
+// UnsubscribePush removes a push subscription by topic.
+func (s *Service) UnsubscribePush(ntfyTopic string) error {
+	_, err := s.db.Exec(`DELETE FROM push_subscriptions WHERE ntfy_topic = ?`, ntfyTopic)
+	if err != nil {
+		return fmt.Errorf("unsubscribe push: %w", err)
+	}
+	return nil
+}
+
+// GetPushTopics returns all ntfy topics for a user.
+func (s *Service) GetPushTopics(userID int64) ([]string, error) {
+	rows, err := s.db.Query(`SELECT ntfy_topic FROM push_subscriptions WHERE user_id = ?`, userID)
+	if err != nil {
+		return nil, fmt.Errorf("get push topics: %w", err)
+	}
+	defer rows.Close()
+
+	var topics []string
+	for rows.Next() {
+		var topic string
+		if err := rows.Scan(&topic); err != nil {
+			return nil, err
+		}
+		topics = append(topics, topic)
+	}
+	return topics, rows.Err()
+}

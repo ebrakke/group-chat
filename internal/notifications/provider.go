@@ -15,7 +15,7 @@ type Provider interface {
 // Recipient identifies who receives the notification
 type Recipient struct {
 	UserID      int64
-	ProviderKey string // Pushover user key, webhook URL, etc.
+	ProviderKey string // ntfy topic, webhook URL, etc.
 }
 
 // Payload contains notification content

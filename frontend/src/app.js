@@ -46,6 +46,13 @@ if ('serviceWorker' in navigator && !Capacitor.isNativePlatform()) {
   navigator.serviceWorker.register('/sw.js').catch(() => {});
 }
 
+// Request browser notification permission (web only)
+if ('Notification' in window && !Capacitor.isNativePlatform()) {
+  if (Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+}
+
 function isMobile() {
   return window.matchMedia("(max-width: 768px)").matches;
 }
@@ -134,6 +141,16 @@ function handleWSEvent(data) {
       }
       unreadState.set(msg.channelId, state);
       updateChannelBadge(msg.channelId);
+      // Fire browser notification for messages not in the current view (web only)
+      if (!Capacitor.isNativePlatform() && Notification.permission === 'granted') {
+        if (document.hidden || !currentChannel || msg.channelId !== currentChannel.id) {
+          const channelName = document.querySelector(`#channel-list li[data-id="${msg.channelId}"]`)?.dataset?.name || 'unknown';
+          new Notification(`#${channelName}`, {
+            body: `${msg.displayName}: ${msg.content.substring(0, 100)}`,
+            tag: `relaychat-${msg.channelId}-${msg.id}`,
+          });
+        }
+      }
     }
   } else if (data.type === "new_reply") {
     const msg = data.payload;
@@ -142,6 +159,15 @@ function handleWSEvent(data) {
     }
     if (currentChannel && msg.channelId === currentChannel.id) {
       updateReplyCount(msg.parentId);
+    }
+    // Fire browser notification for thread replies (web only)
+    if (!Capacitor.isNativePlatform() && Notification.permission === 'granted') {
+      if (document.hidden || !openThreadId || msg.parentId !== openThreadId) {
+        new Notification('Thread reply', {
+          body: `${msg.displayName}: ${msg.content.substring(0, 100)}`,
+          tag: `relaychat-thread-${msg.parentId}-${msg.id}`,
+        });
+      }
     }
   } else if (data.type === "reaction_added") {
     const r = data.payload;
@@ -1034,7 +1060,7 @@ async function renderSettings() {
     </div>
   ` : '';
 
-  const adminPushoverSection = isAdmin ? `
+  const adminNtfySection = isAdmin ? `
     <div class="card">
       <h3>General Settings</h3>
       <div id="general-settings-error" class="error hidden"></div>
@@ -1049,16 +1075,16 @@ async function renderSettings() {
       </div>
     </div>
     <div class="card">
-      <h3>Pushover Integration</h3>
-      <div id="pushover-settings-error" class="error hidden"></div>
-      <div id="pushover-settings-success" class="success hidden"></div>
-      <div id="pushover-settings-content">
+      <h3>Push Notifications (ntfy.sh)</h3>
+      <div id="ntfy-settings-error" class="error hidden"></div>
+      <div id="ntfy-settings-success" class="success hidden"></div>
+      <div id="ntfy-settings-content">
         <div class="form-group">
-          <label>Pushover Application Token (Server-wide)</label>
-          <input type="text" id="pushover-app-token" placeholder="Your Pushover app token" class="input-sm">
-          <small>Get your app token from <a href="https://pushover.net/apps/build" target="_blank">pushover.net/apps/build</a></small>
+          <label>ntfy Server URL</label>
+          <input type="text" id="ntfy-server-url" placeholder="https://ntfy.example.com" class="input-sm">
+          <small>Your self-hosted ntfy server URL or https://ntfy.sh for the public instance</small>
         </div>
-        <button id="save-pushover-settings" class="btn-sm">Save Pushover Settings</button>
+        <button id="save-ntfy-settings" class="btn-sm">Save ntfy Settings</button>
       </div>
     </div>
   ` : '';
@@ -1078,11 +1104,6 @@ async function renderSettings() {
         <div id="notification-error" class="error hidden"></div>
         <div id="notification-success" class="success hidden"></div>
         <div id="notification-settings-content">
-          <div class="form-group">
-            <label>Pushover User Key</label>
-            <input type="text" id="pushover-key" placeholder="Your Pushover user key" class="input-sm">
-            <small>Get your user key from <a href="https://pushover.net" target="_blank">pushover.net</a></small>
-          </div>
           <div class="form-group">
             <label class="checkbox-label">
               <input type="checkbox" id="notify-mentions" checked>
@@ -1106,7 +1127,7 @@ async function renderSettings() {
       </div>
       ${adminInvitesSection}
       ${adminBotsSection}
-      ${adminPushoverSection}
+      ${adminNtfySection}
       <div class="card">
         <h3>Account</h3>
         ${Capacitor.isNativePlatform() ? '<button id="settings-change-server" class="secondary" style="margin-bottom: 8px;">Change Server</button>' : ''}
@@ -1173,15 +1194,15 @@ async function renderSettings() {
       saveGeneralSettingsBtn.onclick = saveGeneralSettings;
     }
 
-    const savePushoverSettingsBtn = document.getElementById("save-pushover-settings");
-    if (savePushoverSettingsBtn) {
-      savePushoverSettingsBtn.onclick = savePushoverSettings;
+    const saveNtfySettingsBtn = document.getElementById("save-ntfy-settings");
+    if (saveNtfySettingsBtn) {
+      saveNtfySettingsBtn.onclick = saveNtfySettings;
     }
 
     loadAdminInvites();
     loadBots("admin-bot-list");
     await loadGeneralSettings();
-    await loadPushoverSettings();
+    await loadNtfySettings();
   }
 }
 
@@ -1199,48 +1220,17 @@ async function loadAdminInvites() {
 
 async function loadNotificationSettings() {
   try {
-    // Check if Pushover is configured by the admin
-    const providersRes = await api("GET", "/api/notifications/providers");
-    const providers = providersRes.providers || [];
-
-    if (!providers.includes("pushover")) {
-      const content = document.getElementById("notification-settings-content");
-      if (content) {
-        content.innerHTML = '<div class="error">Pushover is not configured by the admin. Please ask an administrator to set up the Pushover application token.</div>';
-      }
-      return;
-    }
-
-    // Fetch current user settings
     const res = await api("GET", "/api/notifications/settings");
     const notifyMentions = document.getElementById("notify-mentions");
     const notifyThreadReplies = document.getElementById("notify-thread-replies");
     const notifyAllMessages = document.getElementById("notify-all-messages");
-
-    if (res.configured !== false) {
-      // Set notification preferences
+    if (res.configured !== false && res.userId) {
       notifyMentions.checked = res.notifyMentions !== false;
       notifyThreadReplies.checked = res.notifyThreadReplies !== false;
       notifyAllMessages.checked = res.notifyAllMessages === true;
-
-      // Parse and populate Pushover user key
-      let providerConfig = {};
-      try {
-        if (res.providerConfig) {
-          providerConfig = JSON.parse(res.providerConfig);
-        }
-      } catch (e) {
-        console.error("Failed to parse provider config:", e);
-      }
-
-      if (providerConfig.key) {
-        const pushoverKey = document.getElementById("pushover-key");
-        if (pushoverKey) pushoverKey.value = providerConfig.key;
-      }
     }
   } catch (e) {
     console.error("Error loading notification settings:", e);
-    console.error("Stack:", e.stack);
   }
 }
 
@@ -1248,26 +1238,13 @@ async function loadNotificationSettings() {
 async function saveNotificationSettings() {
   const errEl = document.getElementById("notification-error");
   const successEl = document.getElementById("notification-success");
-
   errEl.classList.add("hidden");
   successEl.classList.add("hidden");
-
   const notifyMentions = document.getElementById("notify-mentions").checked;
   const notifyThreadReplies = document.getElementById("notify-thread-replies").checked;
   const notifyAllMessages = document.getElementById("notify-all-messages").checked;
-
-  // Get Pushover user key
-  const pushoverKey = document.getElementById("pushover-key").value.trim();
-  if (!pushoverKey) {
-    errEl.textContent = "Pushover User Key is required";
-    errEl.classList.remove("hidden");
-    return;
-  }
-
   try {
     await api("POST", "/api/notifications/settings", {
-      provider: "pushover",
-      providerConfig: JSON.stringify({ key: pushoverKey }),
       notifyMentions,
       notifyThreadReplies,
       notifyAllMessages,
@@ -1329,39 +1306,35 @@ async function saveGeneralSettings() {
   }
 }
 
-async function loadPushoverSettings() {
+async function loadNtfySettings() {
   try {
     const res = await api("GET", "/api/admin/settings");
-    const appTokenInput = document.getElementById("pushover-app-token");
-    if (!appTokenInput) return;
-
-    if (res.pushoverAppToken) {
-      appTokenInput.value = res.pushoverAppToken;
+    const ntfyUrlInput = document.getElementById("ntfy-server-url");
+    if (!ntfyUrlInput) return;
+    if (res.ntfyServerUrl) {
+      ntfyUrlInput.value = res.ntfyServerUrl;
     }
   } catch (e) {
-    console.log("No Pushover settings configured yet");
+    console.log("No ntfy settings configured yet");
   }
 }
 
-async function savePushoverSettings() {
-  const errEl = document.getElementById("pushover-settings-error");
-  const successEl = document.getElementById("pushover-settings-success");
-
+async function saveNtfySettings() {
+  const errEl = document.getElementById("ntfy-settings-error");
+  const successEl = document.getElementById("ntfy-settings-success");
   errEl.classList.add("hidden");
   successEl.classList.add("hidden");
-
-  const appToken = document.getElementById("pushover-app-token").value.trim();
-  if (!appToken) {
-    errEl.textContent = "Pushover Application Token is required";
+  const serverUrl = document.getElementById("ntfy-server-url").value.trim();
+  if (!serverUrl) {
+    errEl.textContent = "ntfy Server URL is required";
     errEl.classList.remove("hidden");
     return;
   }
-
   try {
     await api("POST", "/api/admin/settings", {
-      pushover_app_token: appToken,
+      ntfy_server_url: serverUrl,
     });
-    successEl.textContent = "Pushover settings saved successfully. Provider reloaded automatically.";
+    successEl.textContent = "ntfy settings saved. Provider reloaded.";
     successEl.classList.remove("hidden");
     setTimeout(() => successEl.classList.add("hidden"), 5000);
   } catch (e) {

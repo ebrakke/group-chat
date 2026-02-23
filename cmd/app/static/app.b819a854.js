@@ -1,3 +1,543 @@
+var __defProp = Object.defineProperty;
+var __export = (target, all) => {
+  for (var name in all)
+    __defProp(target, name, {
+      get: all[name],
+      enumerable: true,
+      configurable: true,
+      set: (newValue) => all[name] = () => newValue
+    });
+};
+var __esm = (fn, res) => () => (fn && (res = fn(fn = 0)), res);
+
+// node_modules/@capacitor/core/dist/index.js
+class WebPlugin {
+  constructor() {
+    this.listeners = {};
+    this.retainedEventArguments = {};
+    this.windowListeners = {};
+  }
+  addListener(eventName, listenerFunc) {
+    let firstListener = false;
+    const listeners = this.listeners[eventName];
+    if (!listeners) {
+      this.listeners[eventName] = [];
+      firstListener = true;
+    }
+    this.listeners[eventName].push(listenerFunc);
+    const windowListener = this.windowListeners[eventName];
+    if (windowListener && !windowListener.registered) {
+      this.addWindowListener(windowListener);
+    }
+    if (firstListener) {
+      this.sendRetainedArgumentsForEvent(eventName);
+    }
+    const remove = async () => this.removeListener(eventName, listenerFunc);
+    const p = Promise.resolve({ remove });
+    return p;
+  }
+  async removeAllListeners() {
+    this.listeners = {};
+    for (const listener in this.windowListeners) {
+      this.removeWindowListener(this.windowListeners[listener]);
+    }
+    this.windowListeners = {};
+  }
+  notifyListeners(eventName, data, retainUntilConsumed) {
+    const listeners = this.listeners[eventName];
+    if (!listeners) {
+      if (retainUntilConsumed) {
+        let args = this.retainedEventArguments[eventName];
+        if (!args) {
+          args = [];
+        }
+        args.push(data);
+        this.retainedEventArguments[eventName] = args;
+      }
+      return;
+    }
+    listeners.forEach((listener) => listener(data));
+  }
+  hasListeners(eventName) {
+    var _a;
+    return !!((_a = this.listeners[eventName]) === null || _a === undefined ? undefined : _a.length);
+  }
+  registerWindowListener(windowEventName, pluginEventName) {
+    this.windowListeners[pluginEventName] = {
+      registered: false,
+      windowEventName,
+      pluginEventName,
+      handler: (event) => {
+        this.notifyListeners(pluginEventName, event);
+      }
+    };
+  }
+  unimplemented(msg = "not implemented") {
+    return new Capacitor.Exception(msg, ExceptionCode.Unimplemented);
+  }
+  unavailable(msg = "not available") {
+    return new Capacitor.Exception(msg, ExceptionCode.Unavailable);
+  }
+  async removeListener(eventName, listenerFunc) {
+    const listeners = this.listeners[eventName];
+    if (!listeners) {
+      return;
+    }
+    const index = listeners.indexOf(listenerFunc);
+    this.listeners[eventName].splice(index, 1);
+    if (!this.listeners[eventName].length) {
+      this.removeWindowListener(this.windowListeners[eventName]);
+    }
+  }
+  addWindowListener(handle) {
+    window.addEventListener(handle.windowEventName, handle.handler);
+    handle.registered = true;
+  }
+  removeWindowListener(handle) {
+    if (!handle) {
+      return;
+    }
+    window.removeEventListener(handle.windowEventName, handle.handler);
+    handle.registered = false;
+  }
+  sendRetainedArgumentsForEvent(eventName) {
+    const args = this.retainedEventArguments[eventName];
+    if (!args) {
+      return;
+    }
+    delete this.retainedEventArguments[eventName];
+    args.forEach((arg) => {
+      this.notifyListeners(eventName, arg);
+    });
+  }
+}
+var ExceptionCode, CapacitorException, getPlatformId = (win) => {
+  var _a, _b;
+  if (win === null || win === undefined ? undefined : win.androidBridge) {
+    return "android";
+  } else if ((_b = (_a = win === null || win === undefined ? undefined : win.webkit) === null || _a === undefined ? undefined : _a.messageHandlers) === null || _b === undefined ? undefined : _b.bridge) {
+    return "ios";
+  } else {
+    return "web";
+  }
+}, createCapacitor = (win) => {
+  const capCustomPlatform = win.CapacitorCustomPlatform || null;
+  const cap = win.Capacitor || {};
+  const Plugins = cap.Plugins = cap.Plugins || {};
+  const getPlatform = () => {
+    return capCustomPlatform !== null ? capCustomPlatform.name : getPlatformId(win);
+  };
+  const isNativePlatform = () => getPlatform() !== "web";
+  const isPluginAvailable = (pluginName) => {
+    const plugin = registeredPlugins.get(pluginName);
+    if (plugin === null || plugin === undefined ? undefined : plugin.platforms.has(getPlatform())) {
+      return true;
+    }
+    if (getPluginHeader(pluginName)) {
+      return true;
+    }
+    return false;
+  };
+  const getPluginHeader = (pluginName) => {
+    var _a;
+    return (_a = cap.PluginHeaders) === null || _a === undefined ? undefined : _a.find((h) => h.name === pluginName);
+  };
+  const handleError = (err) => win.console.error(err);
+  const registeredPlugins = new Map;
+  const registerPlugin = (pluginName, jsImplementations = {}) => {
+    const registeredPlugin = registeredPlugins.get(pluginName);
+    if (registeredPlugin) {
+      console.warn(`Capacitor plugin "${pluginName}" already registered. Cannot register plugins twice.`);
+      return registeredPlugin.proxy;
+    }
+    const platform = getPlatform();
+    const pluginHeader = getPluginHeader(pluginName);
+    let jsImplementation;
+    const loadPluginImplementation = async () => {
+      if (!jsImplementation && platform in jsImplementations) {
+        jsImplementation = typeof jsImplementations[platform] === "function" ? jsImplementation = await jsImplementations[platform]() : jsImplementation = jsImplementations[platform];
+      } else if (capCustomPlatform !== null && !jsImplementation && "web" in jsImplementations) {
+        jsImplementation = typeof jsImplementations["web"] === "function" ? jsImplementation = await jsImplementations["web"]() : jsImplementation = jsImplementations["web"];
+      }
+      return jsImplementation;
+    };
+    const createPluginMethod = (impl, prop) => {
+      var _a, _b;
+      if (pluginHeader) {
+        const methodHeader = pluginHeader === null || pluginHeader === undefined ? undefined : pluginHeader.methods.find((m) => prop === m.name);
+        if (methodHeader) {
+          if (methodHeader.rtype === "promise") {
+            return (options) => cap.nativePromise(pluginName, prop.toString(), options);
+          } else {
+            return (options, callback) => cap.nativeCallback(pluginName, prop.toString(), options, callback);
+          }
+        } else if (impl) {
+          return (_a = impl[prop]) === null || _a === undefined ? undefined : _a.bind(impl);
+        }
+      } else if (impl) {
+        return (_b = impl[prop]) === null || _b === undefined ? undefined : _b.bind(impl);
+      } else {
+        throw new CapacitorException(`"${pluginName}" plugin is not implemented on ${platform}`, ExceptionCode.Unimplemented);
+      }
+    };
+    const createPluginMethodWrapper = (prop) => {
+      let remove;
+      const wrapper = (...args) => {
+        const p = loadPluginImplementation().then((impl) => {
+          const fn = createPluginMethod(impl, prop);
+          if (fn) {
+            const p2 = fn(...args);
+            remove = p2 === null || p2 === undefined ? undefined : p2.remove;
+            return p2;
+          } else {
+            throw new CapacitorException(`"${pluginName}.${prop}()" is not implemented on ${platform}`, ExceptionCode.Unimplemented);
+          }
+        });
+        if (prop === "addListener") {
+          p.remove = async () => remove();
+        }
+        return p;
+      };
+      wrapper.toString = () => `${prop.toString()}() { [capacitor code] }`;
+      Object.defineProperty(wrapper, "name", {
+        value: prop,
+        writable: false,
+        configurable: false
+      });
+      return wrapper;
+    };
+    const addListener = createPluginMethodWrapper("addListener");
+    const removeListener = createPluginMethodWrapper("removeListener");
+    const addListenerNative = (eventName, callback) => {
+      const call = addListener({ eventName }, callback);
+      const remove = async () => {
+        const callbackId = await call;
+        removeListener({
+          eventName,
+          callbackId
+        }, callback);
+      };
+      const p = new Promise((resolve) => call.then(() => resolve({ remove })));
+      p.remove = async () => {
+        console.warn(`Using addListener() without 'await' is deprecated.`);
+        await remove();
+      };
+      return p;
+    };
+    const proxy = new Proxy({}, {
+      get(_, prop) {
+        switch (prop) {
+          case "$$typeof":
+            return;
+          case "toJSON":
+            return () => ({});
+          case "addListener":
+            return pluginHeader ? addListenerNative : addListener;
+          case "removeListener":
+            return removeListener;
+          default:
+            return createPluginMethodWrapper(prop);
+        }
+      }
+    });
+    Plugins[pluginName] = proxy;
+    registeredPlugins.set(pluginName, {
+      name: pluginName,
+      proxy,
+      platforms: new Set([...Object.keys(jsImplementations), ...pluginHeader ? [platform] : []])
+    });
+    return proxy;
+  };
+  if (!cap.convertFileSrc) {
+    cap.convertFileSrc = (filePath) => filePath;
+  }
+  cap.getPlatform = getPlatform;
+  cap.handleError = handleError;
+  cap.isNativePlatform = isNativePlatform;
+  cap.isPluginAvailable = isPluginAvailable;
+  cap.registerPlugin = registerPlugin;
+  cap.Exception = CapacitorException;
+  cap.DEBUG = !!cap.DEBUG;
+  cap.isLoggingEnabled = !!cap.isLoggingEnabled;
+  return cap;
+}, initCapacitorGlobal = (win) => win.Capacitor = createCapacitor(win), Capacitor, registerPlugin, encode = (str) => encodeURIComponent(str).replace(/%(2[346B]|5E|60|7C)/g, decodeURIComponent).replace(/[()]/g, escape), decode = (str) => str.replace(/(%[\dA-F]{2})+/gi, decodeURIComponent), CapacitorCookiesPluginWeb, CapacitorCookies, readBlobAsBase64 = async (blob) => new Promise((resolve, reject) => {
+  const reader = new FileReader;
+  reader.onload = () => {
+    const base64String = reader.result;
+    resolve(base64String.indexOf(",") >= 0 ? base64String.split(",")[1] : base64String);
+  };
+  reader.onerror = (error) => reject(error);
+  reader.readAsDataURL(blob);
+}), normalizeHttpHeaders = (headers = {}) => {
+  const originalKeys = Object.keys(headers);
+  const loweredKeys = Object.keys(headers).map((k) => k.toLocaleLowerCase());
+  const normalized = loweredKeys.reduce((acc, key, index) => {
+    acc[key] = headers[originalKeys[index]];
+    return acc;
+  }, {});
+  return normalized;
+}, buildUrlParams = (params, shouldEncode = true) => {
+  if (!params)
+    return null;
+  const output = Object.entries(params).reduce((accumulator, entry) => {
+    const [key, value] = entry;
+    let encodedValue;
+    let item;
+    if (Array.isArray(value)) {
+      item = "";
+      value.forEach((str) => {
+        encodedValue = shouldEncode ? encodeURIComponent(str) : str;
+        item += `${key}=${encodedValue}&`;
+      });
+      item.slice(0, -1);
+    } else {
+      encodedValue = shouldEncode ? encodeURIComponent(value) : value;
+      item = `${key}=${encodedValue}`;
+    }
+    return `${accumulator}&${item}`;
+  }, "");
+  return output.substr(1);
+}, buildRequestInit = (options, extra = {}) => {
+  const output = Object.assign({ method: options.method || "GET", headers: options.headers }, extra);
+  const headers = normalizeHttpHeaders(options.headers);
+  const type = headers["content-type"] || "";
+  if (typeof options.data === "string") {
+    output.body = options.data;
+  } else if (type.includes("application/x-www-form-urlencoded")) {
+    const params = new URLSearchParams;
+    for (const [key, value] of Object.entries(options.data || {})) {
+      params.set(key, value);
+    }
+    output.body = params.toString();
+  } else if (type.includes("multipart/form-data") || options.data instanceof FormData) {
+    const form = new FormData;
+    if (options.data instanceof FormData) {
+      options.data.forEach((value, key) => {
+        form.append(key, value);
+      });
+    } else {
+      for (const key of Object.keys(options.data)) {
+        form.append(key, options.data[key]);
+      }
+    }
+    output.body = form;
+    const headers2 = new Headers(output.headers);
+    headers2.delete("content-type");
+    output.headers = headers2;
+  } else if (type.includes("application/json") || typeof options.data === "object") {
+    output.body = JSON.stringify(options.data);
+  }
+  return output;
+}, CapacitorHttpPluginWeb, CapacitorHttp, SystemBarsStyle, SystemBarType, SystemBarsPluginWeb, SystemBars;
+var init_dist = __esm(() => {
+  /*! Capacitor: https://capacitorjs.com/ - MIT License */
+  (function(ExceptionCode2) {
+    ExceptionCode2["Unimplemented"] = "UNIMPLEMENTED";
+    ExceptionCode2["Unavailable"] = "UNAVAILABLE";
+  })(ExceptionCode || (ExceptionCode = {}));
+  CapacitorException = class CapacitorException extends Error {
+    constructor(message, code, data) {
+      super(message);
+      this.message = message;
+      this.code = code;
+      this.data = data;
+    }
+  };
+  Capacitor = /* @__PURE__ */ initCapacitorGlobal(typeof globalThis !== "undefined" ? globalThis : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : typeof global !== "undefined" ? global : {});
+  registerPlugin = Capacitor.registerPlugin;
+  CapacitorCookiesPluginWeb = class CapacitorCookiesPluginWeb extends WebPlugin {
+    async getCookies() {
+      const cookies = document.cookie;
+      const cookieMap = {};
+      cookies.split(";").forEach((cookie) => {
+        if (cookie.length <= 0)
+          return;
+        let [key, value] = cookie.replace(/=/, "CAP_COOKIE").split("CAP_COOKIE");
+        key = decode(key).trim();
+        value = decode(value).trim();
+        cookieMap[key] = value;
+      });
+      return cookieMap;
+    }
+    async setCookie(options) {
+      try {
+        const encodedKey = encode(options.key);
+        const encodedValue = encode(options.value);
+        const expires = options.expires ? `; expires=${options.expires.replace("expires=", "")}` : "";
+        const path = (options.path || "/").replace("path=", "");
+        const domain = options.url != null && options.url.length > 0 ? `domain=${options.url}` : "";
+        document.cookie = `${encodedKey}=${encodedValue || ""}${expires}; path=${path}; ${domain};`;
+      } catch (error) {
+        return Promise.reject(error);
+      }
+    }
+    async deleteCookie(options) {
+      try {
+        document.cookie = `${options.key}=; Max-Age=0`;
+      } catch (error) {
+        return Promise.reject(error);
+      }
+    }
+    async clearCookies() {
+      try {
+        const cookies = document.cookie.split(";") || [];
+        for (const cookie of cookies) {
+          document.cookie = cookie.replace(/^ +/, "").replace(/=.*/, `=;expires=${new Date().toUTCString()};path=/`);
+        }
+      } catch (error) {
+        return Promise.reject(error);
+      }
+    }
+    async clearAllCookies() {
+      try {
+        await this.clearCookies();
+      } catch (error) {
+        return Promise.reject(error);
+      }
+    }
+  };
+  CapacitorCookies = registerPlugin("CapacitorCookies", {
+    web: () => new CapacitorCookiesPluginWeb
+  });
+  CapacitorHttpPluginWeb = class CapacitorHttpPluginWeb extends WebPlugin {
+    async request(options) {
+      const requestInit = buildRequestInit(options, options.webFetchExtra);
+      const urlParams = buildUrlParams(options.params, options.shouldEncodeUrlParams);
+      const url = urlParams ? `${options.url}?${urlParams}` : options.url;
+      const response = await fetch(url, requestInit);
+      const contentType = response.headers.get("content-type") || "";
+      let { responseType = "text" } = response.ok ? options : {};
+      if (contentType.includes("application/json")) {
+        responseType = "json";
+      }
+      let data;
+      let blob;
+      switch (responseType) {
+        case "arraybuffer":
+        case "blob":
+          blob = await response.blob();
+          data = await readBlobAsBase64(blob);
+          break;
+        case "json":
+          data = await response.json();
+          break;
+        case "document":
+        case "text":
+        default:
+          data = await response.text();
+      }
+      const headers = {};
+      response.headers.forEach((value, key) => {
+        headers[key] = value;
+      });
+      return {
+        data,
+        headers,
+        status: response.status,
+        url: response.url
+      };
+    }
+    async get(options) {
+      return this.request(Object.assign(Object.assign({}, options), { method: "GET" }));
+    }
+    async post(options) {
+      return this.request(Object.assign(Object.assign({}, options), { method: "POST" }));
+    }
+    async put(options) {
+      return this.request(Object.assign(Object.assign({}, options), { method: "PUT" }));
+    }
+    async patch(options) {
+      return this.request(Object.assign(Object.assign({}, options), { method: "PATCH" }));
+    }
+    async delete(options) {
+      return this.request(Object.assign(Object.assign({}, options), { method: "DELETE" }));
+    }
+  };
+  CapacitorHttp = registerPlugin("CapacitorHttp", {
+    web: () => new CapacitorHttpPluginWeb
+  });
+  (function(SystemBarsStyle2) {
+    SystemBarsStyle2["Dark"] = "DARK";
+    SystemBarsStyle2["Light"] = "LIGHT";
+    SystemBarsStyle2["Default"] = "DEFAULT";
+  })(SystemBarsStyle || (SystemBarsStyle = {}));
+  (function(SystemBarType2) {
+    SystemBarType2["StatusBar"] = "StatusBar";
+    SystemBarType2["NavigationBar"] = "NavigationBar";
+  })(SystemBarType || (SystemBarType = {}));
+  SystemBarsPluginWeb = class SystemBarsPluginWeb extends WebPlugin {
+    async setStyle() {
+      this.unavailable("not available for web");
+    }
+    async setAnimation() {
+      this.unavailable("not available for web");
+    }
+    async show() {
+      this.unavailable("not available for web");
+    }
+    async hide() {
+      this.unavailable("not available for web");
+    }
+  };
+  SystemBars = registerPlugin("SystemBars", {
+    web: () => new SystemBarsPluginWeb
+  });
+});
+
+// node_modules/@capacitor/app/dist/esm/web.js
+var exports_web = {};
+__export(exports_web, {
+  AppWeb: () => AppWeb
+});
+var AppWeb;
+var init_web = __esm(() => {
+  init_dist();
+  AppWeb = class AppWeb extends WebPlugin {
+    constructor() {
+      super();
+      this.handleVisibilityChange = () => {
+        const data = {
+          isActive: document.hidden !== true
+        };
+        this.notifyListeners("appStateChange", data);
+        if (document.hidden) {
+          this.notifyListeners("pause", null);
+        } else {
+          this.notifyListeners("resume", null);
+        }
+      };
+      document.addEventListener("visibilitychange", this.handleVisibilityChange, false);
+    }
+    exitApp() {
+      throw this.unimplemented("Not implemented on web.");
+    }
+    async getInfo() {
+      throw this.unimplemented("Not implemented on web.");
+    }
+    async getLaunchUrl() {
+      return { url: "" };
+    }
+    async getState() {
+      return { isActive: document.hidden !== true };
+    }
+    async minimizeApp() {
+      throw this.unimplemented("Not implemented on web.");
+    }
+    async toggleBackButtonHandler() {
+      throw this.unimplemented("Not implemented on web.");
+    }
+  };
+});
+
+// src/app.js
+init_dist();
+
+// node_modules/@capacitor/app/dist/esm/index.js
+init_dist();
+var App = registerPlugin("App", {
+  web: () => Promise.resolve().then(() => (init_web(), exports_web)).then((m) => new m.AppWeb)
+});
+
 // node_modules/marked/lib/marked.esm.js
 function M() {
   return { async: false, breaks: false, extensions: null, gfm: true, hooks: null, pedantic: false, renderer: null, silent: false, tokenizer: null, walkTokens: null };
@@ -864,7 +1404,7 @@ ${e}</tr>
     if (i === null)
       return O(n);
     e = i;
-    let s = `<img src="${e}" alt="${n}"`;
+    let s = `<img src="${e}" alt="${O(n)}"`;
     return t && (s += ` title="${O(t)}"`), s += ">", s;
   }
   text(e) {
@@ -1336,8 +1876,35 @@ var viewingSettings = false;
 var wsConn = null;
 var unreadState = new Map;
 var REACTION_EMOJIS = ["\uD83D\uDC4D", "\uD83D\uDC4E", "❤️", "\uD83D\uDE02", "\uD83D\uDE2E", "\uD83D\uDE22", "\uD83D\uDD25", "\uD83C\uDF89", "\uD83D\uDC40", "\uD83D\uDE4F"];
-if ("serviceWorker" in navigator) {
+function getApiBase() {
+  if (Capacitor.isNativePlatform()) {
+    return localStorage.getItem("serverUrl") || "";
+  }
+  return "";
+}
+function getWsUrl() {
+  if (Capacitor.isNativePlatform()) {
+    const base = localStorage.getItem("serverUrl") || "";
+    if (!base)
+      return "";
+    try {
+      const url = new URL(base);
+      const proto2 = url.protocol === "https:" ? "wss:" : "ws:";
+      return `${proto2}//${url.host}/ws`;
+    } catch {
+      return "";
+    }
+  }
+  const proto = location.protocol === "https:" ? "wss:" : "ws:";
+  return `${proto}//${location.host}/ws`;
+}
+if ("serviceWorker" in navigator && !Capacitor.isNativePlatform()) {
   navigator.serviceWorker.register("/sw.js").catch(() => {});
+}
+if ("Notification" in window && !Capacitor.isNativePlatform()) {
+  if (Notification.permission === "default") {
+    Notification.requestPermission();
+  }
 }
 function isMobile() {
   return window.matchMedia("(max-width: 768px)").matches;
@@ -1345,10 +1912,17 @@ function isMobile() {
 var wsReconnectAttempt = 0;
 var connectionStatusTimeout = null;
 async function api(method, path, body) {
-  const opts = { method, headers: { "Content-Type": "application/json" }, credentials: "include" };
+  const headers = { "Content-Type": "application/json" };
+  const opts = { method, headers };
+  if (Capacitor.isNativePlatform() && sessionToken) {
+    headers["Authorization"] = `Bearer ${sessionToken}`;
+  } else {
+    opts.credentials = "include";
+  }
   if (body)
     opts.body = JSON.stringify(body);
-  const res = await fetch(path, opts);
+  const base = getApiBase();
+  const res = await fetch(`${base}${path}`, opts);
   const data = await res.json();
   if (!res.ok)
     throw new Error(data.error || "Request failed");
@@ -1378,8 +1952,7 @@ function connectWS() {
     wsConn.close();
     wsConn = null;
   }
-  const proto = location.protocol === "https:" ? "wss:" : "ws:";
-  let url = `${proto}//${location.host}/ws`;
+  let url = getWsUrl();
   if (sessionToken)
     url += `?token=${encodeURIComponent(sessionToken)}`;
   const ws = new WebSocket(url);
@@ -1419,6 +1992,15 @@ function handleWSEvent(data) {
       }
       unreadState.set(msg.channelId, state);
       updateChannelBadge(msg.channelId);
+      if (!Capacitor.isNativePlatform() && Notification.permission === "granted") {
+        if (document.hidden || !currentChannel || msg.channelId !== currentChannel.id) {
+          const channelName = document.querySelector(`#channel-list li[data-id="${msg.channelId}"]`)?.dataset?.name || "unknown";
+          new Notification(`#${channelName}`, {
+            body: `${msg.displayName}: ${msg.content.substring(0, 100)}`,
+            tag: `relaychat-${msg.channelId}-${msg.id}`
+          });
+        }
+      }
     }
   } else if (data.type === "new_reply") {
     const msg = data.payload;
@@ -1427,6 +2009,14 @@ function handleWSEvent(data) {
     }
     if (currentChannel && msg.channelId === currentChannel.id) {
       updateReplyCount(msg.parentId);
+    }
+    if (!Capacitor.isNativePlatform() && Notification.permission === "granted") {
+      if (document.hidden || !openThreadId || msg.parentId !== openThreadId) {
+        new Notification("Thread reply", {
+          body: `${msg.displayName}: ${msg.content.substring(0, 100)}`,
+          tag: `relaychat-thread-${msg.parentId}-${msg.id}`
+        });
+      }
     }
   } else if (data.type === "reaction_added") {
     const r = data.payload;
@@ -1807,6 +2397,38 @@ function setupThreadResize() {
       }
     }
   });
+}
+function renderServerConfig() {
+  const saved = localStorage.getItem("serverUrl") || "";
+  app.innerHTML = `
+    <div class="auth-page">
+      <h1>Relay Chat</h1>
+      <p class="subtitle">Enter your server address</p>
+      <form id="server-config-form">
+        <input type="url" id="server-url" placeholder="https://chat.example.com" value="${esc(saved)}" required>
+        <div class="error hidden" id="server-config-error"></div>
+        <button type="submit">Connect</button>
+      </form>
+    </div>
+  `;
+  document.getElementById("server-config-form").onsubmit = async (e) => {
+    e.preventDefault();
+    const errEl = document.getElementById("server-config-error");
+    errEl.classList.add("hidden");
+    let url = document.getElementById("server-url").value.trim();
+    url = url.replace(/\/+$/, "");
+    try {
+      const res = await fetch(`${url}/api/health`);
+      const data = await res.json();
+      if (data.status !== "ok")
+        throw new Error("Unexpected response");
+      localStorage.setItem("serverUrl", url);
+      boot();
+    } catch {
+      errEl.textContent = "Could not connect to server. Check the URL and try again.";
+      errEl.classList.remove("hidden");
+    }
+  };
 }
 function renderBootstrap() {
   app.innerHTML = `
@@ -2202,7 +2824,7 @@ async function renderSettings() {
       <ul class="bot-list" id="admin-bot-list"></ul>
     </div>
   ` : "";
-  const adminPushoverSection = isAdmin ? `
+  const adminNtfySection = isAdmin ? `
     <div class="card">
       <h3>General Settings</h3>
       <div id="general-settings-error" class="error hidden"></div>
@@ -2217,16 +2839,16 @@ async function renderSettings() {
       </div>
     </div>
     <div class="card">
-      <h3>Pushover Integration</h3>
-      <div id="pushover-settings-error" class="error hidden"></div>
-      <div id="pushover-settings-success" class="success hidden"></div>
-      <div id="pushover-settings-content">
+      <h3>Push Notifications (ntfy.sh)</h3>
+      <div id="ntfy-settings-error" class="error hidden"></div>
+      <div id="ntfy-settings-success" class="success hidden"></div>
+      <div id="ntfy-settings-content">
         <div class="form-group">
-          <label>Pushover Application Token (Server-wide)</label>
-          <input type="text" id="pushover-app-token" placeholder="Your Pushover app token" class="input-sm">
-          <small>Get your app token from <a href="https://pushover.net/apps/build" target="_blank">pushover.net/apps/build</a></small>
+          <label>ntfy Server URL</label>
+          <input type="text" id="ntfy-server-url" placeholder="https://ntfy.example.com" class="input-sm">
+          <small>Your self-hosted ntfy server URL or https://ntfy.sh for the public instance</small>
         </div>
-        <button id="save-pushover-settings" class="btn-sm">Save Pushover Settings</button>
+        <button id="save-ntfy-settings" class="btn-sm">Save ntfy Settings</button>
       </div>
     </div>
   ` : "";
@@ -2245,11 +2867,6 @@ async function renderSettings() {
         <div id="notification-error" class="error hidden"></div>
         <div id="notification-success" class="success hidden"></div>
         <div id="notification-settings-content">
-          <div class="form-group">
-            <label>Pushover User Key</label>
-            <input type="text" id="pushover-key" placeholder="Your Pushover user key" class="input-sm">
-            <small>Get your user key from <a href="https://pushover.net" target="_blank">pushover.net</a></small>
-          </div>
           <div class="form-group">
             <label class="checkbox-label">
               <input type="checkbox" id="notify-mentions" checked>
@@ -2273,9 +2890,10 @@ async function renderSettings() {
       </div>
       ${adminInvitesSection}
       ${adminBotsSection}
-      ${adminPushoverSection}
+      ${adminNtfySection}
       <div class="card">
         <h3>Account</h3>
+        ${Capacitor.isNativePlatform() ? '<button id="settings-change-server" class="secondary" style="margin-bottom: 8px;">Change Server</button>' : ""}
         <button id="settings-logout" class="secondary">Logout</button>
       </div>
     </div>
@@ -2291,6 +2909,15 @@ async function renderSettings() {
     };
   }
   document.getElementById("settings-logout").onclick = doLogout;
+  const changeServerEl = document.getElementById("settings-change-server");
+  if (changeServerEl) {
+    changeServerEl.onclick = () => {
+      localStorage.removeItem("serverUrl");
+      sessionToken = null;
+      currentUser = null;
+      renderServerConfig();
+    };
+  }
   document.getElementById("save-notifications").onclick = saveNotificationSettings;
   await loadNotificationSettings();
   if (isAdmin) {
@@ -2318,14 +2945,14 @@ async function renderSettings() {
     if (saveGeneralSettingsBtn) {
       saveGeneralSettingsBtn.onclick = saveGeneralSettings;
     }
-    const savePushoverSettingsBtn = document.getElementById("save-pushover-settings");
-    if (savePushoverSettingsBtn) {
-      savePushoverSettingsBtn.onclick = savePushoverSettings;
+    const saveNtfySettingsBtn = document.getElementById("save-ntfy-settings");
+    if (saveNtfySettingsBtn) {
+      saveNtfySettingsBtn.onclick = saveNtfySettings;
     }
     loadAdminInvites();
     loadBots("admin-bot-list");
     await loadGeneralSettings();
-    await loadPushoverSettings();
+    await loadNtfySettings();
   }
 }
 async function loadAdminInvites() {
@@ -2340,40 +2967,17 @@ async function loadAdminInvites() {
 }
 async function loadNotificationSettings() {
   try {
-    const providersRes = await api("GET", "/api/notifications/providers");
-    const providers = providersRes.providers || [];
-    if (!providers.includes("pushover")) {
-      const content = document.getElementById("notification-settings-content");
-      if (content) {
-        content.innerHTML = '<div class="error">Pushover is not configured by the admin. Please ask an administrator to set up the Pushover application token.</div>';
-      }
-      return;
-    }
     const res = await api("GET", "/api/notifications/settings");
     const notifyMentions = document.getElementById("notify-mentions");
     const notifyThreadReplies = document.getElementById("notify-thread-replies");
     const notifyAllMessages = document.getElementById("notify-all-messages");
-    if (res.configured !== false) {
+    if (res.configured !== false && res.userId) {
       notifyMentions.checked = res.notifyMentions !== false;
       notifyThreadReplies.checked = res.notifyThreadReplies !== false;
       notifyAllMessages.checked = res.notifyAllMessages === true;
-      let providerConfig = {};
-      try {
-        if (res.providerConfig) {
-          providerConfig = JSON.parse(res.providerConfig);
-        }
-      } catch (e) {
-        console.error("Failed to parse provider config:", e);
-      }
-      if (providerConfig.key) {
-        const pushoverKey = document.getElementById("pushover-key");
-        if (pushoverKey)
-          pushoverKey.value = providerConfig.key;
-      }
     }
   } catch (e) {
     console.error("Error loading notification settings:", e);
-    console.error("Stack:", e.stack);
   }
 }
 async function saveNotificationSettings() {
@@ -2384,16 +2988,8 @@ async function saveNotificationSettings() {
   const notifyMentions = document.getElementById("notify-mentions").checked;
   const notifyThreadReplies = document.getElementById("notify-thread-replies").checked;
   const notifyAllMessages = document.getElementById("notify-all-messages").checked;
-  const pushoverKey = document.getElementById("pushover-key").value.trim();
-  if (!pushoverKey) {
-    errEl.textContent = "Pushover User Key is required";
-    errEl.classList.remove("hidden");
-    return;
-  }
   try {
     await api("POST", "/api/notifications/settings", {
-      provider: "pushover",
-      providerConfig: JSON.stringify({ key: pushoverKey }),
       notifyMentions,
       notifyThreadReplies,
       notifyAllMessages
@@ -2447,35 +3043,35 @@ async function saveGeneralSettings() {
     errEl.classList.remove("hidden");
   }
 }
-async function loadPushoverSettings() {
+async function loadNtfySettings() {
   try {
     const res = await api("GET", "/api/admin/settings");
-    const appTokenInput = document.getElementById("pushover-app-token");
-    if (!appTokenInput)
+    const ntfyUrlInput = document.getElementById("ntfy-server-url");
+    if (!ntfyUrlInput)
       return;
-    if (res.pushoverAppToken) {
-      appTokenInput.value = res.pushoverAppToken;
+    if (res.ntfyServerUrl) {
+      ntfyUrlInput.value = res.ntfyServerUrl;
     }
   } catch (e) {
-    console.log("No Pushover settings configured yet");
+    console.log("No ntfy settings configured yet");
   }
 }
-async function savePushoverSettings() {
-  const errEl = document.getElementById("pushover-settings-error");
-  const successEl = document.getElementById("pushover-settings-success");
+async function saveNtfySettings() {
+  const errEl = document.getElementById("ntfy-settings-error");
+  const successEl = document.getElementById("ntfy-settings-success");
   errEl.classList.add("hidden");
   successEl.classList.add("hidden");
-  const appToken = document.getElementById("pushover-app-token").value.trim();
-  if (!appToken) {
-    errEl.textContent = "Pushover Application Token is required";
+  const serverUrl = document.getElementById("ntfy-server-url").value.trim();
+  if (!serverUrl) {
+    errEl.textContent = "ntfy Server URL is required";
     errEl.classList.remove("hidden");
     return;
   }
   try {
     await api("POST", "/api/admin/settings", {
-      pushover_app_token: appToken
+      ntfy_server_url: serverUrl
     });
-    successEl.textContent = "Pushover settings saved successfully. Provider reloaded automatically.";
+    successEl.textContent = "ntfy settings saved. Provider reloaded.";
     successEl.classList.remove("hidden");
     setTimeout(() => successEl.classList.add("hidden"), 5000);
   } catch (e) {
@@ -3348,6 +3944,10 @@ async function handleDeepLink() {
   window.location.hash = "";
 }
 async function boot() {
+  if (Capacitor.isNativePlatform() && !localStorage.getItem("serverUrl")) {
+    renderServerConfig();
+    return;
+  }
   const inviteCode = extractInviteCode();
   try {
     const { hasUsers } = await api("GET", "/api/auth/has-users");
@@ -3363,6 +3963,30 @@ async function boot() {
     currentUser = await api("GET", "/api/auth/me");
     await renderMain();
     setTimeout(() => handleDeepLink(), 500);
+    if (Capacitor.isNativePlatform()) {
+      App.addListener("backButton", () => {
+        if (openThreadId) {
+          closeThread();
+          return;
+        }
+        const sidebar = document.querySelector(".sidebar");
+        if (sidebar && sidebar.classList.contains("sidebar-open")) {
+          sidebar.classList.remove("sidebar-open");
+          const backdrop = document.getElementById("sidebar-backdrop");
+          if (backdrop)
+            backdrop.classList.remove("sidebar-backdrop-visible");
+          document.body.classList.remove("sidebar-is-open");
+          return;
+        }
+        if (viewingSettings) {
+          viewingSettings = false;
+          if (currentChannel)
+            selectChannel(currentChannel);
+          return;
+        }
+        App.minimizeApp();
+      });
+    }
   } catch {
     renderLogin(inviteCode);
   }

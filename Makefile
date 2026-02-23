@@ -1,4 +1,4 @@
-.PHONY: build run dev test test-e2e frontend clean help
+.PHONY: build run dev test test-e2e frontend clean help mobile-sync mobile-build mobile-open
 
 help:
 	@echo "Relay Chat"
@@ -9,6 +9,9 @@ help:
 	@echo "  make test       - Run Go unit tests"
 	@echo "  make test-e2e   - Run Playwright E2E tests"
 	@echo "  make frontend   - Build frontend only"
+	@echo "  make mobile-build - Build Android APK (debug)"
+	@echo "  make mobile-sync  - Sync frontend to Android project"
+	@echo "  make mobile-open  - Open Android project in Android Studio"
 	@echo "  make clean      - Remove build artifacts"
 
 frontend:
@@ -38,6 +41,16 @@ test:
 
 test-e2e:
 	./scripts/run-e2e.sh
+
+mobile-sync: frontend
+	cd mobile && npx cap sync android
+
+mobile-build: mobile-sync
+	cd mobile/android && ./gradlew assembleDebug
+	@echo "APK: mobile/android/app/build/outputs/apk/debug/app-debug.apk"
+
+mobile-open: mobile-sync
+	cd mobile && npx cap open android
 
 clean:
 	rm -f relay-chat

@@ -3,7 +3,7 @@ package notifications
 
 import "context"
 
-// Provider delivers notifications via a specific channel (Pushover, webhook, etc.)
+// Provider delivers notifications via a specific channel (ntfy, webhook, etc.)
 type Provider interface {
 	// Send delivers a notification for a message
 	Send(ctx context.Context, recipient Recipient, payload Payload) error

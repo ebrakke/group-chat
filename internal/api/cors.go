@@ -8,6 +8,7 @@ import (
 var allowedOrigins = map[string]bool{
 	"capacitor://localhost": true,
 	"http://localhost":      true,
+	"https://localhost":     true,
 }
 
 func corsMiddleware(next http.Handler) http.Handler {
@@ -33,7 +34,7 @@ func isAllowedOrigin(origin string) bool {
 	if allowedOrigins[origin] {
 		return true
 	}
-	if strings.HasPrefix(origin, "http://localhost:") {
+	if strings.HasPrefix(origin, "http://localhost:") || strings.HasPrefix(origin, "https://localhost:") {
 		return true
 	}
 	return false

@@ -14,6 +14,7 @@ import (
 	"github.com/ebrakke/relay-chat/internal/db"
 	"github.com/ebrakke/relay-chat/internal/messages"
 	"github.com/ebrakke/relay-chat/internal/reactions"
+	"github.com/ebrakke/relay-chat/internal/notifications"
 	"github.com/ebrakke/relay-chat/internal/ws"
 )
 
@@ -32,7 +33,8 @@ func setup(t *testing.T) *Handler {
 	reactSvc := reactions.NewService(d)
 	hub := ws.NewHub()
 	chanSvc.EnsureGeneral()
-	return New(authSvc, botSvc, chanSvc, msgSvc, reactSvc, hub)
+	notifySvc := notifications.NewService(d, "http://localhost:8080")
+	return New(authSvc, botSvc, chanSvc, msgSvc, reactSvc, notifySvc, hub)
 }
 
 func doReq(h http.Handler, method, path string, body interface{}) *httptest.ResponseRecorder {

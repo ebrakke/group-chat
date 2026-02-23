@@ -11,7 +11,8 @@
     "@capacitor/android": "^6.0.0",
     "@capacitor/app": "^6.0.0",
     "@capacitor/cli": "^6.0.0",
-    "@capacitor/core": "^6.0.0"
+    "@capacitor/core": "^6.0.0",
+    "@capacitor/push-notifications": "^6.0.5"
   },
   "devDependencies": {
     "typescript": "^5.9.3"

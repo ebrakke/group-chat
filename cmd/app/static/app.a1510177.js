@@ -538,6 +538,10 @@ var App = registerPlugin("App", {
   web: () => Promise.resolve().then(() => (init_web(), exports_web)).then((m) => new m.AppWeb)
 });
 
+// node_modules/@capacitor/push-notifications/dist/esm/index.js
+init_dist();
+var PushNotifications = registerPlugin("PushNotifications", {});
+
 // node_modules/marked/lib/marked.esm.js
 function M() {
   return { async: false, breaks: false, extensions: null, gfm: true, hooks: null, pedantic: false, renderer: null, silent: false, tokenizer: null, walkTokens: null };
@@ -1928,6 +1932,40 @@ async function api(method, path, body) {
     throw new Error(data.error || "Request failed");
   return data;
 }
+async function registerNativePush() {
+  try {
+    const { receive } = await PushNotifications.checkPermissions();
+    if (receive === "prompt") {
+      await PushNotifications.requestPermissions();
+    }
+    await PushNotifications.register();
+    let ntfyTopic = localStorage.getItem("ntfyTopic");
+    if (!ntfyTopic) {
+      ntfyTopic = "relaychat-" + currentUser.id + "-" + Math.random().toString(36).substring(2, 10);
+      localStorage.setItem("ntfyTopic", ntfyTopic);
+    }
+    await api("POST", "/api/push/subscribe", {
+      ntfyTopic,
+      platform: "android"
+    });
+    PushNotifications.addListener("pushNotificationReceived", (notification) => {
+      console.log("Push received:", notification);
+    });
+    PushNotifications.addListener("pushNotificationActionPerformed", (action) => {
+      console.log("Push action:", action);
+      const data = action.notification.data;
+      if (data && data.click) {
+        const url = new URL(data.click);
+        const hash = url.hash || "";
+        if (hash) {
+          window.location.hash = hash;
+        }
+      }
+    });
+  } catch (e) {
+    console.error("Push registration failed:", e);
+  }
+}
 function getReconnectDelay() {
   const delay = Math.min(1000 * Math.pow(2, wsReconnectAttempt), 30000);
   return Math.round(delay * (0.75 + Math.random() * 0.5));
@@ -2550,6 +2588,9 @@ function renderLogin(prefillInviteCode) {
 async function renderMain() {
   wsReconnectAttempt = 0;
   connectWS();
+  if (Capacitor.isNativePlatform()) {
+    registerNativePush();
+  }
   let channelsList = [];
   try {
     channelsList = await api("GET", "/api/channels");
@@ -2758,6 +2799,15 @@ async function renderMain() {
   await handleRoute(channelsList);
 }
 async function doLogout() {
+  if (Capacitor.isNativePlatform()) {
+    const ntfyTopic = localStorage.getItem("ntfyTopic");
+    if (ntfyTopic) {
+      try {
+        await api("DELETE", "/api/push/subscribe", { ntfyTopic });
+      } catch (e) {}
+      localStorage.removeItem("ntfyTopic");
+    }
+  }
   await api("POST", "/api/auth/logout");
   currentUser = null;
   sessionToken = null;

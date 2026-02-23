@@ -1,6 +1,7 @@
 // Relay Chat - Minimal SPA Frontend
 import { Capacitor } from '@capacitor/core';
 import { App as CapApp } from '@capacitor/app';
+import { PushNotifications } from '@capacitor/push-notifications';
 import { renderMarkdown, escapeHtml } from './markdown.js';
 
 const app = document.getElementById("app");
@@ -76,6 +77,50 @@ async function api(method, path, body) {
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || "Request failed");
   return data;
+}
+
+async function registerNativePush() {
+  try {
+    const { receive } = await PushNotifications.checkPermissions();
+    if (receive === 'prompt') {
+      await PushNotifications.requestPermissions();
+    }
+
+    await PushNotifications.register();
+
+    // Generate a unique ntfy topic for this device
+    let ntfyTopic = localStorage.getItem('ntfyTopic');
+    if (!ntfyTopic) {
+      ntfyTopic = 'relaychat-' + currentUser.id + '-' + Math.random().toString(36).substring(2, 10);
+      localStorage.setItem('ntfyTopic', ntfyTopic);
+    }
+
+    // Register the topic with the server
+    await api("POST", "/api/push/subscribe", {
+      ntfyTopic: ntfyTopic,
+      platform: "android",
+    });
+
+    // Listen for notifications received while app is in foreground
+    PushNotifications.addListener('pushNotificationReceived', (notification) => {
+      console.log('Push received:', notification);
+    });
+
+    // Listen for notification taps
+    PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
+      console.log('Push action:', action);
+      const data = action.notification.data;
+      if (data && data.click) {
+        const url = new URL(data.click);
+        const hash = url.hash || '';
+        if (hash) {
+          window.location.hash = hash;
+        }
+      }
+    });
+  } catch (e) {
+    console.error('Push registration failed:', e);
+  }
 }
 
 // --- WebSocket ---
@@ -753,6 +798,11 @@ async function renderMain() {
   wsReconnectAttempt = 0;
   connectWS();
 
+  // Register for native push notifications (mobile only)
+  if (Capacitor.isNativePlatform()) {
+    registerNativePush();
+  }
+
   let channelsList = [];
   try {
     channelsList = await api("GET", "/api/channels");
@@ -985,6 +1035,17 @@ async function renderMain() {
 }
 
 async function doLogout() {
+  // Unregister push subscription
+  if (Capacitor.isNativePlatform()) {
+    const ntfyTopic = localStorage.getItem('ntfyTopic');
+    if (ntfyTopic) {
+      try {
+        await api("DELETE", "/api/push/subscribe", { ntfyTopic });
+      } catch (e) { /* ignore */ }
+      localStorage.removeItem('ntfyTopic');
+    }
+  }
+
   await api("POST", "/api/auth/logout");
   currentUser = null;
   sessionToken = null;

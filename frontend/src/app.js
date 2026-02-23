@@ -41,8 +41,8 @@ function getWsUrl() {
   return `${proto}//${location.host}/ws`;
 }
 
-// Register service worker
-if ('serviceWorker' in navigator) {
+// Register service worker (web only, not needed in native app)
+if ('serviceWorker' in navigator && !Capacitor.isNativePlatform()) {
   navigator.serviceWorker.register('/sw.js').catch(() => {});
 }
 

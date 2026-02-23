@@ -10,6 +10,8 @@
     "@types/bun": "latest"
   },
   "dependencies": {
+    "@capacitor/app": "^8.0.1",
+    "@capacitor/core": "^8.1.0",
     "marked": "^17.0.2"
   }
 }

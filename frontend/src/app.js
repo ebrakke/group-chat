@@ -1,4 +1,6 @@
 // Relay Chat - Minimal SPA Frontend
+import { Capacitor } from '@capacitor/core';
+import { App as CapApp } from '@capacitor/app';
 import { renderMarkdown, escapeHtml } from './markdown.js';
 
 const app = document.getElementById("app");
@@ -17,14 +19,14 @@ const REACTION_EMOJIS = ["👍", "👎", "❤️", "😂", "😮", "😢", "🔥
 // --- Server URL (native app) ---
 
 function getApiBase() {
-  if (window.Capacitor?.isNativePlatform()) {
+  if (Capacitor.isNativePlatform()) {
     return localStorage.getItem('serverUrl') || '';
   }
   return '';
 }
 
 function getWsUrl() {
-  if (window.Capacitor?.isNativePlatform()) {
+  if (Capacitor.isNativePlatform()) {
     const base = localStorage.getItem('serverUrl') || '';
     if (!base) return '';
     try {
@@ -56,7 +58,7 @@ async function api(method, path, body) {
   const headers = { "Content-Type": "application/json" };
   const opts = { method, headers };
   // Native app uses Bearer token; web uses cookies
-  if (window.Capacitor?.isNativePlatform() && sessionToken) {
+  if (Capacitor.isNativePlatform() && sessionToken) {
     headers["Authorization"] = `Bearer ${sessionToken}`;
   } else {
     opts.credentials = "include";
@@ -1107,7 +1109,7 @@ async function renderSettings() {
       ${adminPushoverSection}
       <div class="card">
         <h3>Account</h3>
-        ${window.Capacitor?.isNativePlatform() ? '<button id="settings-change-server" class="secondary" style="margin-bottom: 8px;">Change Server</button>' : ''}
+        ${Capacitor.isNativePlatform() ? '<button id="settings-change-server" class="secondary" style="margin-bottom: 8px;">Change Server</button>' : ''}
         <button id="settings-logout" class="secondary">Logout</button>
       </div>
     </div>
@@ -2359,7 +2361,7 @@ async function handleDeepLink() {
 }
 
 async function boot() {
-  if (window.Capacitor?.isNativePlatform() && !localStorage.getItem('serverUrl')) {
+  if (Capacitor.isNativePlatform() && !localStorage.getItem('serverUrl')) {
     renderServerConfig();
     return;
   }
@@ -2382,6 +2384,30 @@ async function boot() {
     await renderMain();
     // Handle deep links after main renders
     setTimeout(() => handleDeepLink(), 500);
+
+    // Android hardware back button handler
+    if (Capacitor.isNativePlatform()) {
+      CapApp.addListener('backButton', () => {
+        if (openThreadId) {
+          closeThread();
+          return;
+        }
+        const sidebar = document.querySelector(".sidebar");
+        if (sidebar && sidebar.classList.contains("sidebar-open")) {
+          sidebar.classList.remove("sidebar-open");
+          const backdrop = document.getElementById("sidebar-backdrop");
+          if (backdrop) backdrop.classList.remove("sidebar-backdrop-visible");
+          document.body.classList.remove("sidebar-is-open");
+          return;
+        }
+        if (viewingSettings) {
+          viewingSettings = false;
+          if (currentChannel) selectChannel(currentChannel);
+          return;
+        }
+        CapApp.minimizeApp();
+      });
+    }
   } catch {
     renderLogin(inviteCode);
   }

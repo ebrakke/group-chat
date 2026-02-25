@@ -83,7 +83,7 @@
       return;
     }
 
-    if (authStore.isLoggedIn && isPublicRoute(pathname)) {
+    if (authStore.isLoggedIn && (isPublicRoute(pathname) || pathname === '/')) {
       goto('/channels');
       return;
     }

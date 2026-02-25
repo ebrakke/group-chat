@@ -1,1 +1,0 @@
-import{a as e,f as r}from"../chunks/CbZllhPg.js";import"../chunks/SNwHGAoD.js";var o=r('<div class="flex items-center justify-center h-full text-gray-500"><p>Select a channel to start chatting</p></div>');function p(t){var a=o();e(t,a)}export{p as component};

@@ -17,7 +17,8 @@
   } = $props();
 
   let showPicker = $state(false);
-  let showReplyBtn = $state(false);
+  let pickerContainer: HTMLDivElement | undefined = $state();
+  let addBtnEl: HTMLButtonElement | undefined = $state();
 
   const EMOJI_LIST = [
     '\u{1F44D}',
@@ -34,6 +35,24 @@
 
   const currentUserId = $derived(authStore.user?.id ?? 0);
   const renderedContent = $derived(renderMarkdown(message.content));
+
+  function handleDocumentClick(e: MouseEvent) {
+    const target = e.target as Node;
+    // If click is inside the picker or on the add button, ignore
+    if (pickerContainer?.contains(target)) return;
+    if (addBtnEl?.contains(target)) return;
+    showPicker = false;
+  }
+
+  // Add/remove document click listener when picker opens/closes
+  $effect(() => {
+    if (showPicker) {
+      document.addEventListener('click', handleDocumentClick);
+      return () => {
+        document.removeEventListener('click', handleDocumentClick);
+      };
+    }
+  });
 
   async function toggleReaction(emoji: string) {
     const existing = message.reactions?.find((r) => r.emoji === emoji);
@@ -55,17 +74,11 @@
   function handlePickerEmoji(emoji: string) {
     toggleReaction(emoji);
   }
-
-  function closePicker() {
-    showPicker = false;
-  }
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
   class="message group px-4 py-2 hover:bg-gray-800/50 transition-colors"
-  onmouseenter={() => (showReplyBtn = true)}
-  onmouseleave={() => (showReplyBtn = false)}
 >
   <!-- Header -->
   <div class="flex items-baseline gap-2">
@@ -111,7 +124,8 @@
       {/if}
 
       <button
-        class="reaction-add-btn text-gray-500 hover:text-gray-300 hover:bg-gray-800 rounded px-1.5 py-0.5 text-xs transition-colors opacity-0 group-hover:opacity-100"
+        bind:this={addBtnEl}
+        class="reaction-add-btn text-gray-600 hover:text-gray-300 hover:bg-gray-800 rounded px-1.5 py-0.5 text-xs transition-colors"
         onclick={() => (showPicker = !showPicker)}
         title="Add reaction"
       >
@@ -120,14 +134,9 @@
 
       <!-- Reaction picker -->
       {#if showPicker}
-        <!-- Backdrop to close picker -->
-        <button
-          class="fixed inset-0 z-40"
-          onclick={closePicker}
-          aria-label="Close reaction picker"
-        ></button>
         <div
-          class="reaction-picker absolute left-0 bottom-full mb-1 z-50 bg-gray-800 border border-gray-700 rounded-lg p-2 shadow-xl grid grid-cols-5 gap-1"
+          bind:this={pickerContainer}
+          class="reaction-picker absolute left-0 top-full mt-1 z-50 bg-gray-800 border border-gray-700 rounded-lg p-2 shadow-xl grid grid-cols-5 gap-1"
         >
           {#each EMOJI_LIST as emoji}
             <button
@@ -143,19 +152,16 @@
   {/if}
 
   <!-- Reply button -->
-  {#if message.replyCount && message.replyCount > 0}
-    <button
-      class="reply-btn text-xs text-blue-400 hover:text-blue-300 mt-1 transition-colors"
-      onclick={() => onOpenThread?.(message.id)}
-    >
+  <button
+    class="reply-btn text-xs mt-1 transition-colors {message.replyCount && message.replyCount > 0
+      ? 'text-blue-400 hover:text-blue-300'
+      : 'text-gray-500 hover:text-gray-300'}"
+    onclick={() => onOpenThread?.(message.id)}
+  >
+    {#if message.replyCount && message.replyCount > 0}
       Reply ({message.replyCount})
-    </button>
-  {:else if showReplyBtn}
-    <button
-      class="reply-btn text-xs text-gray-500 hover:text-gray-300 mt-1 transition-colors"
-      onclick={() => onOpenThread?.(message.id)}
-    >
+    {:else}
       Reply
-    </button>
-  {/if}
+    {/if}
+  </button>
 </div>

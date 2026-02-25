@@ -128,7 +128,7 @@
       Settings
     </button>
     {#if authStore.isAdmin}
-      <div class="admin-section hidden md:block">
+      <div class="admin-section">
         <button
           id="toggle-admin"
           onclick={() => goto('/settings')}

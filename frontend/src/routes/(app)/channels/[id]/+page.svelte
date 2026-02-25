@@ -1,14 +1,18 @@
 <script lang="ts">
   import { page } from '$app/stores';
+  import { onMount } from 'svelte';
   import { untrack } from 'svelte';
   import { channelStore } from '$lib/stores/channels';
   import { messageStore } from '$lib/stores/messages';
+  import { threadStore } from '$lib/stores/threads';
   import MessageList from '$lib/components/MessageList.svelte';
   import MessageInput from '$lib/components/MessageInput.svelte';
+  import ThreadPanel from '$lib/components/ThreadPanel.svelte';
 
   let channelId = $derived(Number($page.params.id));
   let channel = $derived(channelStore.channels.find((c) => c.id === channelId));
   let messages = $derived(messageStore.getMessages(channelId));
+  let threadOpen = $derived(threadStore.openThreadId !== null);
 
   let loaded = $state(false);
   let lastReadChannel = $state(0);
@@ -28,6 +32,17 @@
     if (channelId) {
       channelStore.setActive(channelId);
       loadMessages(channelId);
+    }
+  });
+
+  // Open thread from URL query param
+  onMount(() => {
+    const threadParam = $page.url.searchParams.get('thread');
+    if (threadParam) {
+      const parentId = Number(threadParam);
+      if (parentId) {
+        openThread(parentId);
+      }
     }
   });
 
@@ -56,28 +71,42 @@
   }
 
   function openThread(parentId: number) {
-    // Placeholder for Task 7 - thread panel integration
-    console.log('Open thread:', parentId);
+    const parentMsg = messages.find((m) => m.id === parentId);
+    threadStore.openThread(parentId, parentMsg);
+  }
+
+  function closeThread() {
+    threadStore.closeThread();
   }
 </script>
 
-<div class="flex flex-col h-full">
-  <!-- Channel header -->
-  <div
-    id="channel-header"
-    class="flex items-center px-4 py-3 border-b border-gray-800 shrink-0"
-  >
-    <h2 id="channel-header-text" class="text-lg font-bold text-white">
-      # {channel?.name ?? 'Loading...'}
-    </h2>
+<div class="flex h-full">
+  <!-- Messages area -->
+  <div class="flex flex-col flex-1 min-w-0 {threadOpen ? 'hidden md:flex' : 'flex'}">
+    <!-- Channel header -->
+    <div
+      id="channel-header"
+      class="flex items-center px-4 py-3 border-b border-gray-800 shrink-0"
+    >
+      <h2 id="channel-header-text" class="text-lg font-bold text-white">
+        # {channel?.name ?? 'Loading...'}
+      </h2>
+    </div>
+
+    <!-- Messages -->
+    <MessageList {messages} onOpenThread={openThread} />
+
+    <!-- Input -->
+    <MessageInput
+      onSend={handleSend}
+      placeholder={channel ? `Message #${channel.name}` : 'Type a message...'}
+    />
   </div>
 
-  <!-- Messages -->
-  <MessageList {messages} onOpenThread={openThread} />
-
-  <!-- Input -->
-  <MessageInput
-    onSend={handleSend}
-    placeholder={channel ? `Message #${channel.name}` : 'Type a message...'}
-  />
+  <!-- Thread panel -->
+  {#if threadOpen}
+    <div class="w-full md:w-[400px] md:shrink-0">
+      <ThreadPanel onClose={closeThread} />
+    </div>
+  {/if}
 </div>

@@ -111,13 +111,13 @@
   <!-- Bottom section -->
   <div class="border-t border-gray-800 p-3 space-y-1">
     <button
-      onclick={() => goto('/channels/threads')}
+      onclick={() => goto('/threads')}
       class="flex items-center w-full px-2 py-1.5 text-sm text-gray-400 hover:bg-gray-800/50 hover:text-gray-200 rounded transition-colors"
     >
       My Threads
     </button>
     <button
-      onclick={() => goto('/channels/settings')}
+      onclick={() => goto('/settings')}
       class="flex items-center w-full px-2 py-1.5 text-sm text-gray-400 hover:bg-gray-800/50 hover:text-gray-200 rounded transition-colors"
     >
       Settings
@@ -125,7 +125,7 @@
     {#if authStore.isAdmin}
       <button
         id="open-admin"
-        onclick={() => goto('/channels/admin')}
+        onclick={() => goto('/admin')}
         class="flex items-center w-full px-2 py-1.5 text-sm text-gray-400 hover:bg-gray-800/50 hover:text-gray-200 rounded transition-colors"
       >
         Admin Panel

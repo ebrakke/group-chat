@@ -2,6 +2,7 @@ import { getWsUrl, isNative } from './utils/platform';
 import { getSessionToken } from './api';
 import { messageStore } from './stores/messages';
 import { channelStore } from './stores/channels';
+import { threadStore } from './stores/threads';
 
 class WebSocketManager {
   private ws: WebSocket | null = null;
@@ -60,6 +61,7 @@ class WebSocketManager {
         break;
       case 'new_reply':
         messageStore.incrementReplyCount(data.parentId);
+        threadStore.addReply(data);
         break;
       case 'reaction_added':
         messageStore.updateReaction(data.messageId, data.emoji, data.userId, true);

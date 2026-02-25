@@ -16,8 +16,8 @@ help:
 
 frontend:
 	cd frontend && bun install && bun run build
-	rm -f cmd/app/static/app.*.js cmd/app/static/style.*.css
-	cp frontend/dist/* cmd/app/static/
+	rm -rf cmd/app/static/*
+	cp -r frontend/dist/* cmd/app/static/
 
 build: frontend
 	go build -o relay-chat ./cmd/app/

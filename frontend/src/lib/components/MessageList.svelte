@@ -1,0 +1,83 @@
+<script lang="ts">
+  import type { Message as MessageType } from '$lib/types';
+  import Message from './Message.svelte';
+  import { tick } from 'svelte';
+
+  let {
+    messages,
+    onOpenThread
+  }: {
+    messages: MessageType[];
+    onOpenThread?: (id: number) => void;
+  } = $props();
+
+  let container: HTMLDivElement | undefined = $state();
+
+  const GROUP_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
+
+  function isSameDay(a: string, b: string): boolean {
+    const da = new Date(a);
+    const db = new Date(b);
+    return da.getFullYear() === db.getFullYear() &&
+      da.getMonth() === db.getMonth() &&
+      da.getDate() === db.getDate();
+  }
+
+  function formatDateSeparator(ts: string): string {
+    const d = new Date(ts);
+    const now = new Date();
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    if (isSameDay(ts, now.toISOString())) return 'Today';
+    if (isSameDay(ts, yesterday.toISOString())) return 'Yesterday';
+
+    return d.toLocaleDateString([], { weekday: 'long', month: 'long', day: 'numeric' });
+  }
+
+  function isGrouped(msg: MessageType, prev: MessageType | undefined): boolean {
+    if (!prev) return false;
+    if (prev.userId !== msg.userId) return false;
+    const gap = new Date(msg.createdAt).getTime() - new Date(prev.createdAt).getTime();
+    return gap < GROUP_WINDOW_MS;
+  }
+
+  function showDateSeparator(msg: MessageType, prev: MessageType | undefined): boolean {
+    if (!prev) return true; // always show for first message
+    return !isSameDay(msg.createdAt, prev.createdAt);
+  }
+
+  async function scrollToBottom() {
+    await tick();
+    if (container) {
+      container.scrollTop = container.scrollHeight;
+    }
+  }
+
+  $effect(() => {
+    // Track messages length to trigger scroll
+    if (messages.length) {
+      scrollToBottom();
+    }
+  });
+</script>
+
+<div id="messages" bind:this={container} class="message-list flex-1 overflow-y-auto py-2">
+  {#each messages as msg, i (msg.id)}
+    {@const prev = messages[i - 1]}
+    {@const showDate = showDateSeparator(msg, prev)}
+    {@const grouped = !showDate && isGrouped(msg, prev)}
+
+    {#if showDate}
+      <div class="flex items-center gap-3 my-3 px-4">
+        <div class="flex-1 h-px bg-gray-700/60"></div>
+        <span class="text-[11px] font-semibold text-gray-500 whitespace-nowrap select-none">
+          {formatDateSeparator(msg.createdAt)}
+        </span>
+        <div class="flex-1 h-px bg-gray-700/60"></div>
+      </div>
+    {/if}
+
+    <Message message={msg} {onOpenThread} {grouped} />
+  {/each}
+</div>

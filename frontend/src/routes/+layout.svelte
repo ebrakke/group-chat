@@ -1,6 +1,49 @@
 <script lang="ts">
   import '../app.css';
+  import { onMount } from 'svelte';
+  import { goto } from '$app/navigation';
+  import { page } from '$app/stores';
+  import { authStore } from '$lib/stores/auth';
+
   let { children } = $props();
+
+  const publicRoutes = ['/login', '/bootstrap', '/signup', '/invite'];
+
+  function isPublicRoute(pathname: string): boolean {
+    return publicRoutes.some((route) => pathname === route || pathname.startsWith(route + '/'));
+  }
+
+  onMount(async () => {
+    await authStore.checkHasUsers();
+    await authStore.checkAuth();
+  });
+
+  $effect(() => {
+    if (authStore.loading) return;
+
+    const pathname = $page.url.pathname;
+
+    if (!authStore.hasUsers && pathname !== '/bootstrap') {
+      goto('/bootstrap');
+      return;
+    }
+
+    if (!authStore.isLoggedIn && !isPublicRoute(pathname)) {
+      goto('/login');
+      return;
+    }
+
+    if (authStore.isLoggedIn && isPublicRoute(pathname)) {
+      goto('/channels');
+      return;
+    }
+  });
 </script>
 
-{@render children()}
+{#if authStore.loading}
+  <div class="flex items-center justify-center h-screen bg-gray-950 text-gray-200">
+    <p>Loading...</p>
+  </div>
+{:else}
+  {@render children()}
+{/if}

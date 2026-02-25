@@ -1,6 +1,7 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { channelStore } from '$lib/stores/channels';
+  import { wsManager } from '$lib/ws';
   import Sidebar from '$lib/components/Sidebar.svelte';
 
   let { children } = $props();
@@ -8,6 +9,11 @@
 
   onMount(() => {
     channelStore.load();
+    wsManager.connect();
+  });
+
+  onDestroy(() => {
+    wsManager.disconnect();
   });
 
   function closeSidebar() {
@@ -59,4 +65,10 @@
   <main class="flex-1 flex flex-col min-w-0">
     {@render children()}
   </main>
+
+  {#if !wsManager.connected}
+    <div class="fixed bottom-4 right-4 bg-yellow-900/80 text-yellow-200 px-3 py-1.5 rounded text-xs z-50">
+      Reconnecting...
+    </div>
+  {/if}
 </div>

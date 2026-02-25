@@ -26,9 +26,9 @@
   }
 </script>
 
-<div id="thread-panel" class="flex flex-col h-full bg-gray-900 border-l border-gray-800">
+<div id="thread-panel" class="flex flex-col h-full bg-[#1e2024] border-l border-gray-700/40">
   <!-- Thread header -->
-  <div class="flex items-center justify-between px-4 py-3 border-b border-gray-800 shrink-0">
+  <div class="flex items-center justify-between px-4 py-3 border-b border-gray-700/40 shrink-0">
     <h3 class="text-lg font-bold text-white">Thread</h3>
     <div class="flex items-center gap-2">
       <button
@@ -55,7 +55,7 @@
 
   <!-- Parent message -->
   {#if parentMessage}
-    <div id="thread-parent" class="px-4 py-3 border-b border-gray-800 shrink-0">
+    <div id="thread-parent" class="px-4 py-3 border-b border-gray-700/40 shrink-0">
       <div class="flex items-baseline gap-2">
         <span class="font-bold text-gray-100 text-sm">{parentMessage.displayName}</span>
         <span class="text-xs text-gray-500">{formatTime(parentMessage.createdAt)}</span>

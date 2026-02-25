@@ -86,7 +86,7 @@
     <!-- Channel header -->
     <div
       id="channel-header"
-      class="channel-header flex items-center px-4 py-3 border-b border-gray-800 shrink-0"
+      class="channel-header flex items-center pl-14 md:pl-4 pr-14 md:pr-4 py-3 border-b border-gray-700/40 shrink-0"
     >
       <h2 id="channel-header-text" class="text-lg font-bold text-white">
         # {channel?.name ?? 'Loading...'}

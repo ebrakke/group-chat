@@ -10,7 +10,8 @@ class MessageStore {
 
   async loadChannel(channelId: number) {
     const messages = await api<Message[]>('GET', `/api/channels/${channelId}/messages?limit=50`);
-    this.byChannel[channelId] = messages;
+    // API returns newest-first (DESC); reverse so oldest is first, newest at bottom
+    this.byChannel[channelId] = messages.reverse();
   }
 
   async send(channelId: number, content: string) {

@@ -102,7 +102,7 @@
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
-  class="flex h-screen bg-gray-950 text-gray-200"
+  class="flex h-screen bg-[#1e2024] text-gray-200"
   ontouchstart={handleTouchStart}
   ontouchend={handleTouchEnd}
 >

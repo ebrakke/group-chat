@@ -64,7 +64,7 @@
   }
 </script>
 
-<aside class="flex flex-col h-full bg-gray-900 border-r border-gray-800 w-64">
+<aside class="flex flex-col h-full bg-[#191b1f] border-r border-gray-800/60 w-64">
   <!-- Header -->
   <div class="flex items-center justify-between px-4 py-3 border-b border-gray-800">
     <h1 class="text-lg font-bold text-white">Relay Chat</h1>

@@ -9,11 +9,13 @@
   let {
     message,
     onOpenThread,
-    onReactionChange
+    onReactionChange,
+    grouped = false
   }: {
     message: Message;
     onOpenThread?: (id: number) => void;
     onReactionChange?: () => void;
+    grouped?: boolean;
   } = $props();
 
   let showPicker = $state(false);
@@ -35,16 +37,15 @@
 
   const currentUserId = $derived(authStore.user?.id ?? 0);
   const renderedContent = $derived(renderMarkdown(message.content));
+  const hasReplies = $derived(message.replyCount && message.replyCount > 0);
 
   function handleDocumentClick(e: MouseEvent) {
     const target = e.target as Node;
-    // If click is inside the picker or on the add button, ignore
     if (pickerContainer?.contains(target)) return;
     if (addBtnEl?.contains(target)) return;
     showPicker = false;
   }
 
-  // Add/remove document click listener when picker opens/closes
   $effect(() => {
     if (showPicker) {
       document.addEventListener('click', handleDocumentClick);
@@ -66,102 +67,111 @@
       }
       onReactionChange?.();
     } catch {
-      // ignore reaction errors
+      // ignore
     }
     showPicker = false;
-  }
-
-  function handlePickerEmoji(emoji: string) {
-    toggleReaction(emoji);
   }
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
-  class="message group px-4 py-2 hover:bg-gray-800/50 transition-colors"
+  class="message group relative px-4 hover:bg-white/[0.03] {grouped ? 'py-0.5' : 'mt-3 first:mt-0 pt-1.5 pb-0.5'}"
 >
-  <!-- Header -->
-  <div class="flex items-baseline gap-2">
-    <span class="font-bold text-gray-100 text-sm">{message.displayName}</span>
-    {#if message.isBot}
-      <span
-        class="text-[10px] font-semibold bg-blue-600 text-white px-1.5 py-0.5 rounded uppercase leading-none"
-        >BOT</span
-      >
-    {/if}
-    <span class="text-xs text-gray-500">{formatTime(message.createdAt)}</span>
+  <!-- Action buttons: floating toolbar on desktop hover, inline on mobile -->
+  <div class="absolute -top-3 right-3 items-center gap-0.5 bg-gray-800 border border-gray-700 rounded-md px-0.5 py-0.5 shadow-lg z-10
+    hidden md:flex opacity-0 group-hover:opacity-100 transition-opacity duration-100">
+    <button
+      class="reply-btn p-1.5 rounded hover:bg-gray-700 text-gray-400 hover:text-gray-200 text-xs"
+      onclick={() => onOpenThread?.(message.id)}
+      title="Reply in thread"
+    >
+      {#if hasReplies}
+        Reply ({message.replyCount})
+      {:else}
+        Reply
+      {/if}
+    </button>
+    <div class="relative">
+      <button
+        bind:this={addBtnEl}
+        class="reaction-add-btn p-1.5 rounded hover:bg-gray-700 text-gray-400 hover:text-gray-200 text-xs"
+        onclick={() => (showPicker = !showPicker)}
+        title="Add reaction"
+      >+</button>
+      {#if showPicker}
+        <div
+          bind:this={pickerContainer}
+          class="reaction-picker absolute right-0 top-full mt-1 z-50 bg-gray-800 border border-gray-700 rounded-lg p-2 shadow-xl flex flex-wrap gap-1 w-[220px]"
+        >
+          {#each EMOJI_LIST as emoji}
+            <button
+              class="reaction-picker-btn text-xl hover:bg-gray-700 rounded w-10 h-10 flex items-center justify-center"
+              onclick={() => toggleReaction(emoji)}
+            >{emoji}</button>
+          {/each}
+        </div>
+      {/if}
+    </div>
   </div>
 
+  {#if !grouped}
+    <!-- Header row: name + timestamp -->
+    <div class="flex items-baseline gap-2">
+      <span class="font-semibold text-[15px] text-gray-100 leading-tight">{message.displayName}</span>
+      {#if message.isBot}
+        <span class="text-[10px] font-bold bg-indigo-600 text-white px-1 py-0.5 rounded uppercase leading-none tracking-wide">BOT</span>
+      {/if}
+      <span class="text-[11px] text-gray-400">{formatTime(message.createdAt)}</span>
+    </div>
+  {/if}
+
   <!-- Content -->
-  <div class="msg-body prose prose-invert prose-sm max-w-none mt-0.5 break-words">
+  <div class="msg-body text-[15px] text-gray-200 leading-relaxed break-words [&_p]:my-0 [&_a]:text-blue-400 [&_a]:underline [&_a]:underline-offset-2 [&_code]:bg-gray-800 [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-[13px] [&_pre]:bg-gray-800/80 [&_pre]:rounded-md [&_pre]:p-3 [&_pre]:my-1 [&_pre]:overflow-x-auto">
     {@html renderedContent}
   </div>
 
   <!-- Link Previews -->
   {#if message.linkPreviews?.length}
-    {#each message.linkPreviews as preview (preview.url)}
-      <LinkPreview {preview} />
-    {/each}
-  {/if}
-
-  <!-- Reactions bar -->
-  {#if message.reactions?.length || true}
-    <div class="flex flex-wrap items-center gap-1.5 mt-1.5 relative">
-      {#if message.reactions?.length}
-        {#each message.reactions as reaction (reaction.emoji)}
-          <button
-            class="reaction-pill inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border transition-colors {reaction.userIds.includes(
-              currentUserId
-            )
-              ? 'bg-blue-600/20 border-blue-500/50 text-blue-300'
-              : 'bg-gray-800 border-gray-700 text-gray-300 hover:border-gray-600'}"
-            onclick={() => toggleReaction(reaction.emoji)}
-          >
-            <span>{reaction.emoji}</span>
-            <span class="reaction-count">{reaction.count}</span>
-          </button>
-        {/each}
-      {/if}
-
-      <button
-        bind:this={addBtnEl}
-        class="reaction-add-btn text-gray-600 hover:text-gray-300 hover:bg-gray-800 rounded px-1.5 py-0.5 text-xs transition-colors"
-        onclick={() => (showPicker = !showPicker)}
-        title="Add reaction"
-      >
-        +
-      </button>
-
-      <!-- Reaction picker -->
-      {#if showPicker}
-        <div
-          bind:this={pickerContainer}
-          class="reaction-picker absolute left-0 top-full mt-1 z-50 bg-gray-800 border border-gray-700 rounded-lg p-2 shadow-xl grid grid-cols-5 gap-1"
-        >
-          {#each EMOJI_LIST as emoji}
-            <button
-              class="reaction-picker-btn text-lg hover:bg-gray-700 rounded p-1 transition-colors"
-              onclick={() => handlePickerEmoji(emoji)}
-            >
-              {emoji}
-            </button>
-          {/each}
-        </div>
-      {/if}
+    <div class="mt-1">
+      {#each message.linkPreviews as preview (preview.url)}
+        <LinkPreview {preview} />
+      {/each}
     </div>
   {/if}
 
-  <!-- Reply button -->
-  <button
-    class="reply-btn text-xs mt-1 transition-colors {message.replyCount && message.replyCount > 0
-      ? 'text-blue-400 hover:text-blue-300'
-      : 'text-gray-500 hover:text-gray-300'}"
-    onclick={() => onOpenThread?.(message.id)}
-  >
-    {#if message.replyCount && message.replyCount > 0}
-      Reply ({message.replyCount})
+  <!-- Mobile actions (visible, compact) -->
+  <div class="flex md:hidden items-center gap-3 mt-0.5">
+    {#if hasReplies}
+      <button
+        class="reply-btn text-xs text-blue-400 active:text-blue-300 py-0.5"
+        onclick={() => onOpenThread?.(message.id)}
+      >
+        {message.replyCount} {message.replyCount === 1 ? 'reply' : 'replies'}
+      </button>
     {:else}
-      Reply
+      <button
+        class="reply-btn text-xs text-gray-500 active:text-gray-300 py-0.5"
+        onclick={() => onOpenThread?.(message.id)}
+      >
+        Reply
+      </button>
     {/if}
-  </button>
+  </div>
+
+  <!-- Reactions -->
+  {#if message.reactions?.length}
+    <div class="flex flex-wrap items-center gap-1 mt-1">
+      {#each message.reactions as reaction (reaction.emoji)}
+        <button
+          class="reaction-pill inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border transition-colors {reaction.userIds.includes(currentUserId)
+            ? 'bg-indigo-500/15 border-indigo-500/40 text-indigo-300'
+            : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600 hover:text-gray-300'}"
+          onclick={() => toggleReaction(reaction.emoji)}
+        >
+          <span>{reaction.emoji}</span>
+          <span class="reaction-count">{reaction.count}</span>
+        </button>
+      {/each}
+    </div>
+  {/if}
 </div>

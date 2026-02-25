@@ -4,6 +4,7 @@
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import { authStore } from '$lib/stores/auth';
+  import { isNative } from '$lib/utils/platform';
 
   let { children } = $props();
 
@@ -16,6 +17,11 @@
   onMount(async () => {
     await authStore.checkHasUsers();
     await authStore.checkAuth();
+
+    // Register service worker (web only, not native)
+    if ('serviceWorker' in navigator && !isNative()) {
+      navigator.serviceWorker.register('/service-worker.js').catch(() => {});
+    }
   });
 
   $effect(() => {

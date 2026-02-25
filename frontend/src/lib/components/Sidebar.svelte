@@ -83,29 +83,33 @@
       </button>
     </div>
 
-    {#each channelStore.channels as channel (channel.id)}
-      <button
-        onclick={() => navigateToChannel(channel.id)}
-        class="flex items-center w-full px-4 py-1.5 text-sm text-left transition-colors {channelStore.activeChannelId ===
-        channel.id
-          ? 'bg-gray-800 text-white'
-          : 'text-gray-400 hover:bg-gray-800/50 hover:text-gray-200'}"
-      >
-        <span class="text-gray-500 mr-1.5">#</span>
-        <span class="truncate flex-1">{channel.name}</span>
-        {#if channel.hasMention}
-          <span
-            class="ml-2 bg-red-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center shrink-0"
-            >@</span
+    <ul class="channel-list">
+      {#each channelStore.channels as channel (channel.id)}
+        <li>
+          <button
+            onclick={() => navigateToChannel(channel.id)}
+            class="flex items-center w-full px-4 py-1.5 text-sm text-left transition-colors {channelStore.activeChannelId ===
+            channel.id
+              ? 'bg-gray-800 text-white'
+              : 'text-gray-400 hover:bg-gray-800/50 hover:text-gray-200'}"
           >
-        {:else if channel.unreadCount}
-          <span
-            class="ml-2 bg-gray-600 text-white text-xs font-bold rounded-full min-w-5 h-5 flex items-center justify-center px-1 shrink-0"
-            >{channel.unreadCount}</span
-          >
-        {/if}
-      </button>
-    {/each}
+            <span class="text-gray-500 mr-1.5">#</span>
+            <span class="truncate flex-1">{channel.name}</span>
+            {#if channel.hasMention}
+              <span
+                class="ml-2 bg-red-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center shrink-0"
+                >@</span
+              >
+            {:else if channel.unreadCount}
+              <span
+                class="ml-2 bg-gray-600 text-white text-xs font-bold rounded-full min-w-5 h-5 flex items-center justify-center px-1 shrink-0"
+                >{channel.unreadCount}</span
+              >
+            {/if}
+          </button>
+        </li>
+      {/each}
+    </ul>
   </div>
 
   <!-- Bottom section -->
@@ -124,17 +128,19 @@
       Settings
     </button>
     {#if authStore.isAdmin}
-      <button
-        id="open-admin"
-        onclick={() => goto('/admin')}
-        class="flex items-center w-full px-2 py-1.5 text-sm text-gray-400 hover:bg-gray-800/50 hover:text-gray-200 rounded transition-colors"
-      >
-        Admin Panel
-      </button>
+      <div class="admin-section hidden md:block">
+        <button
+          id="toggle-admin"
+          onclick={() => goto('/settings')}
+          class="flex items-center w-full px-2 py-1.5 text-sm text-gray-400 hover:bg-gray-800/50 hover:text-gray-200 rounded transition-colors"
+        >
+          Admin Panel
+        </button>
+      </div>
     {/if}
 
     <!-- User info -->
-    <div class="flex items-center justify-between pt-2 border-t border-gray-800 mt-2">
+    <div class="user-info flex items-center justify-between pt-2 border-t border-gray-800 mt-2">
       <div class="flex items-center min-w-0">
         <div
           class="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center text-sm font-medium text-white shrink-0"
@@ -147,6 +153,7 @@
         </div>
       </div>
       <button
+        id="logout"
         onclick={() => {
           authStore.logout();
           goto('/login');

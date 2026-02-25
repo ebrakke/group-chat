@@ -8,32 +8,42 @@
     <link rel="manifest" href="/manifest.json" />
     <link rel="icon" href="/icon-192.png" />
     <title>Relay Chat</title>
-    <link href="/_app/immutable/entry/start.C-VBArHT.js" rel="modulepreload">
-		<link href="/_app/immutable/chunks/CDQRH9O2.js" rel="modulepreload">
-		<link href="/_app/immutable/chunks/BzYkYWrk.js" rel="modulepreload">
-		<link href="/_app/immutable/chunks/Fhf-A2WS.js" rel="modulepreload">
-		<link href="/_app/immutable/entry/app.i8xniSS7.js" rel="modulepreload">
-		<link href="/_app/immutable/chunks/U4ZipFWJ.js" rel="modulepreload">
-		<link href="/_app/immutable/chunks/CGxWA4IL.js" rel="modulepreload">
-		<link href="/_app/immutable/chunks/1deBnN1M.js" rel="modulepreload">
+    <link href="/_app/immutable/entry/start.BH__RkPH.js" rel="modulepreload">
+		<link href="/_app/immutable/chunks/CqtHPzZJ.js" rel="modulepreload">
+		<link href="/_app/immutable/chunks/DrRdfRWN.js" rel="modulepreload">
+		<link href="/_app/immutable/chunks/C7lWu-R1.js" rel="modulepreload">
+		<link href="/_app/immutable/chunks/BUApaBEI.js" rel="modulepreload">
+		<link href="/_app/immutable/entry/app.C7Al5cpQ.js" rel="modulepreload">
+		<link href="/_app/immutable/chunks/Dp1pzeXC.js" rel="modulepreload">
+		<link href="/_app/immutable/chunks/C8O6nYU5.js" rel="modulepreload">
+		<link href="/_app/immutable/chunks/CbZllhPg.js" rel="modulepreload">
+		<link href="/_app/immutable/chunks/Ds7mx0rP.js" rel="modulepreload">
+		<link href="/_app/immutable/chunks/Bt-bMj35.js" rel="modulepreload">
+		<link href="/_app/immutable/chunks/Blq6eQOl.js" rel="modulepreload">
 		
   </head>
   <body>
     <div id="app">
 			<script>
 				{
-					__sveltekit_1njhg5u = {
+					__sveltekit_1jqqd0c = {
 						base: ""
 					};
 
 					const element = document.currentScript.parentElement;
 
 					Promise.all([
-						import("/_app/immutable/entry/start.C-VBArHT.js"),
-						import("/_app/immutable/entry/app.i8xniSS7.js")
+						import("/_app/immutable/entry/start.BH__RkPH.js"),
+						import("/_app/immutable/entry/app.C7Al5cpQ.js")
 					]).then(([kit, app]) => {
 						kit.start(app, element);
 					});
+
+					if ('serviceWorker' in navigator) {
+						addEventListener('load', function () {
+							navigator.serviceWorker.register('/service-worker.js');
+						});
+					}
 				}
 			</script>
 		</div>

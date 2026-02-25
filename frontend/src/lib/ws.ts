@@ -4,6 +4,17 @@ import { messageStore } from './stores/messages';
 import { channelStore } from './stores/channels';
 import { threadStore } from './stores/threads';
 
+function showBrowserNotification(title: string, body: string) {
+  if (isNative()) return;
+  if (typeof Notification === 'undefined') return;
+  if (Notification.permission !== 'granted') return;
+  try {
+    new Notification(title, { body });
+  } catch {
+    // Ignore notification errors (e.g. in non-secure contexts)
+  }
+}
+
 class WebSocketManager {
   private ws: WebSocket | null = null;
   private reconnectAttempt = 0;
@@ -51,26 +62,49 @@ class WebSocketManager {
   }
 
   private handleEvent(data: any) {
+    const payload = data.payload;
     switch (data.type) {
       case 'new_message':
-        messageStore.addMessage(data);
-        // Update unread for non-active channels
-        if (data.channelId !== channelStore.activeChannelId) {
-          channelStore.updateUnread(data.channelId, 1, false);
+        if (payload) {
+          messageStore.addMessage(payload);
+          // Update unread for non-active channels
+          if (payload.channelId !== channelStore.activeChannelId) {
+            channelStore.updateUnread(payload.channelId, 1, false);
+          }
+          // Browser notification when tab is hidden or message is in another channel
+          if (document.hidden || payload.channelId !== channelStore.activeChannelId) {
+            const ch = channelStore.channels.find((c) => c.id === payload.channelId);
+            const channelName = ch ? `#${ch.name}` : 'New message';
+            const preview = payload.content?.substring(0, 100) || '';
+            showBrowserNotification(channelName, `${payload.displayName}: ${preview}`);
+          }
         }
         break;
       case 'new_reply':
-        messageStore.incrementReplyCount(data.parentId);
-        threadStore.addReply(data);
+        if (payload) {
+          messageStore.incrementReplyCount(payload.parentId);
+          threadStore.addReply(payload);
+          // Browser notification when reply is in a different thread than the open one
+          if (payload.parentId !== threadStore.openThreadId) {
+            const preview = payload.content?.substring(0, 100) || '';
+            showBrowserNotification('Thread reply', `${payload.displayName}: ${preview}`);
+          }
+        }
         break;
       case 'reaction_added':
-        messageStore.updateReaction(data.messageId, data.emoji, data.userId, true);
+        if (payload) {
+          messageStore.updateReaction(payload.messageId, payload.emoji, payload.userId, true);
+        }
         break;
       case 'reaction_removed':
-        messageStore.updateReaction(data.messageId, data.emoji, data.userId, false);
+        if (payload) {
+          messageStore.updateReaction(payload.messageId, payload.emoji, payload.userId, false);
+        }
         break;
       case 'channel_created':
-        channelStore.addChannel({ id: data.id, name: data.name });
+        if (payload) {
+          channelStore.addChannel({ id: payload.id, name: payload.name });
+        }
         break;
     }
   }

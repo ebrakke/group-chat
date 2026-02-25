@@ -303,10 +303,10 @@
   });
 </script>
 
-<div class="flex flex-col h-full">
+<div id="admin-page" class="flex flex-col h-full">
   <!-- Header -->
   <div class="flex items-center px-4 py-3 border-b border-gray-800 shrink-0">
-    <button onclick={() => goto('/channels')} class="text-gray-400 hover:text-white mr-3" aria-label="Back">
+    <button id="close-admin" onclick={() => goto('/channels')} class="text-gray-400 hover:text-white mr-3" aria-label="Back">
       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
       </svg>

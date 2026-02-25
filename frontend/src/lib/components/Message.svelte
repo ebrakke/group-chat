@@ -148,7 +148,7 @@
       class="reply-btn text-xs text-blue-400 hover:text-blue-300 mt-1 transition-colors"
       onclick={() => onOpenThread?.(message.id)}
     >
-      {message.replyCount} {message.replyCount === 1 ? 'reply' : 'replies'}
+      Reply ({message.replyCount})
     </button>
   {:else if showReplyBtn}
     <button

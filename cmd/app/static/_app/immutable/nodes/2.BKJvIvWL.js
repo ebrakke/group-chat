@@ -1,1 +1,0 @@
-import{a,f as r}from"../chunks/CGxWA4IL.js";import"../chunks/I9_DylYn.js";var o=r('<div class="flex items-center justify-center h-screen bg-gray-950 text-gray-200"><h1 class="text-2xl">Relay Chat</h1></div>');function n(t){var e=o();a(t,e)}export{n as component};

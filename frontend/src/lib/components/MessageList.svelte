@@ -28,7 +28,7 @@
   });
 </script>
 
-<div id="messages" bind:this={container} class="flex-1 overflow-y-auto">
+<div id="messages" bind:this={container} class="message-list flex-1 overflow-y-auto">
   {#each messages as msg (msg.id)}
     <Message message={msg} {onOpenThread} />
   {/each}

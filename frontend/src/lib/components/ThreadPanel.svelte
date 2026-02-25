@@ -43,6 +43,7 @@
         {/if}
       </button>
       <button
+        id="close-thread"
         onclick={onClose}
         class="text-gray-400 hover:text-white transition-colors text-xl leading-none px-1"
         aria-label="Close thread"

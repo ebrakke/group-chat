@@ -33,6 +33,13 @@
     if ('serviceWorker' in navigator && !isNative()) {
       navigator.serviceWorker.register('/service-worker.js').catch(() => {});
     }
+
+    // Request browser notification permission (web only, not native)
+    if ('Notification' in window && !isNative()) {
+      if (Notification.permission === 'default') {
+        Notification.requestPermission();
+      }
+    }
   });
 
   async function connectToServer() {

@@ -16,6 +16,7 @@
   let signupDisplayName = $state('');
   let signupPassword = $state('');
   let signupInviteCode = $state('');
+  let inviteCodeReadonly = $state(false);
   let signupError = $state('');
   let signupSubmitting = $state(false);
 
@@ -24,6 +25,7 @@
     const code = $page.url.searchParams.get('code');
     if (code) {
       signupInviteCode = code;
+      inviteCodeReadonly = true;
       activeTab = 'signup';
     }
   });
@@ -65,8 +67,8 @@
       <button
         data-tab="login"
         onclick={() => (activeTab = 'login')}
-        class="flex-1 py-2 text-center font-medium transition-colors {activeTab === 'login'
-          ? 'text-blue-400 border-b-2 border-blue-400'
+        class="auth-tab flex-1 py-2 text-center font-medium transition-colors {activeTab === 'login'
+          ? 'active text-blue-400 border-b-2 border-blue-400'
           : 'text-gray-400 hover:text-gray-200'}"
       >
         Login
@@ -74,8 +76,8 @@
       <button
         data-tab="signup"
         onclick={() => (activeTab = 'signup')}
-        class="flex-1 py-2 text-center font-medium transition-colors {activeTab === 'signup'
-          ? 'text-blue-400 border-b-2 border-blue-400'
+        class="auth-tab flex-1 py-2 text-center font-medium transition-colors {activeTab === 'signup'
+          ? 'active text-blue-400 border-b-2 border-blue-400'
           : 'text-gray-400 hover:text-gray-200'}"
       >
         Sign Up
@@ -132,9 +134,9 @@
         {/if}
 
         <div>
-          <label for="username" class="block text-sm font-medium text-gray-300 mb-1">Username</label>
+          <label for="signup-username" class="block text-sm font-medium text-gray-300 mb-1">Username</label>
           <input
-            id="username"
+            id="signup-username"
             type="text"
             bind:value={signupUsername}
             required
@@ -144,9 +146,9 @@
         </div>
 
         <div>
-          <label for="display-name" class="block text-sm font-medium text-gray-300 mb-1">Display Name</label>
+          <label for="signup-display" class="block text-sm font-medium text-gray-300 mb-1">Display Name</label>
           <input
-            id="display-name"
+            id="signup-display"
             type="text"
             bind:value={signupDisplayName}
             required
@@ -156,9 +158,9 @@
         </div>
 
         <div>
-          <label for="password" class="block text-sm font-medium text-gray-300 mb-1">Password</label>
+          <label for="signup-password" class="block text-sm font-medium text-gray-300 mb-1">Password</label>
           <input
-            id="password"
+            id="signup-password"
             type="password"
             bind:value={signupPassword}
             required
@@ -173,6 +175,7 @@
             id="invite-code"
             type="text"
             bind:value={signupInviteCode}
+            readonly={inviteCodeReadonly}
             required
             class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             placeholder="Enter invite code"
@@ -180,7 +183,7 @@
         </div>
 
         <button
-          id="submit"
+          id="signup-submit"
           type="submit"
           disabled={signupSubmitting}
           class="w-full py-2 px-4 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium rounded transition-colors"

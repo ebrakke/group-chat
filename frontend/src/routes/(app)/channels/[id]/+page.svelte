@@ -80,13 +80,13 @@
   }
 </script>
 
-<div class="flex h-full">
+<div class="channel-view flex h-full">
   <!-- Messages area -->
-  <div class="flex flex-col flex-1 min-w-0 {threadOpen ? 'hidden md:flex' : 'flex'}">
+  <div class="main-panel flex flex-col flex-1 min-w-0 {threadOpen ? 'hidden md:flex' : 'flex'}">
     <!-- Channel header -->
     <div
       id="channel-header"
-      class="flex items-center px-4 py-3 border-b border-gray-800 shrink-0"
+      class="channel-header flex items-center px-4 py-3 border-b border-gray-800 shrink-0"
     >
       <h2 id="channel-header-text" class="text-lg font-bold text-white">
         # {channel?.name ?? 'Loading...'}

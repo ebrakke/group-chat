@@ -48,9 +48,9 @@
       </div>
 
       <div>
-        <label for="display-name" class="block text-sm font-medium text-gray-300 mb-1">Display Name</label>
+        <label for="displayName" class="block text-sm font-medium text-gray-300 mb-1">Display Name</label>
         <input
-          id="display-name"
+          id="displayName"
           type="text"
           bind:value={displayName}
           required

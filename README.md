@@ -22,7 +22,6 @@ frontend/                 # Minimal SPA (bun build)
     style.css             # Styles with markdown support
   build.js                # Bun bundler with content-hash cache busting
 relay/                    # Original relay entrypoint (preserved)
-archive/                  # Previous SvelteKit frontend + tests (preserved)
 ```
 
 ## Routes

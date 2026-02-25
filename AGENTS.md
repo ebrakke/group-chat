@@ -78,7 +78,6 @@ scripts/
 Makefile                  # build, run, test, test-e2e, frontend, clean
 Dockerfile.fly            # Multi-stage: Bun build -> Go build (CGO) -> Alpine
 fly.toml                  # Fly.io config (IAD region, 512MB, persistent /data volume)
-archive/                  # Old configs, previous SvelteKit frontend, etc.
 ```
 
 ## Development

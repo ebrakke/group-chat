@@ -1408,7 +1408,7 @@ ${e}</tr>
     if (i === null)
       return O(n);
     e = i;
-    let s = `<img src="${e}" alt="${O(n)}"`;
+    let s = `<img src="${e}" alt="${n}"`;
     return t && (s += ` title="${O(t)}"`), s += ">", s;
   }
   text(e) {
@@ -1888,15 +1888,13 @@ function getApiBase() {
 }
 function getWsUrl() {
   if (Capacitor.isNativePlatform()) {
-    const base = localStorage.getItem("serverUrl") || "";
-    if (!base)
-      return "";
-    try {
-      const url = new URL(base);
-      const proto2 = url.protocol === "https:" ? "wss:" : "ws:";
-      return `${proto2}//${url.host}/ws`;
-    } catch {
-      return "";
+    const base = localStorage.getItem("serverUrl");
+    if (base) {
+      try {
+        const url = new URL(base);
+        const proto2 = url.protocol === "https:" ? "wss:" : "ws:";
+        return `${proto2}//${url.host}/ws`;
+      } catch {}
     }
   }
   const proto = location.protocol === "https:" ? "wss:" : "ws:";
@@ -2943,7 +2941,7 @@ async function renderSettings() {
       ${adminNtfySection}
       <div class="card">
         <h3>Account</h3>
-        ${Capacitor.isNativePlatform() ? '<button id="settings-change-server" class="secondary" style="margin-bottom: 8px;">Change Server</button>' : ""}
+        ${Capacitor.isNativePlatform() && window.location.hostname === "localhost" ? '<button id="settings-change-server" class="secondary" style="margin-bottom: 8px;">Change Server</button>' : ""}
         <button id="settings-logout" class="secondary">Logout</button>
       </div>
     </div>
@@ -3994,7 +3992,7 @@ async function handleDeepLink() {
   window.location.hash = "";
 }
 async function boot() {
-  if (Capacitor.isNativePlatform() && !localStorage.getItem("serverUrl")) {
+  if (Capacitor.isNativePlatform() && window.location.hostname === "localhost" && !localStorage.getItem("serverUrl")) {
     renderServerConfig();
     return;
   }

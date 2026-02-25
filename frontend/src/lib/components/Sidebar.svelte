@@ -117,6 +117,7 @@
       My Threads
     </button>
     <button
+      id="open-settings-btn"
       onclick={() => goto('/settings')}
       class="flex items-center w-full px-2 py-1.5 text-sm text-gray-400 hover:bg-gray-800/50 hover:text-gray-200 rounded transition-colors"
     >

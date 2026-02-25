@@ -1,21 +1,41 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta name="theme-color" content="#0d1117">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Relay Chat">
-  <meta name="description" content="Private group chat">
-  <link rel="manifest" href="/manifest.json">
-  <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
-  <link rel="apple-touch-icon" href="/icon-192.png">
-  <link rel="stylesheet" href="/style.010ac2fd.css">
-  <title>Relay Chat</title>
-</head>
-<body>
-  <div id="app"></div>
-  <script type="module" src="/app.f0c39db3.js"></script>
-</body>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="icon" href="/icon-192.png" />
+    <title>Relay Chat</title>
+    <link href="/_app/immutable/entry/start.UJ-pWaC5.js" rel="modulepreload">
+		<link href="/_app/immutable/chunks/DZ-xZR7y.js" rel="modulepreload">
+		<link href="/_app/immutable/chunks/BzYkYWrk.js" rel="modulepreload">
+		<link href="/_app/immutable/chunks/Fhf-A2WS.js" rel="modulepreload">
+		<link href="/_app/immutable/entry/app.C1wtbNwZ.js" rel="modulepreload">
+		<link href="/_app/immutable/chunks/U4ZipFWJ.js" rel="modulepreload">
+		<link href="/_app/immutable/chunks/CGxWA4IL.js" rel="modulepreload">
+		<link href="/_app/immutable/chunks/1deBnN1M.js" rel="modulepreload">
+		
+  </head>
+  <body>
+    <div id="app">
+			<script>
+				{
+					__sveltekit_1rtrqra = {
+						base: ""
+					};
+
+					const element = document.currentScript.parentElement;
+
+					Promise.all([
+						import("/_app/immutable/entry/start.UJ-pWaC5.js"),
+						import("/_app/immutable/entry/app.C1wtbNwZ.js")
+					]).then(([kit, app]) => {
+						kit.start(app, element);
+					});
+				}
+			</script>
+		</div>
+  </body>
 </html>

@@ -3,11 +3,20 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "bun run build.js",
-    "dev": "bun run build && echo 'Built to dist/'"
+    "dev": "vite dev",
+    "build": "vite build",
+    "preview": "vite preview"
   },
   "devDependencies": {
-    "@types/bun": "latest"
+    "@sveltejs/adapter-static": "^3.0.0",
+    "@sveltejs/kit": "^2.0.0",
+    "@sveltejs/vite-plugin-svelte": "^5.0.0",
+    "@tailwindcss/vite": "^4.0.0",
+    "@types/bun": "latest",
+    "svelte": "^5.0.0",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.0.0",
+    "vite": "^6.0.0"
   },
   "dependencies": {
     "@capacitor/app": "^8.0.1",

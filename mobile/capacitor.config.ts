@@ -5,6 +5,7 @@ const config: CapacitorConfig = {
   appName: 'Relay Chat',
   webDir: '../frontend/dist',
   server: {
+    url: 'https://chat.brakke.cc',
     androidScheme: 'https',
   },
 };

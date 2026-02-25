@@ -28,14 +28,13 @@ function getApiBase() {
 
 function getWsUrl() {
   if (Capacitor.isNativePlatform()) {
-    const base = localStorage.getItem('serverUrl') || '';
-    if (!base) return '';
-    try {
-      const url = new URL(base);
-      const proto = url.protocol === 'https:' ? 'wss:' : 'ws:';
-      return `${proto}//${url.host}/ws`;
-    } catch {
-      return '';
+    const base = localStorage.getItem('serverUrl');
+    if (base) {
+      try {
+        const url = new URL(base);
+        const proto = url.protocol === 'https:' ? 'wss:' : 'ws:';
+        return `${proto}//${url.host}/ws`;
+      } catch { /* fall through */ }
     }
   }
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -1191,7 +1190,7 @@ async function renderSettings() {
       ${adminNtfySection}
       <div class="card">
         <h3>Account</h3>
-        ${Capacitor.isNativePlatform() ? '<button id="settings-change-server" class="secondary" style="margin-bottom: 8px;">Change Server</button>' : ''}
+        ${Capacitor.isNativePlatform() && window.location.hostname === 'localhost' ? '<button id="settings-change-server" class="secondary" style="margin-bottom: 8px;">Change Server</button>' : ''}
         <button id="settings-logout" class="secondary">Logout</button>
       </div>
     </div>
@@ -2395,7 +2394,7 @@ async function handleDeepLink() {
 }
 
 async function boot() {
-  if (Capacitor.isNativePlatform() && !localStorage.getItem('serverUrl')) {
+  if (Capacitor.isNativePlatform() && window.location.hostname === 'localhost' && !localStorage.getItem('serverUrl')) {
     renderServerConfig();
     return;
   }

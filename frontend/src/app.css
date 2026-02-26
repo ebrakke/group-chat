@@ -4,30 +4,30 @@
   /* Relay Chat — cream/parchment, monospace, logbook */
   color-scheme: light;
 
-  --background: oklch(0.962 0.009 88);
-  --foreground: oklch(0.17 0.013 60);
-  --border: oklch(0.82 0.014 80);
+  --background: oklch(0.95 0.026 85);
+  --foreground: oklch(0.17 0.014 60);
+  --border: oklch(0.80 0.026 78);
 
-  --rc-sidebar-bg: oklch(0.942 0.011 84);
-  --rc-channel-active-bg: oklch(0.17 0.013 60);
-  --rc-channel-active-fg: oklch(0.962 0.009 88);
-  --rc-message-hover: oklch(0.938 0.011 86);
-  --rc-timestamp: oklch(0.50 0.013 70);
+  --rc-sidebar-bg: oklch(0.93 0.030 82);
+  --rc-channel-active-bg: oklch(0.17 0.014 60);
+  --rc-channel-active-fg: oklch(0.95 0.026 85);
+  --rc-message-hover: oklch(0.925 0.028 84);
+  --rc-timestamp: oklch(0.50 0.016 70);
   --rc-link: oklch(0.32 0.07 232);
   --rc-mention-badge: oklch(0.5 0.18 28);
-  --rc-mention-bg: oklch(0.96 0.012 50 / 0.5);
-  --rc-thread-bg: oklch(0.952 0.01 87);
+  --rc-mention-bg: oklch(0.94 0.026 50 / 0.5);
+  --rc-thread-bg: oklch(0.94 0.027 85);
   --rc-olive: oklch(0.42 0.07 110);
-  --rc-divider-label: oklch(0.55 0.012 72);
+  --rc-divider-label: oklch(0.55 0.016 72);
 
-  --rc-muted: oklch(0.908 0.013 84);
-  --rc-muted-fg: oklch(0.46 0.014 68);
+  --rc-muted: oklch(0.895 0.030 82);
+  --rc-muted-fg: oklch(0.46 0.016 68);
   --rc-destructive: oklch(0.5 0.18 28);
-  --rc-input-bg: oklch(0.908 0.013 84);
+  --rc-input-bg: oklch(0.90 0.028 82);
 }
 
 html, body {
-  background-color: oklch(0.962 0.009 88);
-  color: oklch(0.17 0.013 60);
+  background-color: oklch(0.95 0.026 85);
+  color: oklch(0.17 0.014 60);
   min-height: 100%;
 }

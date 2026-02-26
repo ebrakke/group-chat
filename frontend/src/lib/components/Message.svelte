@@ -38,9 +38,14 @@
     '\u{1F64F}'
   ];
 
+  const COLLAPSE_WORD_LIMIT = 200;
+  const COLLAPSED_HEIGHT = '300px';
+
   const currentUserId = $derived(authStore.user?.id ?? 0);
   const renderedContent = $derived(renderMarkdown(message.content));
   const hasReplies = $derived(message.replyCount && message.replyCount > 0);
+  const isLong = $derived(message.content.trim().split(/\s+/).length > COLLAPSE_WORD_LIMIT);
+  let expanded = $state(false);
 
   function handleDocumentClick(e: MouseEvent) {
     const target = e.target as Node;
@@ -117,7 +122,7 @@
 
   <!-- Grouped hover actions — positioned absolutely so they don't affect text layout -->
   {#if grouped && onOpenThread}
-    <div class="absolute top-0 bottom-0 flex items-center gap-4" style="right: {compact ? '12px' : '20px'}; opacity: {hovered ? '1' : '0'}; transition: opacity 0.1s;">
+    <div class="absolute top-0 bottom-0 flex items-center gap-4 z-10" style="right: {compact ? '12px' : '20px'}; opacity: {hovered ? '1' : '0'}; transition: opacity 0.1s;">
       <button
         class="reply-btn text-[11px] cursor-pointer hover:underline underline-offset-2"
         style="color: var(--rc-timestamp);"
@@ -138,10 +143,23 @@
     style="color: var(--foreground); padding-left: {compact ? '44px' : '52px'}; padding-bottom: {grouped ? '1px' : compact ? '2px' : '4px'}; padding-top: {grouped ? '0' : '1px'};"
   >
     <!-- Content -->
-    <span class="msg-body break-words [&_p]:my-0 [&_a]:underline [&_a]:underline-offset-2 [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-[12px] [&_pre]:p-3 [&_pre]:my-1 [&_pre]:overflow-x-auto"
-          style="color: var(--foreground); --tw-prose-links: var(--rc-link);">
-      {@html renderedContent}
-    </span>
+    <div class="relative" style="{isLong && !expanded ? `max-height: ${COLLAPSED_HEIGHT}; overflow: hidden;` : ''}">
+      <span class="msg-body break-words [&_p]:my-0 [&_a]:underline [&_a]:underline-offset-2 [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-[12px] [&_pre]:p-3 [&_pre]:my-1 [&_pre]:overflow-x-auto"
+            style="color: var(--foreground); --tw-prose-links: var(--rc-link);">
+        {@html renderedContent}
+      </span>
+      {#if isLong && !expanded}
+        <div class="absolute bottom-0 left-0 right-0 h-16 pointer-events-none"
+             style="background: linear-gradient(transparent, var(--background));"></div>
+      {/if}
+    </div>
+    {#if isLong}
+      <button
+        class="text-[11px] mt-1 hover:underline underline-offset-2 cursor-pointer"
+        style="color: var(--rc-olive);"
+        onclick={() => (expanded = !expanded)}
+      >{expanded ? 'show less' : 'show more'}</button>
+    {/if}
 
     <!-- Link Previews -->
     {#if message.linkPreviews?.length}

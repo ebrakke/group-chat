@@ -15,7 +15,7 @@
   let threadOpen = $derived(threadStore.openThreadId !== null);
 
   let loaded = $state(false);
-  let lastReadChannel = $state(0);
+  let lastMarkedMsgId = $state(0);
 
   async function loadMessages(id: number) {
     loaded = false;
@@ -46,16 +46,18 @@
     }
   });
 
-  // Mark channel as read when messages are loaded (only once per channel load)
+  // Mark channel as read when messages load or new ones arrive via WebSocket
   $effect(() => {
     const id = channelId;
     const msgs = messages;
     const isLoaded = loaded;
     untrack(() => {
-      if (isLoaded && msgs.length > 0 && id && lastReadChannel !== id) {
-        lastReadChannel = id;
+      if (isLoaded && msgs.length > 0 && id) {
         const lastMessage = msgs[msgs.length - 1];
-        channelStore.markRead(id, lastMessage.id);
+        if (lastMessage.id !== lastMarkedMsgId) {
+          lastMarkedMsgId = lastMessage.id;
+          channelStore.markRead(id, lastMessage.id);
+        }
       }
     });
   });

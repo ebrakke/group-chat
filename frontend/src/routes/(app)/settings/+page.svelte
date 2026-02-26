@@ -4,26 +4,13 @@
   import { api } from '$lib/api';
   import { authStore } from '$lib/stores/auth';
   import { channelStore } from '$lib/stores/channels';
-  import type { NotificationSettings, Bot, BotToken, ChannelBinding, Invite, Channel } from '$lib/types';
-
-  // --- Notification Settings ---
-  let notifyMentions = $state(true);
-  let notifyThreadReplies = $state(true);
-  let notifyAllMessages = $state(false);
-  let notifMessage = $state('');
-  let notifError = $state('');
-  let savingNotif = $state(false);
+  import type { Bot, BotToken, ChannelBinding, Invite, Channel } from '$lib/types';
 
   // --- Admin Settings ---
   let baseUrl = $state('');
   let baseUrlMessage = $state('');
   let baseUrlError = $state('');
   let savingBaseUrl = $state(false);
-
-  let ntfyServerUrl = $state('');
-  let ntfyMessage = $state('');
-  let ntfyError = $state('');
-  let savingNtfy = $state(false);
 
   // --- Invites ---
   let invites = $state<Invite[]>([]);
@@ -56,38 +43,6 @@
     setTimeout(() => setter(''), delay);
   }
 
-  // --- Load notification settings ---
-  async function loadNotificationSettings() {
-    try {
-      const settings = await api<NotificationSettings>('GET', '/api/notifications/settings');
-      notifyMentions = settings.notifyMentions;
-      notifyThreadReplies = settings.notifyThreadReplies;
-      notifyAllMessages = settings.notifyAllMessages;
-    } catch {
-      // Use defaults
-    }
-  }
-
-  async function saveNotificationSettings() {
-    savingNotif = true;
-    notifError = '';
-    notifMessage = '';
-    try {
-      await api('POST', '/api/notifications/settings', {
-        notifyMentions,
-        notifyThreadReplies,
-        notifyAllMessages
-      });
-      notifMessage = 'Notification settings saved successfully';
-      autoHide((v) => (notifMessage = v));
-    } catch (err: unknown) {
-      notifError = err instanceof Error ? err.message : 'Failed to save settings';
-      autoHide((v) => (notifError = v));
-    } finally {
-      savingNotif = false;
-    }
-  }
-
   // --- Admin settings ---
   async function loadAdminSettings() {
     try {
@@ -96,7 +51,6 @@
         '/api/admin/settings'
       );
       baseUrl = settings.baseUrl || '';
-      ntfyServerUrl = settings.ntfyServerUrl || '';
     } catch {
       // ignore
     }
@@ -115,22 +69,6 @@
       autoHide((v) => (baseUrlError = v));
     } finally {
       savingBaseUrl = false;
-    }
-  }
-
-  async function saveNtfySettings() {
-    savingNtfy = true;
-    ntfyError = '';
-    ntfyMessage = '';
-    try {
-      await api('POST', '/api/admin/settings', { ntfy_server_url: ntfyServerUrl });
-      ntfyMessage = 'ntfy settings saved';
-      autoHide((v) => (ntfyMessage = v));
-    } catch (err: unknown) {
-      ntfyError = err instanceof Error ? err.message : 'Failed to save';
-      autoHide((v) => (ntfyError = v));
-    } finally {
-      savingNtfy = false;
     }
   }
 
@@ -294,7 +232,6 @@
 
   // --- Init ---
   onMount(() => {
-    loadNotificationSettings();
     if (authStore.isAdmin) {
       loadAdminSettings();
       loadInvites();
@@ -317,34 +254,6 @@
   <!-- Content -->
   <div class="flex-1 overflow-y-auto p-5">
     <div class="max-w-2xl mx-auto space-y-5">
-
-      <!-- Notification Preferences -->
-      <div class="border p-4" style="border-color: var(--border);">
-        <h3 class="text-[13px] font-bold mb-3" style="color: var(--foreground);">notification preferences</h3>
-        <div class="space-y-3">
-          <label class="flex items-center gap-3 cursor-pointer">
-            <input id="notify-mentions" type="checkbox" bind:checked={notifyMentions}
-                   class="w-4 h-4 accent-current" style="accent-color: var(--foreground);" />
-            <span class="text-[12px]" style="color: var(--foreground);">notify on @mentions</span>
-          </label>
-          <label class="flex items-center gap-3 cursor-pointer">
-            <input id="notify-thread-replies" type="checkbox" bind:checked={notifyThreadReplies}
-                   class="w-4 h-4" style="accent-color: var(--foreground);" />
-            <span class="text-[12px]" style="color: var(--foreground);">notify on thread replies</span>
-          </label>
-          <label class="flex items-center gap-3 cursor-pointer">
-            <input id="notify-all-messages" type="checkbox" bind:checked={notifyAllMessages}
-                   class="w-4 h-4" style="accent-color: var(--foreground);" />
-            <span class="text-[12px]" style="color: var(--foreground);">notify on all messages</span>
-          </label>
-        </div>
-        {#if notifMessage}<p class="text-[11px] mt-3" style="color: var(--rc-olive);">{notifMessage}</p>{/if}
-        {#if notifError}<p class="text-[11px] mt-3" style="color: var(--rc-mention-badge);">{notifError}</p>{/if}
-        <button id="save-notifications" onclick={saveNotificationSettings} disabled={savingNotif}
-                class="mt-3 px-3 py-1.5 text-[11px] border font-mono disabled:opacity-40"
-                style="background: var(--rc-channel-active-bg); color: var(--rc-channel-active-fg); border-color: var(--rc-channel-active-bg);">
-          {savingNotif ? 'saving...' : 'save'}</button>
-      </div>
 
       <!-- Account -->
       <div class="border p-4" style="border-color: var(--border);">
@@ -381,26 +290,6 @@
                   class="px-3 py-1.5 text-[11px] border font-mono disabled:opacity-40"
                   style="background: var(--rc-channel-active-bg); color: var(--rc-channel-active-fg); border-color: var(--rc-channel-active-bg);">
             {savingBaseUrl ? 'saving...' : 'save'}</button>
-        </div>
-
-        <!-- Push Notifications -->
-        <div class="border p-4" style="border-color: var(--border);">
-          <h3 class="text-[13px] font-bold mb-3" style="color: var(--foreground);">push notifications</h3>
-          <label class="block mb-3">
-            <span class="text-[12px] mb-1 block" style="color: var(--rc-timestamp);">ntfy server URL</span>
-            <p class="text-[11px] mb-2" style="color: var(--rc-timestamp);">
-              The URL of your ntfy server for push notifications. Leave empty to use the default ntfy.sh.
-            </p>
-            <input id="ntfy-server-url" type="text" bind:value={ntfyServerUrl} placeholder="https://ntfy.sh"
-                   class="w-full border px-3 py-2 text-[12px] font-mono outline-none"
-                   style="background: var(--rc-input-bg); border-color: var(--border); color: var(--foreground);" />
-          </label>
-          {#if ntfyMessage}<p class="text-[11px] mb-2" style="color: var(--rc-olive);">{ntfyMessage}</p>{/if}
-          {#if ntfyError}<p class="text-[11px] mb-2" style="color: var(--rc-mention-badge);">{ntfyError}</p>{/if}
-          <button id="save-ntfy-settings" onclick={saveNtfySettings} disabled={savingNtfy}
-                  class="px-3 py-1.5 text-[11px] border font-mono disabled:opacity-40"
-                  style="background: var(--rc-channel-active-bg); color: var(--rc-channel-active-fg); border-color: var(--rc-channel-active-bg);">
-            {savingNtfy ? 'saving...' : 'save'}</button>
         </div>
 
         <!-- Invites -->

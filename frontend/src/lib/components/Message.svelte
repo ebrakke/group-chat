@@ -10,12 +10,14 @@
     message,
     onOpenThread,
     onReactionChange,
-    grouped = false
+    grouped = false,
+    compact = false
   }: {
     message: Message;
     onOpenThread?: (id: number) => void;
     onReactionChange?: () => void;
     grouped?: boolean;
+    compact?: boolean;
   } = $props();
 
   let hovered = $state(false);
@@ -76,8 +78,8 @@
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
-  class="message relative px-5"
-  style="margin-top: {grouped ? '2px' : '16px'}; background: {hovered ? 'var(--rc-message-hover)' : 'transparent'};"
+  class="message relative"
+  style="padding-left: {compact ? '12px' : '20px'}; padding-right: {compact ? '12px' : '20px'}; margin-top: {grouped ? '1px' : compact ? '8px' : '16px'}; background: {hovered ? 'var(--rc-message-hover)' : 'transparent'};"
   onmouseenter={() => (hovered = true)}
   onmouseleave={() => (hovered = false)}
 >
@@ -115,7 +117,7 @@
 
   <!-- Grouped hover actions — positioned absolutely so they don't affect text layout -->
   {#if grouped && onOpenThread}
-    <div class="absolute right-5 top-0 bottom-0 flex items-center gap-4" style="opacity: {hovered ? '1' : '0'}; transition: opacity 0.1s;">
+    <div class="absolute top-0 bottom-0 flex items-center gap-4" style="right: {compact ? '12px' : '20px'}; opacity: {hovered ? '1' : '0'}; transition: opacity 0.1s;">
       <button
         class="reply-btn text-[11px] cursor-pointer hover:underline underline-offset-2"
         style="color: var(--rc-timestamp);"
@@ -133,7 +135,7 @@
   <!-- Body — indented to align with author name -->
   <div
     class="text-[13px] leading-relaxed"
-    style="color: var(--foreground); padding-left: 52px; padding-bottom: {grouped ? '1px' : '4px'}; padding-top: {grouped ? '0' : '1px'};"
+    style="color: var(--foreground); padding-left: {compact ? '44px' : '52px'}; padding-bottom: {grouped ? '1px' : compact ? '2px' : '4px'}; padding-top: {grouped ? '0' : '1px'};"
   >
     <!-- Content -->
     <span class="msg-body break-words [&_p]:my-0 [&_a]:underline [&_a]:underline-offset-2 [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-[12px] [&_pre]:p-3 [&_pre]:my-1 [&_pre]:overflow-x-auto"

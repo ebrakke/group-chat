@@ -5,10 +5,12 @@
 
   let {
     messages,
-    onOpenThread
+    onOpenThread,
+    compact = false
   }: {
     messages: MessageType[];
     onOpenThread?: (id: number) => void;
+    compact?: boolean;
   } = $props();
 
   let container: HTMLDivElement | undefined = $state();
@@ -69,7 +71,7 @@
     {@const grouped = !showDate && isGrouped(msg, prev)}
 
     {#if showDate}
-      <div class="flex items-center gap-2 my-3 px-5">
+      <div class="flex items-center gap-2 px-5" style="margin-top: {compact ? '8px' : '12px'}; margin-bottom: {compact ? '8px' : '12px'}">
         <div class="flex-1 border-t" style="border-color: var(--border);"></div>
         <span
           class="text-[10px] uppercase tracking-[0.1em] shrink-0 select-none"
@@ -79,6 +81,6 @@
       </div>
     {/if}
 
-    <Message message={msg} {onOpenThread} {grouped} />
+    <Message message={msg} {onOpenThread} {grouped} {compact} />
   {/each}
 </div>

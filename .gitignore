@@ -5,6 +5,7 @@ bun.lock
 
 # Build outputs
 frontend/dist/
+cmd/app/static/
 relay-chat
 
 # Test outputs

@@ -126,7 +126,7 @@
   </div>
 
   <!-- Main content area -->
-  <div class="flex-1 flex flex-col min-w-0">
+  <div class="flex-1 flex flex-col min-w-0 min-h-0">
     <!-- Mobile top nav bar -->
     <div class="md:hidden flex items-center h-12 px-3 border-b border-gray-700/40 bg-[#1e2024] shrink-0">
       <button
@@ -157,7 +157,7 @@
       </button>
     </div>
 
-    <main class="flex-1 flex flex-col min-w-0">
+    <main class="flex-1 flex flex-col min-w-0 min-h-0">
       {@render children()}
     </main>
   </div>

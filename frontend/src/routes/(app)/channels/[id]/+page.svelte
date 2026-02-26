@@ -80,9 +80,9 @@
   }
 </script>
 
-<div class="channel-view flex h-full">
+<div class="channel-view flex h-full min-h-0">
   <!-- Messages area -->
-  <div class="main-panel flex flex-col flex-1 min-w-0 {threadOpen ? 'hidden md:flex' : 'flex'}">
+  <div class="main-panel flex flex-col flex-1 min-w-0 min-h-0 {threadOpen ? 'hidden md:flex' : 'flex'}">
     <!-- Channel header -->
     <div
       id="channel-header"

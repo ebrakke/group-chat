@@ -69,12 +69,13 @@
     {@const grouped = !showDate && isGrouped(msg, prev)}
 
     {#if showDate}
-      <div class="flex items-center gap-3 my-3 px-4">
-        <div class="flex-1 h-px bg-gray-700/60"></div>
-        <span class="text-[11px] font-semibold text-gray-500 whitespace-nowrap select-none">
-          {formatDateSeparator(msg.createdAt)}
-        </span>
-        <div class="flex-1 h-px bg-gray-700/60"></div>
+      <div class="flex items-center gap-2 my-3 px-5">
+        <div class="flex-1 border-t" style="border-color: var(--border);"></div>
+        <span
+          class="text-[10px] uppercase tracking-[0.1em] shrink-0 select-none"
+          style="color: var(--rc-divider-label);"
+        >{formatDateSeparator(msg.createdAt)}</span>
+        <div class="flex-1 border-t" style="border-color: var(--border);"></div>
       </div>
     {/if}
 

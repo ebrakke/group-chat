@@ -4,6 +4,8 @@
   import { channelStore } from '$lib/stores/channels';
   import { stopNativeNotifications } from '$lib/utils/native';
 
+  let { onCloseSidebar }: { onCloseSidebar?: () => void } = $props();
+
   let showCreateModal = $state(false);
   let newChannelName = $state('');
   let createError = $state('');
@@ -24,6 +26,7 @@
 
   function navigateToChannel(id: number) {
     goto(`/channels/${id}`);
+    onCloseSidebar?.();
   }
 
   async function handleCreate() {
@@ -37,6 +40,7 @@
       showCreateModal = false;
       newChannelName = '';
       goto(`/channels/${channel.id}`);
+      onCloseSidebar?.();
     } catch (err: unknown) {
       createError = err instanceof Error ? err.message : 'Failed to create channel';
     } finally {
@@ -65,93 +69,91 @@
   }
 </script>
 
-<aside class="flex flex-col h-full bg-[#191b1f] border-r border-gray-800/60 w-64">
-  <!-- Header -->
-  <div class="flex items-center justify-between px-4 py-3 border-b border-gray-800">
-    <h1 class="text-lg font-bold text-white">Relay Chat</h1>
+<aside
+  class="flex flex-col h-full w-52 shrink-0 border-r"
+  style="background: var(--rc-sidebar-bg); border-color: var(--border);"
+>
+  <!-- Wordmark -->
+  <div class="px-4 py-3 border-b" style="border-color: var(--border);">
+    <span class="text-[14px] font-bold tracking-tight" style="color: var(--foreground);">relay</span><span class="text-[14px]" style="color: var(--rc-timestamp);">.chat</span>
   </div>
 
-  <!-- Channel list -->
-  <div class="flex-1 overflow-y-auto py-2">
-    <div class="flex items-center justify-between px-4 py-1">
-      <span class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Channels</span>
+  <!-- Nav -->
+  <nav class="flex-1 overflow-y-auto pt-3" aria-label="Channels">
+    <div class="flex items-center justify-between px-4 pb-1">
+      <span
+        class="text-[10px] uppercase tracking-[0.12em]"
+        style="color: var(--rc-timestamp);"
+      >channels</span>
       <button
         onclick={openCreateModal}
-        class="text-gray-400 hover:text-white text-lg leading-none px-1"
+        class="text-[13px] leading-none hover:opacity-70"
+        style="color: var(--rc-timestamp);"
         title="Create channel"
-      >
-        +
-      </button>
+      >+</button>
     </div>
 
     <ul class="channel-list">
       {#each channelStore.channels as channel (channel.id)}
+        {@const active = channelStore.activeChannelId === channel.id}
         <li>
           <button
             onclick={() => navigateToChannel(channel.id)}
-            class="flex items-center w-full px-4 py-1.5 text-sm text-left transition-colors {channelStore.activeChannelId ===
-            channel.id
-              ? 'bg-gray-800 text-white'
-              : 'text-gray-400 hover:bg-gray-800/50 hover:text-gray-200'}"
+            class="w-full flex items-center gap-1.5 px-4 py-[5px] text-[13px] text-left"
+            style="background: {active ? 'var(--rc-channel-active-bg)' : 'transparent'}; color: {active ? 'var(--rc-channel-active-fg)' : 'var(--foreground)'};"
+            aria-current={active ? 'page' : undefined}
           >
-            <span class="text-gray-500 mr-1.5">#</span>
-            <span class="truncate flex-1">{channel.name}</span>
+            <span style="color: {active ? 'var(--rc-channel-active-fg)' : 'var(--rc-timestamp)'};">#</span>
+            <span class="flex-1 truncate">{channel.name}</span>
             {#if channel.hasMention}
               <span
-                class="ml-2 bg-red-600 text-white text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center shrink-0"
-                >@</span
-              >
+                class="text-[10px] px-1 py-[1px] ml-auto leading-none"
+                style="background: var(--rc-mention-badge); color: oklch(0.97 0 0);"
+              >@</span>
             {:else if channel.unreadCount}
               <span
-                class="ml-2 bg-gray-600 text-white text-xs font-bold rounded-full min-w-5 h-5 flex items-center justify-center px-1 shrink-0"
-                >{channel.unreadCount}</span
-              >
+                class="text-[11px] tabular-nums ml-auto"
+                style="color: var(--rc-olive);"
+              >{channel.unreadCount}</span>
             {/if}
           </button>
         </li>
       {/each}
     </ul>
-  </div>
+  </nav>
 
-  <!-- Bottom section -->
-  <div class="border-t border-gray-800 p-3 space-y-1">
+  <!-- Footer -->
+  <div class="border-t px-4 pt-3 pb-3 flex flex-col gap-[6px]" style="border-color: var(--border);">
     <button
-      onclick={() => goto('/threads')}
-      class="flex items-center w-full px-2 py-1.5 text-sm text-gray-400 hover:bg-gray-800/50 hover:text-gray-200 rounded transition-colors"
-    >
-      My Threads
-    </button>
+      onclick={() => { goto('/threads'); onCloseSidebar?.(); }}
+      class="text-left text-[12px] hover:underline underline-offset-2"
+      style="color: var(--rc-timestamp);"
+    >my threads</button>
     <button
       id="open-settings-btn"
-      onclick={() => goto('/settings')}
-      class="flex items-center w-full px-2 py-1.5 text-sm text-gray-400 hover:bg-gray-800/50 hover:text-gray-200 rounded transition-colors"
-    >
-      Settings
-    </button>
+      onclick={() => { goto('/settings'); onCloseSidebar?.(); }}
+      class="text-left text-[12px] hover:underline underline-offset-2"
+      style="color: var(--rc-timestamp);"
+    >settings</button>
     {#if authStore.isAdmin}
-      <div class="admin-section">
-        <button
-          id="toggle-admin"
-          onclick={() => goto('/settings')}
-          class="flex items-center w-full px-2 py-1.5 text-sm text-gray-400 hover:bg-gray-800/50 hover:text-gray-200 rounded transition-colors"
-        >
-          Admin Panel
-        </button>
-      </div>
+      <button
+        id="toggle-admin"
+        onclick={() => { goto('/settings'); onCloseSidebar?.(); }}
+        class="text-left text-[12px] hover:underline underline-offset-2"
+        style="color: var(--rc-timestamp);"
+      >admin</button>
     {/if}
 
     <!-- User info -->
-    <div class="user-info flex items-center justify-between pt-2 border-t border-gray-800 mt-2">
-      <div class="flex items-center min-w-0">
-        <div
-          class="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center text-sm font-medium text-white shrink-0"
-        >
-          {authStore.user?.displayName?.charAt(0).toUpperCase() || '?'}
-        </div>
-        <div class="ml-2 min-w-0">
-          <p class="text-sm font-medium text-white truncate">{authStore.user?.displayName}</p>
-          <p class="text-xs text-gray-500 truncate">@{authStore.user?.username}</p>
-        </div>
+    <div class="user-info mt-2 pt-2 border-t flex items-center gap-2" style="border-color: var(--border);">
+      <span
+        class="inline-flex items-center justify-center w-6 h-6 text-[11px] border shrink-0"
+        style="background: var(--rc-channel-active-bg); color: var(--rc-channel-active-fg); border-color: var(--border);"
+        aria-hidden="true"
+      >{authStore.user?.displayName?.charAt(0).toUpperCase() || '?'}</span>
+      <div class="flex flex-col leading-tight min-w-0">
+        <span class="text-[12px] truncate" style="color: var(--foreground);">{authStore.user?.displayName}</span>
+        <span class="text-[10px] truncate" style="color: var(--rc-timestamp);">@{authStore.user?.username}</span>
       </div>
       <button
         id="logout"
@@ -160,11 +162,9 @@
           authStore.logout();
           goto('/login');
         }}
-        class="text-xs text-gray-500 hover:text-gray-300 shrink-0 ml-2"
-        title="Logout"
-      >
-        Logout
-      </button>
+        class="ml-auto text-[11px] hover:underline shrink-0"
+        style="color: var(--rc-timestamp);"
+      >out</button>
     </div>
   </div>
 </aside>
@@ -173,31 +173,34 @@
 {#if showCreateModal}
   <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
   <div
-    class="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
+    class="fixed inset-0 bg-black/30 flex items-center justify-center z-50"
     role="dialog"
     aria-modal="true"
     aria-label="Create channel"
     tabindex="-1"
     onkeydown={handleModalKeydown}
   >
-    <div class="bg-gray-800 rounded-lg p-6 w-full max-w-md mx-4 shadow-xl">
-      <h2 class="text-lg font-bold text-white mb-4">Create Channel</h2>
+    <div class="p-6 w-full max-w-md mx-4 border"
+         style="background: var(--background); border-color: var(--border);">
+      <h2 class="text-[14px] font-bold mb-4" style="color: var(--foreground);">Create Channel</h2>
 
       {#if createError}
-        <p class="text-red-400 text-sm mb-3">{createError}</p>
+        <p class="text-[12px] mb-3" style="color: var(--rc-mention-badge);">{createError}</p>
       {/if}
 
       <label class="block mb-4">
-        <span class="text-sm text-gray-300 mb-1 block">Channel name</span>
-        <div class="flex items-center bg-gray-900 rounded border border-gray-700 focus-within:border-blue-500">
-          <span class="text-gray-500 pl-3">#</span>
+        <span class="text-[12px] mb-1 block" style="color: var(--rc-timestamp);">Channel name</span>
+        <div class="flex items-center border"
+             style="border-color: var(--border); background: var(--rc-input-bg);">
+          <span class="pl-3 text-[13px]" style="color: var(--rc-timestamp);">#</span>
           <input
             type="text"
             value={newChannelName}
             oninput={handleNameInput}
             onkeydown={handleCreateKeydown}
             placeholder="new-channel"
-            class="flex-1 bg-transparent px-2 py-2 text-white text-sm outline-none placeholder-gray-600"
+            class="flex-1 bg-transparent px-2 py-2 text-[13px] outline-none font-mono placeholder:opacity-40"
+            style="color: var(--foreground);"
           />
         </div>
       </label>
@@ -205,17 +208,15 @@
       <div class="flex justify-end gap-3">
         <button
           onclick={closeCreateModal}
-          class="px-4 py-2 text-sm text-gray-300 hover:text-white transition-colors"
-        >
-          Cancel
-        </button>
+          class="px-3 py-1.5 text-[12px] hover:underline"
+          style="color: var(--rc-timestamp);"
+        >Cancel</button>
         <button
           onclick={handleCreate}
           disabled={creating || !newChannelName.trim()}
-          class="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded transition-colors"
-        >
-          {creating ? 'Creating...' : 'Create'}
-        </button>
+          class="px-3 py-1.5 text-[11px] border font-mono disabled:opacity-40"
+          style="background: var(--rc-channel-active-bg); color: var(--rc-channel-active-fg); border-color: var(--rc-channel-active-bg);"
+        >{creating ? 'Creating...' : 'Create'}</button>
       </div>
     </div>
   </div>

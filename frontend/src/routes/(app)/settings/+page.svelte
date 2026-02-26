@@ -305,262 +305,175 @@
 
 <div id="admin-page" class="flex flex-col h-full">
   <!-- Header -->
-  <div class="flex items-center px-4 py-3 border-b border-gray-800 shrink-0">
-    <button id="close-admin" onclick={() => goto('/channels')} class="text-gray-400 hover:text-white mr-3" aria-label="Back">
-      <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+  <div class="flex items-center px-5 py-3 border-b shrink-0" style="border-color: var(--border);">
+    <button id="close-admin" onclick={() => goto('/channels')} class="mr-3 hover:opacity-70" style="color: var(--rc-timestamp);" aria-label="Back">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
       </svg>
     </button>
-    <h2 class="text-lg font-bold text-white">Settings</h2>
+    <span class="text-[13px] font-bold" style="color: var(--foreground);">settings</span>
   </div>
 
   <!-- Content -->
-  <div class="flex-1 overflow-y-auto p-4">
-    <div class="max-w-2xl mx-auto space-y-4">
+  <div class="flex-1 overflow-y-auto p-5">
+    <div class="max-w-2xl mx-auto space-y-5">
 
-      <!-- Section 1: Notification Preferences -->
-      <div class="bg-gray-900 border border-gray-800 rounded-lg p-4">
-        <h3 class="text-base font-semibold text-white mb-3">Notification Preferences</h3>
-
+      <!-- Notification Preferences -->
+      <div class="border p-4" style="border-color: var(--border);">
+        <h3 class="text-[13px] font-bold mb-3" style="color: var(--foreground);">notification preferences</h3>
         <div class="space-y-3">
           <label class="flex items-center gap-3 cursor-pointer">
-            <input
-              id="notify-mentions"
-              type="checkbox"
-              bind:checked={notifyMentions}
-              class="w-4 h-4 rounded border-gray-600 bg-gray-800 text-blue-500 focus:ring-blue-500 focus:ring-offset-0"
-            />
-            <span class="text-sm text-gray-300">Notify on @mentions</span>
+            <input id="notify-mentions" type="checkbox" bind:checked={notifyMentions}
+                   class="w-4 h-4 accent-current" style="accent-color: var(--foreground);" />
+            <span class="text-[12px]" style="color: var(--foreground);">notify on @mentions</span>
           </label>
-
           <label class="flex items-center gap-3 cursor-pointer">
-            <input
-              id="notify-thread-replies"
-              type="checkbox"
-              bind:checked={notifyThreadReplies}
-              class="w-4 h-4 rounded border-gray-600 bg-gray-800 text-blue-500 focus:ring-blue-500 focus:ring-offset-0"
-            />
-            <span class="text-sm text-gray-300">Notify on thread replies</span>
+            <input id="notify-thread-replies" type="checkbox" bind:checked={notifyThreadReplies}
+                   class="w-4 h-4" style="accent-color: var(--foreground);" />
+            <span class="text-[12px]" style="color: var(--foreground);">notify on thread replies</span>
           </label>
-
           <label class="flex items-center gap-3 cursor-pointer">
-            <input
-              id="notify-all-messages"
-              type="checkbox"
-              bind:checked={notifyAllMessages}
-              class="w-4 h-4 rounded border-gray-600 bg-gray-800 text-blue-500 focus:ring-blue-500 focus:ring-offset-0"
-            />
-            <span class="text-sm text-gray-300">Notify on all messages</span>
+            <input id="notify-all-messages" type="checkbox" bind:checked={notifyAllMessages}
+                   class="w-4 h-4" style="accent-color: var(--foreground);" />
+            <span class="text-[12px]" style="color: var(--foreground);">notify on all messages</span>
           </label>
         </div>
-
-        {#if notifMessage}
-          <p class="text-green-400 text-sm mt-3">{notifMessage}</p>
-        {/if}
-        {#if notifError}
-          <p class="text-red-400 text-sm mt-3">{notifError}</p>
-        {/if}
-
-        <button
-          id="save-notifications"
-          onclick={saveNotificationSettings}
-          disabled={savingNotif}
-          class="mt-4 px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded transition-colors"
-        >
-          {savingNotif ? 'Saving...' : 'Save'}
-        </button>
+        {#if notifMessage}<p class="text-[11px] mt-3" style="color: var(--rc-olive);">{notifMessage}</p>{/if}
+        {#if notifError}<p class="text-[11px] mt-3" style="color: var(--rc-mention-badge);">{notifError}</p>{/if}
+        <button id="save-notifications" onclick={saveNotificationSettings} disabled={savingNotif}
+                class="mt-3 px-3 py-1.5 text-[11px] border font-mono disabled:opacity-40"
+                style="background: var(--rc-channel-active-bg); color: var(--rc-channel-active-fg); border-color: var(--rc-channel-active-bg);">
+          {savingNotif ? 'saving...' : 'save'}</button>
       </div>
 
-      <!-- Section 2: Account -->
-      <div class="bg-gray-900 border border-gray-800 rounded-lg p-4">
-        <h3 class="text-base font-semibold text-white mb-3">Account</h3>
-
-        <div class="space-y-2 mb-4">
+      <!-- Account -->
+      <div class="border p-4" style="border-color: var(--border);">
+        <h3 class="text-[13px] font-bold mb-3" style="color: var(--foreground);">account</h3>
+        <div class="space-y-1 mb-3">
           <div class="flex items-center gap-2">
-            <span class="text-sm text-gray-500">Username:</span>
-            <span class="text-sm text-gray-200">@{authStore.user?.username}</span>
+            <span class="text-[12px]" style="color: var(--rc-timestamp);">username:</span>
+            <span class="text-[12px]" style="color: var(--foreground);">@{authStore.user?.username}</span>
           </div>
           <div class="flex items-center gap-2">
-            <span class="text-sm text-gray-500">Display name:</span>
-            <span class="text-sm text-gray-200">{authStore.user?.displayName}</span>
+            <span class="text-[12px]" style="color: var(--rc-timestamp);">display name:</span>
+            <span class="text-[12px]" style="color: var(--foreground);">{authStore.user?.displayName}</span>
           </div>
         </div>
-
-        <button
-          id="logout"
-          onclick={() => { authStore.logout(); goto('/login'); }}
-          class="px-4 py-2 text-sm bg-red-600/20 text-red-400 hover:bg-red-600/30 rounded transition-colors"
-        >
-          Logout
-        </button>
+        <button id="logout" onclick={() => { authStore.logout(); goto('/login'); }}
+                class="text-[11px] hover:underline underline-offset-2"
+                style="color: var(--rc-mention-badge);">logout</button>
       </div>
 
-      <!-- Admin sections (only visible to admins) -->
       {#if authStore.isAdmin}
 
-        <!-- Section 3: General Settings -->
-        <div class="bg-gray-900 border border-gray-800 rounded-lg p-4">
-          <h3 class="text-base font-semibold text-white mb-3">General Settings</h3>
-
+        <!-- General Settings -->
+        <div class="border p-4" style="border-color: var(--border);">
+          <h3 class="text-[13px] font-bold mb-3" style="color: var(--foreground);">general settings</h3>
           <label class="block mb-3">
-            <span class="text-sm text-gray-400 mb-1 block">Base URL</span>
-            <input
-              id="base-url"
-              type="text"
-              bind:value={baseUrl}
-              placeholder="https://your-domain.com"
-              class="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm text-white placeholder-gray-600 focus:border-blue-500 focus:outline-none"
-            />
+            <span class="text-[12px] mb-1 block" style="color: var(--rc-timestamp);">base URL</span>
+            <input id="base-url" type="text" bind:value={baseUrl} placeholder="https://your-domain.com"
+                   class="w-full border px-3 py-2 text-[12px] font-mono outline-none"
+                   style="background: var(--rc-input-bg); border-color: var(--border); color: var(--foreground);" />
           </label>
-
-          {#if baseUrlMessage}
-            <p class="text-green-400 text-sm mb-2">{baseUrlMessage}</p>
-          {/if}
-          {#if baseUrlError}
-            <p class="text-red-400 text-sm mb-2">{baseUrlError}</p>
-          {/if}
-
-          <button
-            id="save-base-url"
-            onclick={saveBaseUrl}
-            disabled={savingBaseUrl}
-            class="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded transition-colors"
-          >
-            {savingBaseUrl ? 'Saving...' : 'Save'}
-          </button>
+          {#if baseUrlMessage}<p class="text-[11px] mb-2" style="color: var(--rc-olive);">{baseUrlMessage}</p>{/if}
+          {#if baseUrlError}<p class="text-[11px] mb-2" style="color: var(--rc-mention-badge);">{baseUrlError}</p>{/if}
+          <button id="save-base-url" onclick={saveBaseUrl} disabled={savingBaseUrl}
+                  class="px-3 py-1.5 text-[11px] border font-mono disabled:opacity-40"
+                  style="background: var(--rc-channel-active-bg); color: var(--rc-channel-active-fg); border-color: var(--rc-channel-active-bg);">
+            {savingBaseUrl ? 'saving...' : 'save'}</button>
         </div>
 
-        <!-- Section 4: Push Notifications -->
-        <div class="bg-gray-900 border border-gray-800 rounded-lg p-4">
-          <h3 class="text-base font-semibold text-white mb-3">Push Notifications</h3>
-
+        <!-- Push Notifications -->
+        <div class="border p-4" style="border-color: var(--border);">
+          <h3 class="text-[13px] font-bold mb-3" style="color: var(--foreground);">push notifications</h3>
           <label class="block mb-3">
-            <span class="text-sm text-gray-400 mb-1 block">ntfy Server URL</span>
-            <p class="text-xs text-gray-500 mb-2">
+            <span class="text-[12px] mb-1 block" style="color: var(--rc-timestamp);">ntfy server URL</span>
+            <p class="text-[11px] mb-2" style="color: var(--rc-timestamp);">
               The URL of your ntfy server for push notifications. Leave empty to use the default ntfy.sh.
             </p>
-            <input
-              id="ntfy-server-url"
-              type="text"
-              bind:value={ntfyServerUrl}
-              placeholder="https://ntfy.sh"
-              class="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm text-white placeholder-gray-600 focus:border-blue-500 focus:outline-none"
-            />
+            <input id="ntfy-server-url" type="text" bind:value={ntfyServerUrl} placeholder="https://ntfy.sh"
+                   class="w-full border px-3 py-2 text-[12px] font-mono outline-none"
+                   style="background: var(--rc-input-bg); border-color: var(--border); color: var(--foreground);" />
           </label>
-
-          {#if ntfyMessage}
-            <p class="text-green-400 text-sm mb-2">{ntfyMessage}</p>
-          {/if}
-          {#if ntfyError}
-            <p class="text-red-400 text-sm mb-2">{ntfyError}</p>
-          {/if}
-
-          <button
-            id="save-ntfy-settings"
-            onclick={saveNtfySettings}
-            disabled={savingNtfy}
-            class="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded transition-colors"
-          >
-            {savingNtfy ? 'Saving...' : 'Save'}
-          </button>
+          {#if ntfyMessage}<p class="text-[11px] mb-2" style="color: var(--rc-olive);">{ntfyMessage}</p>{/if}
+          {#if ntfyError}<p class="text-[11px] mb-2" style="color: var(--rc-mention-badge);">{ntfyError}</p>{/if}
+          <button id="save-ntfy-settings" onclick={saveNtfySettings} disabled={savingNtfy}
+                  class="px-3 py-1.5 text-[11px] border font-mono disabled:opacity-40"
+                  style="background: var(--rc-channel-active-bg); color: var(--rc-channel-active-fg); border-color: var(--rc-channel-active-bg);">
+            {savingNtfy ? 'saving...' : 'save'}</button>
         </div>
 
-        <!-- Section 5: Invites -->
-        <div class="bg-gray-900 border border-gray-800 rounded-lg p-4">
-          <h3 class="text-base font-semibold text-white mb-3">Invites</h3>
-
+        <!-- Invites -->
+        <div class="border p-4" style="border-color: var(--border);">
+          <h3 class="text-[13px] font-bold mb-3" style="color: var(--foreground);">invites</h3>
           <span id="admin-create-invite">
-            <button
-              id="create-invite"
-              onclick={createInvite}
-              disabled={creatingInvite}
-              class="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded transition-colors"
-            >
-              {creatingInvite ? 'Creating...' : 'Create Invite'}
-            </button>
+            <button id="create-invite" onclick={createInvite} disabled={creatingInvite}
+                    class="px-3 py-1.5 text-[11px] border font-mono disabled:opacity-40"
+                    style="background: var(--rc-channel-active-bg); color: var(--rc-channel-active-fg); border-color: var(--rc-channel-active-bg);">
+              {creatingInvite ? 'creating...' : 'create invite'}</button>
           </span>
-
           {#if inviteResult}
-            <div id="invite-result" class="mt-3 p-3 bg-gray-800 rounded border border-gray-700">
+            <div id="invite-result" class="mt-3 p-3 border" style="border-color: var(--border);">
               <div id="admin-invite-result">
-                <p class="text-xs text-gray-400 mb-1">Invite link:</p>
+                <p class="text-[11px] mb-1" style="color: var(--rc-timestamp);">invite link:</p>
                 <div class="flex items-center gap-2">
-                  <code class="invite-code text-sm text-green-400 break-all flex-1">{inviteResult}</code>
-                  <button
-                    onclick={() => copyToClipboard(inviteResult)}
-                    class="copy-link-btn shrink-0 px-2 py-1 text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 rounded transition-colors"
-                  >
-                    Copy
-                  </button>
+                  <code class="invite-code text-[12px] break-all flex-1" style="color: var(--rc-olive);">{inviteResult}</code>
+                  <button onclick={() => copyToClipboard(inviteResult)}
+                          class="copy-link-btn shrink-0 px-2 py-1 text-[11px] border hover:opacity-70"
+                          style="border-color: var(--border); color: var(--rc-timestamp);">copy</button>
                 </div>
               </div>
             </div>
           {/if}
-
           {#if invites.length > 0}
             <div class="mt-4 space-y-2">
-              <h4 class="text-sm font-medium text-gray-400">Existing Invites</h4>
+              <h4 class="text-[12px]" style="color: var(--rc-timestamp);">existing invites</h4>
               {#each invites as invite (invite.code)}
-                <div class="flex items-center justify-between p-2 bg-gray-800 rounded border border-gray-700">
+                <div class="flex items-center justify-between p-2 border" style="border-color: var(--border);">
                   <div class="min-w-0 flex-1">
-                    <code class="text-xs text-gray-300 break-all">{invite.code}</code>
-                    <p class="text-xs text-gray-500 mt-0.5">
-                      Used {invite.useCount} time{invite.useCount !== 1 ? 's' : ''}
-                      {#if invite.maxUses}
-                        / {invite.maxUses} max
-                      {/if}
+                    <code class="text-[11px] break-all" style="color: var(--foreground);">{invite.code}</code>
+                    <p class="text-[11px] mt-0.5" style="color: var(--rc-timestamp);">
+                      used {invite.useCount} time{invite.useCount !== 1 ? 's' : ''}
+                      {#if invite.maxUses}/ {invite.maxUses} max{/if}
                     </p>
                   </div>
-                  <button
-                    onclick={() => copyToClipboard(`${window.location.origin}/invite/${invite.code}`)}
-                    class="shrink-0 ml-2 px-2 py-1 text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 rounded transition-colors"
-                  >
-                    Copy
-                  </button>
+                  <button onclick={() => copyToClipboard(`${window.location.origin}/invite/${invite.code}`)}
+                          class="shrink-0 ml-2 px-2 py-1 text-[11px] border hover:opacity-70"
+                          style="border-color: var(--border); color: var(--rc-timestamp);">copy</button>
                 </div>
               {/each}
             </div>
           {/if}
         </div>
 
-        <!-- Section 6: Bots -->
-        <div class="bg-gray-900 border border-gray-800 rounded-lg p-4">
-          <h3 class="text-base font-semibold text-white mb-3">Bots</h3>
-
-          <button
-            onclick={() => { showCreateBotModal = true; newBotUsername = ''; newBotDisplayName = ''; createBotError = ''; }}
-            class="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
-          >
-            Create Bot
-          </button>
-
+        <!-- Bots -->
+        <div class="border p-4" style="border-color: var(--border);">
+          <h3 class="text-[13px] font-bold mb-3" style="color: var(--foreground);">bots</h3>
+          <button onclick={() => { showCreateBotModal = true; newBotUsername = ''; newBotDisplayName = ''; createBotError = ''; }}
+                  class="px-3 py-1.5 text-[11px] border font-mono"
+                  style="background: var(--rc-channel-active-bg); color: var(--rc-channel-active-fg); border-color: var(--rc-channel-active-bg);">
+            create bot</button>
           {#if bots.length > 0}
             <div class="mt-4 space-y-2">
               {#each bots as bot (bot.id)}
-                <div class="flex items-center justify-between p-3 bg-gray-800 rounded border border-gray-700">
+                <div class="flex items-center justify-between p-3 border" style="border-color: var(--border);">
                   <div>
-                    <p class="text-sm font-medium text-white">{bot.displayName}</p>
-                    <p class="text-xs text-gray-500">@{bot.username}</p>
+                    <p class="text-[12px] font-bold" style="color: var(--foreground);">{bot.displayName}</p>
+                    <p class="text-[11px]" style="color: var(--rc-timestamp);">@{bot.username}</p>
                   </div>
                   <div class="flex gap-2">
-                    <button
-                      onclick={() => openManageBot(bot)}
-                      class="px-3 py-1 text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 rounded transition-colors"
-                    >
-                      Manage
-                    </button>
-                    <button
-                      onclick={() => (confirmDeleteBot = bot)}
-                      class="px-3 py-1 text-xs bg-red-600/20 text-red-400 hover:bg-red-600/30 rounded transition-colors"
-                    >
-                      Delete
-                    </button>
+                    <button onclick={() => openManageBot(bot)}
+                            class="px-2 py-1 text-[11px] border hover:opacity-70"
+                            style="border-color: var(--border); color: var(--rc-timestamp);">manage</button>
+                    <button onclick={() => (confirmDeleteBot = bot)}
+                            class="px-2 py-1 text-[11px] hover:underline"
+                            style="color: var(--rc-mention-badge);">delete</button>
                   </div>
                 </div>
               {/each}
             </div>
           {:else}
-            <p class="text-sm text-gray-500 mt-3">No bots created yet.</p>
+            <p class="text-[12px] mt-3" style="color: var(--rc-timestamp);">no bots created yet.</p>
           {/if}
         </div>
 
@@ -572,56 +485,30 @@
 <!-- Create Bot Modal -->
 {#if showCreateBotModal}
   <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-  <div
-    class="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
-    role="dialog"
-    aria-modal="true"
-    aria-label="Create bot"
-    tabindex="-1"
-    onkeydown={(e) => { if (e.key === 'Escape') showCreateBotModal = false; }}
-  >
-    <div class="bg-gray-800 rounded-lg p-6 w-full max-w-md mx-4 shadow-xl">
-      <h2 class="text-lg font-bold text-white mb-4">Create Bot</h2>
-
-      {#if createBotError}
-        <p class="text-red-400 text-sm mb-3">{createBotError}</p>
-      {/if}
-
+  <div class="fixed inset-0 bg-black/30 flex items-center justify-center z-50"
+       role="dialog" aria-modal="true" aria-label="Create bot" tabindex="-1"
+       onkeydown={(e) => { if (e.key === 'Escape') showCreateBotModal = false; }}>
+    <div class="p-6 w-full max-w-md mx-4 border" style="background: var(--background); border-color: var(--border);">
+      <h2 class="text-[14px] font-bold mb-4" style="color: var(--foreground);">create bot</h2>
+      {#if createBotError}<p class="text-[12px] mb-3" style="color: var(--rc-mention-badge);">{createBotError}</p>{/if}
       <label class="block mb-3">
-        <span class="text-sm text-gray-300 mb-1 block">Username</span>
-        <input
-          type="text"
-          value={newBotUsername}
-          oninput={handleBotUsernameInput}
-          placeholder="my-bot"
-          class="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-sm text-white placeholder-gray-600 focus:border-blue-500 focus:outline-none"
-        />
+        <span class="text-[12px] mb-1 block" style="color: var(--rc-timestamp);">username</span>
+        <input type="text" value={newBotUsername} oninput={handleBotUsernameInput} placeholder="my-bot"
+               class="w-full border px-3 py-2 text-[12px] font-mono outline-none"
+               style="background: var(--rc-input-bg); border-color: var(--border); color: var(--foreground);" />
       </label>
-
       <label class="block mb-4">
-        <span class="text-sm text-gray-300 mb-1 block">Display Name</span>
-        <input
-          type="text"
-          bind:value={newBotDisplayName}
-          placeholder="My Bot"
-          class="w-full bg-gray-900 border border-gray-700 rounded px-3 py-2 text-sm text-white placeholder-gray-600 focus:border-blue-500 focus:outline-none"
-        />
+        <span class="text-[12px] mb-1 block" style="color: var(--rc-timestamp);">display name</span>
+        <input type="text" bind:value={newBotDisplayName} placeholder="My Bot"
+               class="w-full border px-3 py-2 text-[12px] font-mono outline-none"
+               style="background: var(--rc-input-bg); border-color: var(--border); color: var(--foreground);" />
       </label>
-
       <div class="flex justify-end gap-3">
-        <button
-          onclick={() => (showCreateBotModal = false)}
-          class="px-4 py-2 text-sm text-gray-300 hover:text-white transition-colors"
-        >
-          Cancel
-        </button>
-        <button
-          onclick={createBot}
-          disabled={creatingBot || !newBotUsername.trim() || !newBotDisplayName.trim()}
-          class="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded transition-colors"
-        >
-          {creatingBot ? 'Creating...' : 'Create'}
-        </button>
+        <button onclick={() => (showCreateBotModal = false)} class="text-[12px] hover:underline" style="color: var(--rc-timestamp);">cancel</button>
+        <button onclick={createBot} disabled={creatingBot || !newBotUsername.trim() || !newBotDisplayName.trim()}
+                class="px-3 py-1.5 text-[11px] border font-mono disabled:opacity-40"
+                style="background: var(--rc-channel-active-bg); color: var(--rc-channel-active-fg); border-color: var(--rc-channel-active-bg);">
+          {creatingBot ? 'creating...' : 'create'}</button>
       </div>
     </div>
   </div>
@@ -630,134 +517,94 @@
 <!-- Manage Bot Modal -->
 {#if managingBot}
   <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-  <div
-    class="fixed inset-0 bg-black/60 flex items-center justify-center z-50"
-    role="dialog"
-    aria-modal="true"
-    aria-label="Manage bot"
-    tabindex="-1"
-    onkeydown={(e) => { if (e.key === 'Escape') managingBot = null; }}
-  >
-    <div class="bg-gray-800 rounded-lg p-6 w-full max-w-3xl mx-4 shadow-xl max-h-[90vh] overflow-y-auto">
+  <div class="fixed inset-0 bg-black/30 flex items-center justify-center z-50"
+       role="dialog" aria-modal="true" aria-label="Manage bot" tabindex="-1"
+       onkeydown={(e) => { if (e.key === 'Escape') managingBot = null; }}>
+    <div class="p-6 w-full max-w-3xl mx-4 border max-h-[90vh] overflow-y-auto"
+         style="background: var(--background); border-color: var(--border);">
       <div class="flex items-center justify-between mb-4">
-        <h2 class="text-lg font-bold text-white">
-          Manage: {managingBot.displayName}
-          <span class="text-sm font-normal text-gray-500">(@{managingBot.username})</span>
+        <h2 class="text-[14px] font-bold" style="color: var(--foreground);">
+          manage: {managingBot.displayName}
+          <span class="text-[12px] font-normal" style="color: var(--rc-timestamp);">(@{managingBot.username})</span>
         </h2>
-        <button
-          onclick={() => (managingBot = null)}
-          class="text-gray-400 hover:text-white"
-          aria-label="Close"
-        >
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
+        <button onclick={() => (managingBot = null)} class="text-[16px] leading-none hover:opacity-60"
+                style="color: var(--rc-timestamp);" aria-label="Close">&times;</button>
       </div>
-
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <!-- Tokens Section -->
-        <div class="bg-gray-900 rounded-lg p-4 border border-gray-700">
-          <h3 class="text-sm font-semibold text-white mb-3">Tokens</h3>
-
-          <!-- Generate token -->
+        <!-- Tokens -->
+        <div class="border p-4" style="border-color: var(--border);">
+          <h3 class="text-[12px] font-bold mb-3" style="color: var(--foreground);">tokens</h3>
           <div class="flex gap-2 mb-3">
-            <input
-              type="text"
-              bind:value={newTokenLabel}
-              placeholder="Token label (optional)"
-              class="flex-1 bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-sm text-white placeholder-gray-600 focus:border-blue-500 focus:outline-none"
-            />
-            <button
-              onclick={generateToken}
-              disabled={generatingToken}
-              class="shrink-0 px-3 py-1.5 text-xs bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded transition-colors"
-            >
-              {generatingToken ? '...' : 'Generate'}
-            </button>
+            <input type="text" bind:value={newTokenLabel} placeholder="token label (optional)"
+                   class="flex-1 border px-3 py-1.5 text-[12px] font-mono outline-none"
+                   style="background: var(--rc-input-bg); border-color: var(--border); color: var(--foreground);" />
+            <button onclick={generateToken} disabled={generatingToken}
+                    class="shrink-0 px-3 py-1.5 text-[11px] border font-mono disabled:opacity-40"
+                    style="background: var(--rc-channel-active-bg); color: var(--rc-channel-active-fg); border-color: var(--rc-channel-active-bg);">
+              {generatingToken ? '...' : 'generate'}</button>
           </div>
-
-          <!-- Token list -->
           {#if botTokens.length > 0}
             <div class="space-y-2">
               {#each botTokens as token (token.id)}
-                <div class="flex items-center justify-between p-2 bg-gray-800 rounded text-xs">
+                <div class="flex items-center justify-between p-2 border text-[11px]" style="border-color: var(--border);">
                   <div class="min-w-0 flex-1">
-                    <span class="text-gray-300">{token.label || '(no label)'}</span>
+                    <span style="color: var(--foreground);">{token.label || '(no label)'}</span>
                     {#if token.revokedAt}
-                      <span class="ml-2 text-red-400">revoked</span>
+                      <span class="ml-2" style="color: var(--rc-mention-badge);">revoked</span>
                     {:else}
-                      <span class="ml-2 text-green-400">active</span>
+                      <span class="ml-2" style="color: var(--rc-olive);">active</span>
                     {/if}
                   </div>
                   {#if !token.revokedAt}
-                    <button
-                      onclick={() => revokeToken(token.id)}
-                      class="shrink-0 ml-2 px-2 py-0.5 bg-red-600/20 text-red-400 hover:bg-red-600/30 rounded transition-colors"
-                    >
-                      Revoke
-                    </button>
+                    <button onclick={() => revokeToken(token.id)}
+                            class="shrink-0 ml-2 text-[11px] hover:underline"
+                            style="color: var(--rc-mention-badge);">revoke</button>
                   {/if}
                 </div>
               {/each}
             </div>
           {:else}
-            <p class="text-xs text-gray-500">No tokens yet.</p>
+            <p class="text-[11px]" style="color: var(--rc-timestamp);">no tokens yet.</p>
           {/if}
         </div>
-
-        <!-- Channel Bindings Section -->
-        <div class="bg-gray-900 rounded-lg p-4 border border-gray-700">
-          <h3 class="text-sm font-semibold text-white mb-3">Channel Bindings</h3>
-
-          <!-- Bind to channel -->
+        <!-- Channel Bindings -->
+        <div class="border p-4" style="border-color: var(--border);">
+          <h3 class="text-[12px] font-bold mb-3" style="color: var(--foreground);">channel bindings</h3>
           <div class="flex gap-2 mb-3">
-            <select
-              bind:value={bindChannelId}
-              class="flex-1 bg-gray-800 border border-gray-700 rounded px-3 py-1.5 text-sm text-white focus:border-blue-500 focus:outline-none"
-            >
-              <option value={null}>Select channel...</option>
+            <select bind:value={bindChannelId}
+                    class="flex-1 border px-3 py-1.5 text-[12px] font-mono outline-none"
+                    style="background: var(--rc-input-bg); border-color: var(--border); color: var(--foreground);">
+              <option value={null}>select channel...</option>
               {#each unboundChannels as ch (ch.id)}
                 <option value={ch.id}>#{ch.name}</option>
               {/each}
             </select>
-            <button
-              onclick={bindChannel}
-              disabled={!bindChannelId}
-              class="shrink-0 px-3 py-1.5 text-xs bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white rounded transition-colors"
-            >
-              Bind
-            </button>
+            <button onclick={bindChannel} disabled={!bindChannelId}
+                    class="shrink-0 px-3 py-1.5 text-[11px] border font-mono disabled:opacity-40"
+                    style="background: var(--rc-channel-active-bg); color: var(--rc-channel-active-fg); border-color: var(--rc-channel-active-bg);">
+              bind</button>
           </div>
-
-          <!-- Binding list -->
           {#if botBindings.length > 0}
             <div class="space-y-2">
               {#each botBindings as binding (binding.channelId)}
-                <div class="flex items-center justify-between p-2 bg-gray-800 rounded text-xs">
+                <div class="flex items-center justify-between p-2 border text-[11px]" style="border-color: var(--border);">
                   <div class="min-w-0 flex-1">
-                    <span class="text-gray-300">{getChannelName(binding.channelId)}</span>
-                    <span class="ml-2 text-gray-500">
-                      {#if binding.canRead && binding.canWrite}
-                        read/write
-                      {:else if binding.canRead}
-                        read
-                      {:else if binding.canWrite}
-                        write
+                    <span style="color: var(--foreground);">{getChannelName(binding.channelId)}</span>
+                    <span class="ml-2" style="color: var(--rc-timestamp);">
+                      {#if binding.canRead && binding.canWrite}read/write
+                      {:else if binding.canRead}read
+                      {:else if binding.canWrite}write
                       {/if}
                     </span>
                   </div>
-                  <button
-                    onclick={() => unbindChannel(binding.channelId)}
-                    class="shrink-0 ml-2 px-2 py-0.5 bg-red-600/20 text-red-400 hover:bg-red-600/30 rounded transition-colors"
-                  >
-                    Unbind
-                  </button>
+                  <button onclick={() => unbindChannel(binding.channelId)}
+                          class="shrink-0 ml-2 text-[11px] hover:underline"
+                          style="color: var(--rc-mention-badge);">unbind</button>
                 </div>
               {/each}
             </div>
           {:else}
-            <p class="text-xs text-gray-500">No channel bindings yet.</p>
+            <p class="text-[11px]" style="color: var(--rc-timestamp);">no channel bindings yet.</p>
           {/if}
         </div>
       </div>
@@ -768,37 +615,25 @@
 <!-- Generated Token Display Modal -->
 {#if showTokenModal && generatedToken}
   <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-  <div
-    class="fixed inset-0 bg-black/60 flex items-center justify-center z-[60]"
-    role="dialog"
-    aria-modal="true"
-    aria-label="Generated token"
-    tabindex="-1"
-    onkeydown={(e) => { if (e.key === 'Escape') { showTokenModal = false; generatedToken = ''; } }}
-  >
-    <div class="bg-gray-800 rounded-lg p-6 w-full max-w-lg mx-4 shadow-xl">
-      <h2 class="text-lg font-bold text-white mb-2">Token Generated</h2>
-      <p class="text-sm text-yellow-400 mb-3">
-        Copy this token now. It will not be shown again.
+  <div class="fixed inset-0 bg-black/30 flex items-center justify-center z-[60]"
+       role="dialog" aria-modal="true" aria-label="Generated token" tabindex="-1"
+       onkeydown={(e) => { if (e.key === 'Escape') { showTokenModal = false; generatedToken = ''; } }}>
+    <div class="p-6 w-full max-w-lg mx-4 border" style="background: var(--background); border-color: var(--border);">
+      <h2 class="text-[14px] font-bold mb-2" style="color: var(--foreground);">token generated</h2>
+      <p class="text-[12px] mb-3" style="color: var(--rc-mention-badge);">
+        copy this token now. it will not be shown again.
       </p>
-
-      <div class="flex items-center gap-2 p-3 bg-gray-900 rounded border border-gray-700">
-        <code class="text-sm text-green-400 break-all flex-1">{generatedToken}</code>
-        <button
-          onclick={() => copyToClipboard(generatedToken)}
-          class="shrink-0 px-3 py-1 text-xs bg-gray-700 hover:bg-gray-600 text-gray-300 rounded transition-colors"
-        >
-          Copy
-        </button>
+      <div class="flex items-center gap-2 p-3 border" style="border-color: var(--border);">
+        <code class="text-[12px] break-all flex-1" style="color: var(--rc-olive);">{generatedToken}</code>
+        <button onclick={() => copyToClipboard(generatedToken)}
+                class="shrink-0 px-2 py-1 text-[11px] border hover:opacity-70"
+                style="border-color: var(--border); color: var(--rc-timestamp);">copy</button>
       </div>
-
       <div class="flex justify-end mt-4">
-        <button
-          onclick={() => { showTokenModal = false; generatedToken = ''; }}
-          class="px-4 py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
-        >
-          Done
-        </button>
+        <button onclick={() => { showTokenModal = false; generatedToken = ''; }}
+                class="px-3 py-1.5 text-[11px] border font-mono"
+                style="background: var(--rc-channel-active-bg); color: var(--rc-channel-active-fg); border-color: var(--rc-channel-active-bg);">
+          done</button>
       </div>
     </div>
   </div>
@@ -807,35 +642,21 @@
 <!-- Delete Bot Confirmation -->
 {#if confirmDeleteBot}
   <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-  <div
-    class="fixed inset-0 bg-black/60 flex items-center justify-center z-[60]"
-    role="dialog"
-    aria-modal="true"
-    aria-label="Confirm delete bot"
-    tabindex="-1"
-    onkeydown={(e) => { if (e.key === 'Escape') confirmDeleteBot = null; }}
-  >
-    <div class="bg-gray-800 rounded-lg p-6 w-full max-w-sm mx-4 shadow-xl">
-      <h2 class="text-lg font-bold text-white mb-2">Delete Bot</h2>
-      <p class="text-sm text-gray-300 mb-4">
-        Are you sure you want to delete <strong>{confirmDeleteBot.displayName}</strong> (@{confirmDeleteBot.username})?
-        This cannot be undone.
+  <div class="fixed inset-0 bg-black/30 flex items-center justify-center z-[60]"
+       role="dialog" aria-modal="true" aria-label="Confirm delete bot" tabindex="-1"
+       onkeydown={(e) => { if (e.key === 'Escape') confirmDeleteBot = null; }}>
+    <div class="p-6 w-full max-w-sm mx-4 border" style="background: var(--background); border-color: var(--border);">
+      <h2 class="text-[14px] font-bold mb-2" style="color: var(--foreground);">delete bot</h2>
+      <p class="text-[12px] mb-4" style="color: var(--foreground);">
+        are you sure you want to delete <strong>{confirmDeleteBot.displayName}</strong> (@{confirmDeleteBot.username})?
+        this cannot be undone.
       </p>
-
       <div class="flex justify-end gap-3">
-        <button
-          onclick={() => (confirmDeleteBot = null)}
-          class="px-4 py-2 text-sm text-gray-300 hover:text-white transition-colors"
-        >
-          Cancel
-        </button>
-        <button
-          onclick={() => { if (confirmDeleteBot) deleteBot(confirmDeleteBot); }}
-          disabled={deletingBot}
-          class="px-4 py-2 text-sm bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white rounded transition-colors"
-        >
-          {deletingBot ? 'Deleting...' : 'Delete'}
-        </button>
+        <button onclick={() => (confirmDeleteBot = null)} class="text-[12px] hover:underline" style="color: var(--rc-timestamp);">cancel</button>
+        <button onclick={() => { if (confirmDeleteBot) deleteBot(confirmDeleteBot); }} disabled={deletingBot}
+                class="px-3 py-1.5 text-[11px] border font-mono disabled:opacity-40"
+                style="background: var(--rc-mention-badge); color: oklch(0.97 0 0); border-color: var(--rc-mention-badge);">
+          {deletingBot ? 'deleting...' : 'delete'}</button>
       </div>
     </div>
   </div>

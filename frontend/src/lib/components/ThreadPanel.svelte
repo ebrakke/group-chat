@@ -26,52 +26,63 @@
   }
 </script>
 
-<div id="thread-panel" class="flex flex-col h-full bg-[#1e2024] border-l border-gray-700/40">
-  <!-- Thread header -->
-  <div class="flex items-center justify-between px-4 py-3 border-b border-gray-700/40 shrink-0">
-    <h3 class="text-lg font-bold text-white">Thread</h3>
-    <div class="flex items-center gap-2">
+<div id="thread-panel" class="flex flex-col h-full w-full md:w-[272px] shrink-0 border-l"
+     style="background: var(--rc-thread-bg); border-color: var(--border);">
+  <!-- Header -->
+  <div class="flex items-center justify-between px-4 py-3 border-b shrink-0"
+       style="border-color: var(--border);">
+    <span class="text-[10px] uppercase tracking-[0.14em]"
+          style="color: var(--rc-timestamp);">thread</span>
+    <div class="flex items-center gap-3">
       <button
         onclick={handleToggleMute}
-        class="text-gray-400 hover:text-white transition-colors text-lg"
+        class="text-[11px] hover:underline underline-offset-2"
+        style="color: var(--rc-timestamp);"
         title={muted ? 'Unmute thread' : 'Mute thread'}
-      >
-        {#if muted}
-          <span aria-label="Muted">&#128277;</span>
-        {:else}
-          <span aria-label="Notifications on">&#128276;</span>
-        {/if}
-      </button>
+      >{muted ? 'unmute' : 'mute'}</button>
       <button
         id="close-thread"
         onclick={onClose}
-        class="text-gray-400 hover:text-white transition-colors text-xl leading-none px-1"
+        class="text-[16px] leading-none hover:opacity-60"
+        style="color: var(--rc-timestamp);"
         aria-label="Close thread"
-      >
-        &times;
-      </button>
+      >&times;</button>
     </div>
   </div>
 
   <!-- Parent message -->
   {#if parentMessage}
-    <div id="thread-parent" class="px-4 py-3 border-b border-gray-700/40 shrink-0">
-      <div class="flex items-baseline gap-2">
-        <span class="font-bold text-gray-100 text-sm">{parentMessage.displayName}</span>
-        <span class="text-xs text-gray-500">{formatTime(parentMessage.createdAt)}</span>
+    <div id="thread-parent" class="px-4 pt-4 pb-3">
+      <div class="flex items-baseline gap-2 mb-1">
+        <span class="text-[11px] tabular-nums w-9 shrink-0"
+              style="color: var(--rc-timestamp);">{formatTime(parentMessage.createdAt)}</span>
+        <span class="text-[13px] font-bold"
+              style="color: var(--foreground);">{parentMessage.displayName}</span>
       </div>
-      <div class="prose prose-invert prose-sm max-w-none mt-1 break-words">
+      <div class="text-[13px] leading-relaxed break-words [&_p]:my-0 [&_a]:underline [&_a]:underline-offset-2"
+           style="color: var(--foreground); padding-left: 52px;">
         {@html renderMarkdown(parentMessage.content)}
       </div>
     </div>
   {/if}
 
+  <!-- Divider -->
+  <div class="flex items-center gap-2 px-4 py-2">
+    <div class="flex-1 border-t" style="border-color: var(--border);"></div>
+    <span class="text-[10px] uppercase tracking-[0.1em] shrink-0"
+          style="color: var(--rc-divider-label);">
+      {replies.length > 0 ? `${replies.length} ${replies.length === 1 ? 'reply' : 'replies'}` : 'no replies yet'}
+    </span>
+    <div class="flex-1 border-t" style="border-color: var(--border);"></div>
+  </div>
+
   <!-- Replies -->
-  <div class="thread-replies flex-1 overflow-y-auto">
+  <div class="thread-replies flex-1 overflow-y-auto min-h-0">
     {#if replies.length > 0}
       <MessageList messages={replies} />
     {:else}
-      <div class="flex items-center justify-center h-full text-gray-500 text-sm">
+      <div class="flex items-center justify-center h-full text-[12px]"
+           style="color: var(--rc-timestamp);">
         <p>No replies yet</p>
       </div>
     {/if}
@@ -80,7 +91,7 @@
   <!-- Reply input -->
   <MessageInput
     onSend={handleSendReply}
-    placeholder="Reply..."
+    placeholder="reply..."
     inputId="reply-input"
     sendButtonId="reply-send"
   />

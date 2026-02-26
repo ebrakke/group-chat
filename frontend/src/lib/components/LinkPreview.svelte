@@ -8,7 +8,8 @@
   href={preview.url}
   target="_blank"
   rel="noopener noreferrer"
-  class="block max-w-md border border-gray-700 rounded-lg overflow-hidden hover:border-gray-600 transition-colors mt-2"
+  class="block max-w-sm border overflow-hidden hover:opacity-80 transition-opacity mt-2"
+  style="border-color: var(--border); border-left: 2px solid var(--rc-link);"
 >
   {#if preview.image}
     <img
@@ -17,13 +18,13 @@
       class="w-full h-40 object-cover"
     />
   {/if}
-  <div class="p-3">
+  <div class="px-3 py-2.5">
     {#if preview.title}
-      <p class="text-sm font-semibold text-gray-200 truncate">{preview.title}</p>
+      <p class="text-[12px] font-medium leading-snug mb-0.5" style="color: var(--foreground);">{preview.title}</p>
     {/if}
     {#if preview.description}
-      <p class="text-xs text-gray-400 mt-1 line-clamp-2">{preview.description}</p>
+      <p class="text-[11px] leading-snug line-clamp-2" style="color: var(--rc-muted-fg);">{preview.description}</p>
     {/if}
-    <p class="text-xs text-gray-500 mt-1 truncate">{preview.url}</p>
+    <p class="text-[10px] mt-1 truncate" style="color: var(--rc-timestamp);">{preview.url}</p>
   </div>
 </a>

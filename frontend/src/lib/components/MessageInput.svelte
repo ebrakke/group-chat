@@ -53,33 +53,32 @@
   }
 </script>
 
-<div id="composer" class="border-t border-gray-800 p-3">
-  <div class="flex items-end gap-2">
-    <div class="relative flex-1">
-      <MentionAutocomplete
-        bind:this={autocomplete}
-        inputEl={textarea}
-        onSelect={handleAutocompleteSelect}
-      />
-      <textarea
-        id={inputId}
-        bind:this={textarea}
-        bind:value={text}
-        oninput={handleInput}
-        onkeydown={handleKeydown}
-        {placeholder}
-        rows="1"
-        style="font-size: 16px;"
-        class="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-gray-200 placeholder-gray-500 resize-none outline-none focus:border-gray-600 transition-colors"
-      ></textarea>
-    </div>
-    <button
-      id={sendButtonId}
-      onclick={send}
-      disabled={!text.trim()}
-      class="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg px-4 py-2 text-sm font-medium transition-colors shrink-0"
-    >
-      Send
-    </button>
+<div id="composer" class="shrink-0 border-t px-4 py-3 flex items-center gap-2"
+     style="border-color: var(--border);">
+  <span class="text-[13px] select-none" style="color: var(--rc-timestamp);">{'>'}</span>
+  <div class="relative flex-1">
+    <MentionAutocomplete
+      bind:this={autocomplete}
+      inputEl={textarea}
+      onSelect={handleAutocompleteSelect}
+    />
+    <textarea
+      id={inputId}
+      bind:this={textarea}
+      bind:value={text}
+      oninput={handleInput}
+      onkeydown={handleKeydown}
+      {placeholder}
+      rows="1"
+      style="font-size: 13px; color: var(--foreground);"
+      class="w-full bg-transparent outline-none resize-none font-mono placeholder:opacity-40"
+    ></textarea>
   </div>
+  <button
+    id={sendButtonId}
+    onclick={send}
+    disabled={!text.trim()}
+    class="text-[11px] px-3 py-1.5 border font-mono disabled:opacity-30 shrink-0"
+    style="background: var(--rc-channel-active-bg); color: var(--rc-channel-active-fg); border-color: var(--rc-channel-active-bg);"
+  >send</button>
 </div>

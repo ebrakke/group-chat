@@ -59,60 +59,64 @@
   }
 </script>
 
-<div class="flex items-center justify-center min-h-screen bg-gray-950 text-gray-100">
-  <div class="w-full max-w-md p-8">
-    <h1 class="text-3xl font-bold text-center mb-8">Relay Chat</h1>
+<div class="flex items-center justify-center min-h-screen font-mono"
+     style="background: var(--background); color: var(--foreground);">
+  <div class="w-full max-w-sm p-8">
+    <div class="mb-8 text-center">
+      <span class="text-[18px] font-bold tracking-tight">relay</span><span class="text-[18px]" style="color: var(--rc-timestamp);">.chat</span>
+    </div>
 
-    <div class="flex mb-6 border-b border-gray-700">
+    <div class="flex mb-6 border-b" style="border-color: var(--border);">
       <button
         data-tab="login"
         onclick={() => (activeTab = 'login')}
-        class="auth-tab flex-1 py-2 text-center font-medium transition-colors {activeTab === 'login'
-          ? 'active text-blue-400 border-b-2 border-blue-400'
-          : 'text-gray-400 hover:text-gray-200'}"
-      >
-        Login
-      </button>
+        class="auth-tab flex-1 py-2 text-center text-[13px] transition-colors {activeTab === 'login'
+          ? 'active font-bold border-b-2'
+          : ''}"
+        style="{activeTab === 'login' ? 'border-color: var(--foreground); color: var(--foreground);' : 'color: var(--rc-timestamp);'}"
+      >Login</button>
       <button
         data-tab="signup"
         onclick={() => (activeTab = 'signup')}
-        class="auth-tab flex-1 py-2 text-center font-medium transition-colors {activeTab === 'signup'
-          ? 'active text-blue-400 border-b-2 border-blue-400'
-          : 'text-gray-400 hover:text-gray-200'}"
-      >
-        Sign Up
-      </button>
+        class="auth-tab flex-1 py-2 text-center text-[13px] transition-colors {activeTab === 'signup'
+          ? 'active font-bold border-b-2'
+          : ''}"
+        style="{activeTab === 'signup' ? 'border-color: var(--foreground); color: var(--foreground);' : 'color: var(--rc-timestamp);'}"
+      >Sign Up</button>
     </div>
 
     {#if activeTab === 'login'}
       <form id="login-card" onsubmit={handleLogin} class="space-y-4">
         {#if loginError}
-          <div class="bg-red-900/50 border border-red-700 text-red-200 px-4 py-2 rounded text-sm">
+          <div class="border px-3 py-2 text-[12px]"
+               style="border-color: var(--rc-mention-badge); color: var(--rc-mention-badge);">
             {loginError}
           </div>
         {/if}
 
         <div>
-          <label for="username" class="block text-sm font-medium text-gray-300 mb-1">Username</label>
+          <label for="username" class="block text-[12px] mb-1" style="color: var(--rc-timestamp);">username</label>
           <input
             id="username"
             type="text"
             bind:value={loginUsername}
             required
-            class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            placeholder="Username"
+            class="w-full px-3 py-2 border text-[13px] font-mono outline-none"
+            style="background: var(--rc-input-bg); border-color: var(--border); color: var(--foreground);"
+            placeholder="username"
           />
         </div>
 
         <div>
-          <label for="password" class="block text-sm font-medium text-gray-300 mb-1">Password</label>
+          <label for="password" class="block text-[12px] mb-1" style="color: var(--rc-timestamp);">password</label>
           <input
             id="password"
             type="password"
             bind:value={loginPassword}
             required
-            class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            placeholder="Password"
+            class="w-full px-3 py-2 border text-[13px] font-mono outline-none"
+            style="background: var(--rc-input-bg); border-color: var(--border); color: var(--foreground);"
+            placeholder="password"
           />
         </div>
 
@@ -120,65 +124,69 @@
           id="submit"
           type="submit"
           disabled={loginSubmitting}
-          class="w-full py-2 px-4 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium rounded transition-colors"
-        >
-          {loginSubmitting ? 'Logging in...' : 'Log In'}
-        </button>
+          class="w-full py-2 px-4 text-[12px] font-mono border disabled:opacity-40 transition-colors"
+          style="background: var(--rc-channel-active-bg); color: var(--rc-channel-active-fg); border-color: var(--rc-channel-active-bg);"
+        >{loginSubmitting ? 'logging in...' : 'log in'}</button>
       </form>
     {:else}
       <form id="signup-card" onsubmit={handleSignup} class="space-y-4">
         {#if signupError}
-          <div class="bg-red-900/50 border border-red-700 text-red-200 px-4 py-2 rounded text-sm">
+          <div class="border px-3 py-2 text-[12px]"
+               style="border-color: var(--rc-mention-badge); color: var(--rc-mention-badge);">
             {signupError}
           </div>
         {/if}
 
         <div>
-          <label for="signup-username" class="block text-sm font-medium text-gray-300 mb-1">Username</label>
+          <label for="signup-username" class="block text-[12px] mb-1" style="color: var(--rc-timestamp);">username</label>
           <input
             id="signup-username"
             type="text"
             bind:value={signupUsername}
             required
-            class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            placeholder="Username"
+            class="w-full px-3 py-2 border text-[13px] font-mono outline-none"
+            style="background: var(--rc-input-bg); border-color: var(--border); color: var(--foreground);"
+            placeholder="username"
           />
         </div>
 
         <div>
-          <label for="signup-display" class="block text-sm font-medium text-gray-300 mb-1">Display Name</label>
+          <label for="signup-display" class="block text-[12px] mb-1" style="color: var(--rc-timestamp);">display name</label>
           <input
             id="signup-display"
             type="text"
             bind:value={signupDisplayName}
             required
-            class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            placeholder="Display Name"
+            class="w-full px-3 py-2 border text-[13px] font-mono outline-none"
+            style="background: var(--rc-input-bg); border-color: var(--border); color: var(--foreground);"
+            placeholder="display name"
           />
         </div>
 
         <div>
-          <label for="signup-password" class="block text-sm font-medium text-gray-300 mb-1">Password</label>
+          <label for="signup-password" class="block text-[12px] mb-1" style="color: var(--rc-timestamp);">password</label>
           <input
             id="signup-password"
             type="password"
             bind:value={signupPassword}
             required
-            class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            placeholder="Password"
+            class="w-full px-3 py-2 border text-[13px] font-mono outline-none"
+            style="background: var(--rc-input-bg); border-color: var(--border); color: var(--foreground);"
+            placeholder="password"
           />
         </div>
 
         <div>
-          <label for="invite-code" class="block text-sm font-medium text-gray-300 mb-1">Invite Code</label>
+          <label for="invite-code" class="block text-[12px] mb-1" style="color: var(--rc-timestamp);">invite code</label>
           <input
             id="invite-code"
             type="text"
             bind:value={signupInviteCode}
             readonly={inviteCodeReadonly}
             required
-            class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded text-gray-100 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            placeholder="Enter invite code"
+            class="w-full px-3 py-2 border text-[13px] font-mono outline-none"
+            style="background: var(--rc-input-bg); border-color: var(--border); color: var(--foreground);"
+            placeholder="enter invite code"
           />
         </div>
 
@@ -186,10 +194,9 @@
           id="signup-submit"
           type="submit"
           disabled={signupSubmitting}
-          class="w-full py-2 px-4 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium rounded transition-colors"
-        >
-          {signupSubmitting ? 'Creating account...' : 'Create Account'}
-        </button>
+          class="w-full py-2 px-4 text-[12px] font-mono border disabled:opacity-40 transition-colors"
+          style="background: var(--rc-channel-active-bg); color: var(--rc-channel-active-fg); border-color: var(--rc-channel-active-bg);"
+        >{signupSubmitting ? 'creating account...' : 'create account'}</button>
       </form>
     {/if}
   </div>

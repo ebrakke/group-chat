@@ -18,6 +18,7 @@
     grouped?: boolean;
   } = $props();
 
+  let hovered = $state(false);
   let showPicker = $state(false);
   let pickerContainer: HTMLDivElement | undefined = $state();
   let addBtnEl: HTMLButtonElement | undefined = $state();
@@ -75,102 +76,121 @@
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
-  class="message group relative px-4 hover:bg-white/[0.03] {grouped ? 'py-0.5' : 'mt-3 first:mt-0 pt-1.5 pb-0.5'}"
+  class="message relative px-5"
+  style="margin-top: {grouped ? '2px' : '16px'}; background: {hovered ? 'var(--rc-message-hover)' : 'transparent'};"
+  onmouseenter={() => (hovered = true)}
+  onmouseleave={() => (hovered = false)}
 >
-  <!-- Action buttons: floating toolbar on desktop hover, inline on mobile -->
-  <div class="absolute -top-3 right-3 items-center gap-0.5 bg-gray-800 border border-gray-700 rounded-md px-0.5 py-0.5 shadow-lg z-10
-    hidden md:flex opacity-0 group-hover:opacity-100 transition-opacity duration-100">
-    <button
-      class="reply-btn p-1.5 rounded hover:bg-gray-700 text-gray-400 hover:text-gray-200 text-xs"
-      onclick={() => onOpenThread?.(message.id)}
-      title="Reply in thread"
-    >
-      {#if hasReplies}
-        Reply ({message.replyCount})
-      {:else}
-        Reply
+  {#if !grouped}
+    <!-- Header: timestamp + author + hover actions -->
+    <div class="flex items-baseline gap-2 pt-1">
+      <span
+        class="text-[11px] tabular-nums shrink-0 select-none w-9"
+        style="color: var(--rc-timestamp);"
+      >{formatTime(message.createdAt)}</span>
+      <span class="text-[13px] font-bold" style="color: var(--foreground);">
+        {message.displayName}
+      </span>
+      {#if message.isBot}
+        <span class="text-[9px] font-bold uppercase tracking-wide px-1 py-[1px]"
+              style="background: var(--rc-olive); color: var(--rc-channel-active-fg);">BOT</span>
       {/if}
-    </button>
-    <div class="relative">
-      <button
-        bind:this={addBtnEl}
-        class="reaction-add-btn p-1.5 rounded hover:bg-gray-700 text-gray-400 hover:text-gray-200 text-xs"
-        onclick={() => (showPicker = !showPicker)}
-        title="Add reaction"
-      >+</button>
-      {#if showPicker}
-        <div
-          bind:this={pickerContainer}
-          class="reaction-picker absolute right-0 top-full mt-1 z-50 bg-gray-800 border border-gray-700 rounded-lg p-2 shadow-xl flex flex-wrap gap-1 w-[220px]"
-        >
-          {#each EMOJI_LIST as emoji}
-            <button
-              class="reaction-picker-btn text-xl hover:bg-gray-700 rounded w-10 h-10 flex items-center justify-center"
-              onclick={() => toggleReaction(emoji)}
-            >{emoji}</button>
-          {/each}
+      {#if onOpenThread}
+        <div class="ml-auto flex items-center gap-4 shrink-0" style="opacity: {hovered ? '1' : '0'}; transition: opacity 0.1s;">
+          <button
+            class="reply-btn text-[11px] cursor-pointer hover:underline underline-offset-2"
+            style="color: var(--rc-timestamp);"
+            onclick={() => onOpenThread?.(message.id)}
+          >reply</button>
+          <button
+            bind:this={addBtnEl}
+            class="reaction-add-btn text-[11px] cursor-pointer hover:underline underline-offset-2"
+            style="color: var(--rc-timestamp);"
+            onclick={() => (showPicker = !showPicker)}
+          >react</button>
         </div>
       {/if}
     </div>
-  </div>
+  {/if}
 
-  {#if !grouped}
-    <!-- Header row: name + timestamp -->
-    <div class="flex items-baseline gap-2">
-      <span class="font-semibold text-[15px] text-gray-100 leading-tight">{message.displayName}</span>
-      {#if message.isBot}
-        <span class="text-[10px] font-bold bg-indigo-600 text-white px-1 py-0.5 rounded uppercase leading-none tracking-wide">BOT</span>
-      {/if}
-      <span class="text-[11px] text-gray-400">{formatTime(message.createdAt)}</span>
+  <!-- Grouped hover actions — positioned absolutely so they don't affect text layout -->
+  {#if grouped && onOpenThread}
+    <div class="absolute right-5 top-0 bottom-0 flex items-center gap-4" style="opacity: {hovered ? '1' : '0'}; transition: opacity 0.1s;">
+      <button
+        class="reply-btn text-[11px] cursor-pointer hover:underline underline-offset-2"
+        style="color: var(--rc-timestamp);"
+        onclick={() => onOpenThread?.(message.id)}
+      >reply</button>
+      <button
+        bind:this={addBtnEl}
+        class="reaction-add-btn text-[11px] cursor-pointer hover:underline underline-offset-2"
+        style="color: var(--rc-timestamp);"
+        onclick={() => (showPicker = !showPicker)}
+      >react</button>
     </div>
   {/if}
 
-  <!-- Content -->
-  <div class="msg-body text-[15px] text-gray-200 leading-relaxed break-words [&_p]:my-0 [&_a]:text-blue-400 [&_a]:underline [&_a]:underline-offset-2 [&_code]:bg-gray-800 [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-[13px] [&_pre]:bg-gray-800/80 [&_pre]:rounded-md [&_pre]:p-3 [&_pre]:my-1 [&_pre]:overflow-x-auto">
-    {@html renderedContent}
-  </div>
+  <!-- Body — indented to align with author name -->
+  <div
+    class="text-[13px] leading-relaxed"
+    style="color: var(--foreground); padding-left: 52px; padding-bottom: {grouped ? '1px' : '4px'}; padding-top: {grouped ? '0' : '1px'};"
+  >
+    <!-- Content -->
+    <span class="msg-body break-words [&_p]:my-0 [&_a]:underline [&_a]:underline-offset-2 [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-[12px] [&_pre]:p-3 [&_pre]:my-1 [&_pre]:overflow-x-auto"
+          style="color: var(--foreground); --tw-prose-links: var(--rc-link);">
+      {@html renderedContent}
+    </span>
 
-  <!-- Link Previews -->
-  {#if message.linkPreviews?.length}
-    <div class="mt-1">
-      {#each message.linkPreviews as preview (preview.url)}
-        <LinkPreview {preview} />
-      {/each}
-    </div>
-  {/if}
+    <!-- Link Previews -->
+    {#if message.linkPreviews?.length}
+      <div class="mt-1.5">
+        {#each message.linkPreviews as preview (preview.url)}
+          <LinkPreview {preview} />
+        {/each}
+      </div>
+    {/if}
 
-  <!-- Mobile actions (visible, compact) -->
-  <div class="flex md:hidden items-center gap-3 mt-0.5">
-    {#if hasReplies}
-      <button
-        class="reply-btn text-xs text-blue-400 active:text-blue-300 py-0.5"
-        onclick={() => onOpenThread?.(message.id)}
-      >
-        {message.replyCount} {message.replyCount === 1 ? 'reply' : 'replies'}
-      </button>
-    {:else}
-      <button
-        class="reply-btn text-xs text-gray-500 active:text-gray-300 py-0.5"
-        onclick={() => onOpenThread?.(message.id)}
-      >
-        Reply
-      </button>
+    <!-- Reply count -->
+    {#if hasReplies && onOpenThread}
+      <div class="mt-1">
+        <button
+          class="reply-btn text-[11px] hover:underline underline-offset-2 cursor-pointer"
+          style="color: var(--rc-olive);"
+          onclick={() => onOpenThread?.(message.id)}
+        >({message.replyCount}) {message.replyCount === 1 ? 'reply' : 'replies'}</button>
+      </div>
+    {/if}
+
+    <!-- Reactions -->
+    {#if message.reactions?.length}
+      <div class="flex flex-wrap items-center gap-1 mt-1">
+        {#each message.reactions as reaction (reaction.emoji)}
+          <button
+            class="reaction-pill inline-flex items-center gap-1 px-2 py-0.5 text-[11px] border transition-colors"
+            style="background: {reaction.userIds.includes(currentUserId) ? 'var(--rc-mention-bg)' : 'var(--rc-muted)'}; border-color: var(--border); color: var(--foreground);"
+            onclick={() => toggleReaction(reaction.emoji)}
+          >
+            <span>{reaction.emoji}</span>
+            <span class="reaction-count">{reaction.count}</span>
+          </button>
+        {/each}
+      </div>
     {/if}
   </div>
 
-  <!-- Reactions -->
-  {#if message.reactions?.length}
-    <div class="flex flex-wrap items-center gap-1 mt-1">
-      {#each message.reactions as reaction (reaction.emoji)}
+  <!-- Emoji picker -->
+  {#if showPicker}
+    <div
+      bind:this={pickerContainer}
+      class="reaction-picker absolute right-5 top-full mt-1 z-50 border p-2 flex flex-wrap gap-1 w-[220px]"
+      style="background: var(--background); border-color: var(--border);"
+    >
+      {#each EMOJI_LIST as emoji}
         <button
-          class="reaction-pill inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs border transition-colors {reaction.userIds.includes(currentUserId)
-            ? 'bg-indigo-500/15 border-indigo-500/40 text-indigo-300'
-            : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600 hover:text-gray-300'}"
-          onclick={() => toggleReaction(reaction.emoji)}
-        >
-          <span>{reaction.emoji}</span>
-          <span class="reaction-count">{reaction.count}</span>
-        </button>
+          class="reaction-picker-btn text-xl w-10 h-10 flex items-center justify-center hover:opacity-70"
+          style="background: transparent;"
+          onclick={() => toggleReaction(emoji)}
+        >{emoji}</button>
       {/each}
     </div>
   {/if}

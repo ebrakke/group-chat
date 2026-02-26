@@ -124,18 +124,18 @@
 
 {#if visible && users.length > 0}
   <div
-    class="mention-autocomplete absolute bottom-full left-0 mb-1 w-64 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50 overflow-hidden"
+    class="mention-autocomplete absolute bottom-full left-0 mb-1 w-64 border z-50 overflow-hidden"
+    style="background: var(--background); border-color: var(--border);"
   >
     {#each users as user, i (user.id)}
       <button
-        class="w-full text-left px-3 py-2 flex flex-col transition-colors {i === activeIndex
-          ? 'bg-gray-700'
-          : 'hover:bg-gray-700/50'}"
+        class="w-full text-left px-3 py-2 flex flex-col transition-colors"
+        style="background: {i === activeIndex ? 'var(--rc-message-hover)' : 'transparent'};"
         onmousedown={(e: MouseEvent) => { e.preventDefault(); selectUser(user); }}
         onmouseenter={() => (activeIndex = i)}
       >
-        <span class="text-sm font-medium text-gray-200">@{user.username}</span>
-        <span class="text-xs text-gray-400">{user.displayName}</span>
+        <span class="text-[12px] font-bold" style="color: var(--foreground);">@{user.username}</span>
+        <span class="text-[11px]" style="color: var(--rc-timestamp);">{user.displayName}</span>
       </button>
     {/each}
   </div>

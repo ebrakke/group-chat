@@ -102,7 +102,8 @@
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
-  class="flex h-screen bg-[#1e2024] text-gray-200"
+  class="flex h-screen w-screen overflow-hidden font-mono"
+  style="background: var(--background); color: var(--foreground);"
   ontouchstart={handleTouchStart}
   ontouchend={handleTouchEnd}
 >
@@ -111,31 +112,33 @@
     <button
       id="sidebar-backdrop"
       onclick={closeSidebar}
-      class="fixed inset-0 z-30 bg-black/50 md:hidden"
+      class="fixed inset-0 z-30 bg-black/30 md:hidden"
       aria-label="Close sidebar"
     ></button>
   {/if}
 
   <!-- Sidebar -->
   <div
-    class="fixed inset-y-0 left-0 z-30 w-64 transform transition-transform duration-200 ease-in-out md:relative md:translate-x-0 md:z-0 {sidebarOpen
+    class="fixed inset-y-0 left-0 z-30 w-52 transform transition-transform duration-200 ease-in-out md:relative md:translate-x-0 md:z-0 {sidebarOpen
       ? 'translate-x-0'
       : '-translate-x-full'}"
   >
-    <Sidebar />
+    <Sidebar onCloseSidebar={closeSidebar} />
   </div>
 
   <!-- Main content area -->
   <div class="flex-1 flex flex-col min-w-0 min-h-0">
     <!-- Mobile top nav bar -->
-    <div class="md:hidden flex items-center h-12 px-3 border-b border-gray-700/40 bg-[#1e2024] shrink-0">
+    <div class="md:hidden flex items-center h-10 px-3 border-b shrink-0"
+         style="border-color: var(--border); background: var(--background);">
       <button
         id="sidebar-toggle"
         onclick={toggleSidebar}
-        class="text-gray-200 p-1.5 rounded-lg hover:bg-gray-700/50"
+        class="p-1"
+        style="color: var(--rc-timestamp);"
         aria-label="Toggle sidebar"
       >
-        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           {#if sidebarOpen}
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
           {:else}
@@ -147,10 +150,11 @@
       <button
         id="open-admin"
         onclick={() => goto('/settings')}
-        class="text-gray-200 p-1.5 rounded-lg hover:bg-gray-700/50"
+        class="p-1"
+        style="color: var(--rc-timestamp);"
         aria-label="Settings"
       >
-        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
         </svg>
@@ -163,7 +167,8 @@
   </div>
 
   {#if !wsManager.connected}
-    <div class="fixed bottom-4 right-4 bg-yellow-900/80 text-yellow-200 px-3 py-1.5 rounded text-xs z-50">
+    <div class="fixed bottom-4 right-4 px-3 py-1.5 text-[11px] z-50 border font-mono"
+         style="background: var(--rc-muted); color: var(--rc-muted-fg); border-color: var(--border);">
       Reconnecting...
     </div>
   {/if}

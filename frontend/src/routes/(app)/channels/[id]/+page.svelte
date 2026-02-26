@@ -88,11 +88,12 @@
     <!-- Channel header -->
     <div
       id="channel-header"
-      class="channel-header flex items-center px-4 py-3 border-b border-gray-700/40 shrink-0"
+      class="channel-header flex items-center gap-3 px-5 py-3 border-b shrink-0"
+      style="border-color: var(--border);"
     >
-      <h2 id="channel-header-text" class="text-lg font-bold text-white">
+      <span id="channel-header-text" class="text-[13px] font-bold" style="color: var(--foreground);">
         # {channel?.name ?? 'Loading...'}
-      </h2>
+      </span>
     </div>
 
     <!-- Messages -->
@@ -101,14 +102,12 @@
     <!-- Input -->
     <MessageInput
       onSend={handleSend}
-      placeholder={channel ? `Message #${channel.name}` : 'Type a message...'}
+      placeholder={channel ? `message #${channel.name}` : 'type a message...'}
     />
   </div>
 
   <!-- Thread panel -->
   {#if threadOpen}
-    <div class="w-full md:w-[400px] md:shrink-0">
-      <ThreadPanel onClose={closeThread} />
-    </div>
+    <ThreadPanel onClose={closeThread} />
   {/if}
 </div>

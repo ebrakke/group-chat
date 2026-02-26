@@ -22,39 +22,40 @@
 
 <div class="flex flex-col h-full">
   <!-- Header -->
-  <div class="flex items-center px-4 py-3 border-b border-gray-800 shrink-0">
-    <h2 class="text-lg font-bold text-white">My Threads</h2>
+  <div class="flex items-center px-5 py-3 border-b shrink-0" style="border-color: var(--border);">
+    <span class="text-[13px] font-bold" style="color: var(--foreground);">my threads</span>
   </div>
 
   <!-- Thread list -->
   <div class="flex-1 overflow-y-auto">
     {#if loading}
-      <div class="flex items-center justify-center h-full text-gray-500">
-        <p>Loading threads...</p>
+      <div class="flex items-center justify-center h-full text-[12px]" style="color: var(--rc-timestamp);">
+        <p>loading threads...</p>
       </div>
     {:else if threadStore.myThreads.length === 0}
-      <div class="flex items-center justify-center h-full text-gray-500">
-        <p>No threads yet</p>
+      <div class="flex items-center justify-center h-full text-[12px]" style="color: var(--rc-timestamp);">
+        <p>no threads yet</p>
       </div>
     {:else}
       {#each threadStore.myThreads as thread (thread.parentId)}
         <button
-          class="w-full text-left px-4 py-3 hover:bg-gray-800/50 transition-colors border-b border-gray-800/50"
+          class="w-full text-left px-5 py-3 border-b transition-colors hover:opacity-80"
+          style="border-color: var(--border);"
           onclick={() => navigateToThread(thread.channelId, thread.parentId)}
         >
           <div class="flex items-center justify-between mb-1">
-            <span class="text-sm font-medium text-gray-300">
+            <span class="text-[12px]" style="color: var(--rc-timestamp);">
               #{thread.channelName}
             </span>
-            <span class="text-xs text-gray-500">
+            <span class="text-[11px]" style="color: var(--rc-timestamp);">
               {formatRelativeTime(thread.lastActivityAt)}
             </span>
           </div>
-          <div class="text-sm text-gray-200 truncate">
-            <span class="font-medium">{thread.authorDisplayName}:</span>
+          <div class="text-[13px] truncate" style="color: var(--foreground);">
+            <span class="font-bold">{thread.authorDisplayName}:</span>
             {thread.contentPreview}
           </div>
-          <div class="text-xs text-gray-500 mt-1">
+          <div class="text-[11px] mt-1" style="color: var(--rc-olive);">
             {thread.replyCount} {thread.replyCount === 1 ? 'reply' : 'replies'}
           </div>
         </button>

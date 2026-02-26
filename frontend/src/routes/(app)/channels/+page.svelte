@@ -10,6 +10,7 @@
   });
 </script>
 
-<div class="flex items-center justify-center h-full text-gray-500">
-  <p>Loading channels...</p>
+<div class="flex items-center justify-center h-full text-[12px] font-mono"
+     style="color: var(--rc-timestamp);">
+  <p>loading channels...</p>
 </div>

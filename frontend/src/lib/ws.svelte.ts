@@ -3,6 +3,7 @@ import { getSessionToken } from './api';
 import { messageStore } from './stores/messages';
 import { channelStore } from './stores/channels';
 import { threadStore } from './stores/threads';
+import { showNativeNotification } from './utils/native';
 
 function showBrowserNotification(title: string, body: string) {
   if (isNative()) return;
@@ -77,6 +78,9 @@ class WebSocketManager {
             const channelName = ch ? `#${ch.name}` : 'New message';
             const preview = payload.content?.substring(0, 100) || '';
             showBrowserNotification(channelName, `${payload.displayName}: ${preview}`);
+            showNativeNotification(channelName, `${payload.displayName}: ${preview}`, {
+              channelId: payload.channelId,
+            });
           }
         }
         break;
@@ -88,6 +92,10 @@ class WebSocketManager {
           if (payload.parentId !== threadStore.openThreadId) {
             const preview = payload.content?.substring(0, 100) || '';
             showBrowserNotification('Thread reply', `${payload.displayName}: ${preview}`);
+            showNativeNotification('Thread reply', `${payload.displayName}: ${preview}`, {
+              channelId: payload.channelId,
+              threadId: payload.parentId,
+            });
           }
         }
         break;

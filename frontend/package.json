@@ -21,7 +21,8 @@
   "dependencies": {
     "@capacitor/app": "^8.0.1",
     "@capacitor/core": "^8.1.0",
-    "@capacitor/push-notifications": "^8.0.1",
+    "@capacitor/local-notifications": "^6.0.0",
+    "@capawesome-team/capacitor-android-foreground-service": "^6.0.0",
     "marked": "^17.0.2"
   }
 }

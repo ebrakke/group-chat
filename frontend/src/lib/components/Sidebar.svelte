@@ -2,6 +2,7 @@
   import { goto } from '$app/navigation';
   import { authStore } from '$lib/stores/auth';
   import { channelStore } from '$lib/stores/channels';
+  import { stopNativeNotifications } from '$lib/utils/native';
 
   let showCreateModal = $state(false);
   let newChannelName = $state('');
@@ -154,7 +155,8 @@
       </div>
       <button
         id="logout"
-        onclick={() => {
+        onclick={async () => {
+          await stopNativeNotifications();
           authStore.logout();
           goto('/login');
         }}

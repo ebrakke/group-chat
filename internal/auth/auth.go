@@ -210,6 +210,21 @@ func (s *Service) ResetPassword(userID int64, newPassword string) error {
 	return err
 }
 
+// ChangePassword verifies the current password and updates to a new one.
+func (s *Service) ChangePassword(userID int64, currentPassword, newPassword string) error {
+	var hash string
+	err := s.db.QueryRow("SELECT password_hash FROM users WHERE id = ?", userID).Scan(&hash)
+	if err != nil {
+		return err
+	}
+	if !verifyPassword(currentPassword, hash) {
+		return ErrInvalidLogin
+	}
+	newHash := hashPassword(newPassword)
+	_, err = s.db.Exec("UPDATE users SET password_hash = ? WHERE id = ?", newHash, userID)
+	return err
+}
+
 // GetUserByID returns a user by ID.
 func (s *Service) GetUserByID(id int64) (*User, error) {
 	var u User

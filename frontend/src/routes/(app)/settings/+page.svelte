@@ -4,7 +4,21 @@
   import { api } from '$lib/api';
   import { authStore } from '$lib/stores/auth';
   import { channelStore } from '$lib/stores/channels';
-  import type { Bot, BotToken, ChannelBinding, Invite, Channel } from '$lib/types';
+  import type { Bot, BotToken, ChannelBinding, Invite, Channel, User } from '$lib/types';
+
+  // --- Change Password ---
+  let currentPassword = $state('');
+  let newPassword = $state('');
+  let confirmPassword = $state('');
+  let changePwMessage = $state('');
+  let changePwError = $state('');
+  let changingPassword = $state(false);
+
+  // --- Users (admin) ---
+  let users = $state<User[]>([]);
+  let resetPasswordResult = $state('');
+  let resetPasswordUser = $state('');
+  let resettingPasswordId = $state<number | null>(null);
 
   // --- Admin Settings ---
   let baseUrl = $state('');
@@ -96,6 +110,61 @@
 
   function copyToClipboard(text: string) {
     navigator.clipboard.writeText(text);
+  }
+
+  // --- Change Password ---
+  async function changePassword() {
+    changePwError = '';
+    changePwMessage = '';
+    if (newPassword !== confirmPassword) {
+      changePwError = 'passwords do not match';
+      autoHide((v) => (changePwError = v));
+      return;
+    }
+    changingPassword = true;
+    try {
+      await api('POST', '/api/account/password', { currentPassword, newPassword });
+      changePwMessage = 'password changed';
+      currentPassword = '';
+      newPassword = '';
+      confirmPassword = '';
+      autoHide((v) => (changePwMessage = v));
+    } catch (err: unknown) {
+      changePwError = err instanceof Error ? err.message : 'failed to change password';
+      autoHide((v) => (changePwError = v));
+    } finally {
+      changingPassword = false;
+    }
+  }
+
+  // --- Users (admin) ---
+  async function loadUsers() {
+    try {
+      users = await api<User[]>('GET', '/api/users');
+    } catch {
+      // ignore
+    }
+  }
+
+  function generateTempPassword(): string {
+    const chars = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    const arr = new Uint8Array(12);
+    crypto.getRandomValues(arr);
+    return Array.from(arr, (b) => chars[b % chars.length]).join('');
+  }
+
+  async function resetPassword(user: User) {
+    resettingPasswordId = user.id;
+    try {
+      const tempPassword = generateTempPassword();
+      await api('POST', `/api/users/${user.id}/reset-password`, { password: tempPassword });
+      resetPasswordResult = tempPassword;
+      resetPasswordUser = user.displayName;
+    } catch {
+      // ignore
+    } finally {
+      resettingPasswordId = null;
+    }
   }
 
   // --- Bots ---
@@ -235,6 +304,7 @@
     if (authStore.isAdmin) {
       loadAdminSettings();
       loadInvites();
+      loadUsers();
       loadBots();
     }
   });
@@ -271,6 +341,28 @@
         <button id="logout" onclick={() => { authStore.logout(); goto('/login'); }}
                 class="text-[11px] hover:underline underline-offset-2"
                 style="color: var(--rc-mention-badge);">logout</button>
+        <!-- Change Password -->
+        <div class="mt-4 pt-3 border-t" style="border-color: var(--border);">
+          <h4 class="text-[12px] font-bold mb-2" style="color: var(--foreground);">change password</h4>
+          <div class="space-y-2 max-w-xs">
+            <input type="password" bind:value={currentPassword} placeholder="current password"
+                   class="w-full border px-3 py-1.5 text-[12px] font-mono outline-none"
+                   style="background: var(--rc-input-bg); border-color: var(--border); color: var(--foreground);" />
+            <input type="password" bind:value={newPassword} placeholder="new password"
+                   class="w-full border px-3 py-1.5 text-[12px] font-mono outline-none"
+                   style="background: var(--rc-input-bg); border-color: var(--border); color: var(--foreground);" />
+            <input type="password" bind:value={confirmPassword} placeholder="confirm new password"
+                   class="w-full border px-3 py-1.5 text-[12px] font-mono outline-none"
+                   style="background: var(--rc-input-bg); border-color: var(--border); color: var(--foreground);" />
+          </div>
+          {#if changePwMessage}<p class="text-[11px] mt-2" style="color: var(--rc-olive);">{changePwMessage}</p>{/if}
+          {#if changePwError}<p class="text-[11px] mt-2" style="color: var(--rc-mention-badge);">{changePwError}</p>{/if}
+          <button onclick={changePassword}
+                  disabled={changingPassword || !currentPassword || !newPassword || !confirmPassword}
+                  class="mt-2 px-3 py-1.5 text-[11px] border font-mono disabled:opacity-40"
+                  style="background: var(--rc-channel-active-bg); color: var(--rc-channel-active-fg); border-color: var(--rc-channel-active-bg);">
+            {changingPassword ? 'saving...' : 'change password'}</button>
+        </div>
       </div>
 
       {#if authStore.isAdmin}
@@ -333,6 +425,32 @@
               {/each}
             </div>
           {/if}
+        </div>
+
+        <!-- Users -->
+        <div class="border p-4" style="border-color: var(--border);">
+          <h3 class="text-[13px] font-bold mb-3" style="color: var(--foreground);">users</h3>
+          {#each users.filter((u) => !u.isBot) as user (user.id)}
+            <div class="flex items-center justify-between p-2 border mb-2" style="border-color: var(--border);">
+              <div class="min-w-0 flex-1">
+                <span class="text-[12px] font-bold" style="color: var(--foreground);">{user.displayName}</span>
+                <span class="text-[11px] ml-1" style="color: var(--rc-timestamp);">@{user.username}</span>
+                {#if user.role === 'admin'}
+                  <span class="text-[9px] font-bold uppercase tracking-wide px-1 py-[1px] ml-1"
+                        style="background: var(--rc-olive); color: var(--rc-channel-active-fg);">admin</span>
+                {/if}
+              </div>
+              {#if user.id !== authStore.user?.id}
+                <button onclick={() => resetPassword(user)}
+                        disabled={resettingPasswordId === user.id}
+                        class="shrink-0 ml-2 px-2 py-1 text-[11px] border hover:opacity-70 disabled:opacity-40"
+                        style="border-color: var(--border); color: var(--rc-timestamp);">
+                  {resettingPasswordId === user.id ? '...' : 'reset password'}</button>
+              {/if}
+            </div>
+          {:else}
+            <p class="text-[12px]" style="color: var(--rc-timestamp);">no users yet.</p>
+          {/each}
         </div>
 
         <!-- Bots -->
@@ -546,6 +664,33 @@
                 class="px-3 py-1.5 text-[11px] border font-mono disabled:opacity-40"
                 style="background: var(--rc-mention-badge); color: oklch(0.97 0 0); border-color: var(--rc-mention-badge);">
           {deletingBot ? 'deleting...' : 'delete'}</button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- Reset Password Result Modal -->
+{#if resetPasswordResult}
+  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+  <div class="fixed inset-0 bg-black/30 flex items-center justify-center z-[60]"
+       role="dialog" aria-modal="true" aria-label="Password reset" tabindex="-1"
+       onkeydown={(e) => { if (e.key === 'Escape') { resetPasswordResult = ''; resetPasswordUser = ''; } }}>
+    <div class="p-6 w-full max-w-lg mx-4 border" style="background: var(--background); border-color: var(--border);">
+      <h2 class="text-[14px] font-bold mb-2" style="color: var(--foreground);">password reset for {resetPasswordUser}</h2>
+      <p class="text-[12px] mb-3" style="color: var(--rc-mention-badge);">
+        give this temporary password to the user. it will not be shown again.
+      </p>
+      <div class="flex items-center gap-2 p-3 border" style="border-color: var(--border);">
+        <code class="text-[12px] break-all flex-1" style="color: var(--rc-olive);">{resetPasswordResult}</code>
+        <button onclick={() => copyToClipboard(resetPasswordResult)}
+                class="shrink-0 px-2 py-1 text-[11px] border hover:opacity-70"
+                style="border-color: var(--border); color: var(--rc-timestamp);">copy</button>
+      </div>
+      <div class="flex justify-end mt-4">
+        <button onclick={() => { resetPasswordResult = ''; resetPasswordUser = ''; }}
+                class="px-3 py-1.5 text-[11px] border font-mono"
+                style="background: var(--rc-channel-active-bg); color: var(--rc-channel-active-fg); border-color: var(--rc-channel-active-bg);">
+          done</button>
       </div>
     </div>
   </div>

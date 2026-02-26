@@ -61,6 +61,9 @@ func (h *Handler) routes() {
 	h.mux.HandleFunc("POST /api/auth/signup", h.handleSignup)
 	h.mux.HandleFunc("GET /api/auth/me", h.handleMe)
 
+	// Account
+	h.mux.HandleFunc("POST /api/account/password", h.handleChangePassword)
+
 	// Invites
 	h.mux.HandleFunc("POST /api/invites", h.handleCreateInvite)
 	h.mux.HandleFunc("GET /api/invites", h.handleListInvites)
@@ -249,6 +252,35 @@ func (h *Handler) handleMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, user)
+}
+
+// --- Account handlers ---
+
+func (h *Handler) handleChangePassword(w http.ResponseWriter, r *http.Request) {
+	user, err := h.requireAuth(r)
+	if err != nil {
+		writeErr(w, http.StatusUnauthorized, err)
+		return
+	}
+
+	var req struct {
+		CurrentPassword string `json:"currentPassword"`
+		NewPassword     string `json:"newPassword"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.CurrentPassword == "" || req.NewPassword == "" {
+		writeErr(w, http.StatusBadRequest, errors.New("currentPassword and newPassword required"))
+		return
+	}
+
+	if err := h.auth.ChangePassword(user.ID, req.CurrentPassword, req.NewPassword); err != nil {
+		if errors.Is(err, auth.ErrInvalidLogin) {
+			writeErr(w, http.StatusForbidden, errors.New("current password incorrect"))
+			return
+		}
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 // --- Invite handlers ---

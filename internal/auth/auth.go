@@ -31,6 +31,7 @@ type User struct {
 	Role        string `json:"role"`
 	CreatedAt   string `json:"createdAt"`
 	IsBot       bool   `json:"isBot,omitempty"`
+	AvatarURL   string `json:"avatarUrl,omitempty"`
 }
 
 type Invite struct {
@@ -105,10 +106,11 @@ func (s *Service) Signup(username, password, displayName, inviteCode string) (*U
 func (s *Service) Login(username, password string) (*User, string, error) {
 	var id int64
 	var hash, displayName, role, createdAt string
+	var avatarFileID sql.NullInt64
 	err := s.db.QueryRow(
-		"SELECT id, password_hash, display_name, role, created_at FROM users WHERE username = ?",
+		"SELECT id, password_hash, display_name, role, created_at, profile_picture_id FROM users WHERE username = ?",
 		username,
-	).Scan(&id, &hash, &displayName, &role, &createdAt)
+	).Scan(&id, &hash, &displayName, &role, &createdAt, &avatarFileID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, "", ErrInvalidLogin
 	}
@@ -125,17 +127,22 @@ func (s *Service) Login(username, password string) (*User, string, error) {
 		return nil, "", err
 	}
 
-	return &User{ID: id, Username: username, DisplayName: displayName, Role: role, CreatedAt: createdAt, IsBot: role == "bot"}, token, nil
+	u := &User{ID: id, Username: username, DisplayName: displayName, Role: role, CreatedAt: createdAt, IsBot: role == "bot"}
+	if avatarFileID.Valid {
+		u.AvatarURL = fmt.Sprintf("/api/files/%d", avatarFileID.Int64)
+	}
+	return u, token, nil
 }
 
 // ValidateSession returns the user for a valid session token.
 func (s *Service) ValidateSession(token string) (*User, error) {
 	var u User
+	var avatarFileID sql.NullInt64
 	err := s.db.QueryRow(`
-		SELECT u.id, u.username, u.display_name, u.role, u.created_at
+		SELECT u.id, u.username, u.display_name, u.role, u.created_at, u.profile_picture_id
 		FROM sessions s JOIN users u ON s.user_id = u.id
 		WHERE s.token = ? AND s.expires_at > datetime('now')
-	`, token).Scan(&u.ID, &u.Username, &u.DisplayName, &u.Role, &u.CreatedAt)
+	`, token).Scan(&u.ID, &u.Username, &u.DisplayName, &u.Role, &u.CreatedAt, &avatarFileID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrUnauthorized
 	}
@@ -143,6 +150,9 @@ func (s *Service) ValidateSession(token string) (*User, error) {
 		return nil, err
 	}
 	u.IsBot = u.Role == "bot"
+	if avatarFileID.Valid {
+		u.AvatarURL = fmt.Sprintf("/api/files/%d", avatarFileID.Int64)
+	}
 	return &u, nil
 }
 
@@ -225,11 +235,48 @@ func (s *Service) ChangePassword(userID int64, currentPassword, newPassword stri
 	return err
 }
 
+// SetProfilePicture updates the user's profile picture file reference.
+func (s *Service) SetProfilePicture(userID, fileID int64) error {
+	_, err := s.db.Exec("UPDATE users SET profile_picture_id = ? WHERE id = ?", fileID, userID)
+	return err
+}
+
+// ClearProfilePicture removes the user's profile picture and returns the old file ID.
+func (s *Service) ClearProfilePicture(userID int64) (int64, error) {
+	var fileID sql.NullInt64
+	err := s.db.QueryRow("SELECT profile_picture_id FROM users WHERE id = ?", userID).Scan(&fileID)
+	if err != nil {
+		return 0, err
+	}
+	if !fileID.Valid {
+		return 0, nil
+	}
+	_, err = s.db.Exec("UPDATE users SET profile_picture_id = NULL WHERE id = ?", userID)
+	if err != nil {
+		return 0, err
+	}
+	return fileID.Int64, nil
+}
+
+// GetProfilePictureFileID returns the user's current profile picture file ID (0 if none).
+func (s *Service) GetProfilePictureFileID(userID int64) (int64, error) {
+	var fileID sql.NullInt64
+	err := s.db.QueryRow("SELECT profile_picture_id FROM users WHERE id = ?", userID).Scan(&fileID)
+	if err != nil {
+		return 0, err
+	}
+	if !fileID.Valid {
+		return 0, nil
+	}
+	return fileID.Int64, nil
+}
+
 // GetUserByID returns a user by ID.
 func (s *Service) GetUserByID(id int64) (*User, error) {
 	var u User
-	err := s.db.QueryRow("SELECT id, username, display_name, role, created_at FROM users WHERE id = ?", id).
-		Scan(&u.ID, &u.Username, &u.DisplayName, &u.Role, &u.CreatedAt)
+	var avatarFileID sql.NullInt64
+	err := s.db.QueryRow("SELECT id, username, display_name, role, created_at, profile_picture_id FROM users WHERE id = ?", id).
+		Scan(&u.ID, &u.Username, &u.DisplayName, &u.Role, &u.CreatedAt, &avatarFileID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -237,6 +284,9 @@ func (s *Service) GetUserByID(id int64) (*User, error) {
 		return nil, err
 	}
 	u.IsBot = u.Role == "bot"
+	if avatarFileID.Valid {
+		u.AvatarURL = fmt.Sprintf("/api/files/%d", avatarFileID.Int64)
+	}
 	return &u, nil
 }
 
@@ -244,7 +294,7 @@ func (s *Service) GetUserByID(id int64) (*User, error) {
 func (s *Service) SearchUsers(query string) ([]User, error) {
 	like := query + "%"
 	rows, err := s.db.Query(
-		"SELECT id, username, display_name, role, created_at FROM users WHERE username LIKE ? OR display_name LIKE ? ORDER BY username LIMIT 10",
+		"SELECT id, username, display_name, role, created_at, profile_picture_id FROM users WHERE username LIKE ? OR display_name LIKE ? ORDER BY username LIMIT 10",
 		like, like,
 	)
 	if err != nil {
@@ -255,10 +305,14 @@ func (s *Service) SearchUsers(query string) ([]User, error) {
 	var users []User
 	for rows.Next() {
 		var u User
-		if err := rows.Scan(&u.ID, &u.Username, &u.DisplayName, &u.Role, &u.CreatedAt); err != nil {
+		var avatarFileID sql.NullInt64
+		if err := rows.Scan(&u.ID, &u.Username, &u.DisplayName, &u.Role, &u.CreatedAt, &avatarFileID); err != nil {
 			return nil, err
 		}
 		u.IsBot = u.Role == "bot"
+		if avatarFileID.Valid {
+			u.AvatarURL = fmt.Sprintf("/api/files/%d", avatarFileID.Int64)
+		}
 		users = append(users, u)
 	}
 	return users, rows.Err()
@@ -266,7 +320,7 @@ func (s *Service) SearchUsers(query string) ([]User, error) {
 
 // ListUsers returns all users.
 func (s *Service) ListUsers() ([]User, error) {
-	rows, err := s.db.Query("SELECT id, username, display_name, role, created_at FROM users ORDER BY created_at")
+	rows, err := s.db.Query("SELECT id, username, display_name, role, created_at, profile_picture_id FROM users ORDER BY created_at")
 	if err != nil {
 		return nil, err
 	}
@@ -275,10 +329,14 @@ func (s *Service) ListUsers() ([]User, error) {
 	var users []User
 	for rows.Next() {
 		var u User
-		if err := rows.Scan(&u.ID, &u.Username, &u.DisplayName, &u.Role, &u.CreatedAt); err != nil {
+		var avatarFileID sql.NullInt64
+		if err := rows.Scan(&u.ID, &u.Username, &u.DisplayName, &u.Role, &u.CreatedAt, &avatarFileID); err != nil {
 			return nil, err
 		}
 		u.IsBot = u.Role == "bot"
+		if avatarFileID.Valid {
+			u.AvatarURL = fmt.Sprintf("/api/files/%d", avatarFileID.Int64)
+		}
 		users = append(users, u)
 	}
 	return users, rows.Err()

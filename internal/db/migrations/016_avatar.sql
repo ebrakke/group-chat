@@ -1,0 +1,1 @@
+ALTER TABLE users ADD COLUMN profile_picture_id INTEGER REFERENCES files(id) ON DELETE SET NULL;

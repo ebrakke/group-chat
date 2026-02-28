@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -222,6 +223,104 @@ func TestLogout(t *testing.T) {
 	w = doReqWithCookie(h, "GET", "/api/auth/me", nil, cookies)
 	if w.Code != 401 {
 		t.Errorf("me after logout = %d, want 401", w.Code)
+	}
+}
+
+func TestEditMessage(t *testing.T) {
+	h := setup(t)
+
+	// Bootstrap user
+	w := doReq(h, "POST", "/api/auth/bootstrap", map[string]string{
+		"username": "admin", "password": "secret",
+	})
+	if w.Code != 201 {
+		t.Fatalf("bootstrap status = %d, body = %s", w.Code, w.Body.String())
+	}
+	cookies := w.Result().Cookies()
+
+	// List channels to get #general ID
+	w = doReqWithCookie(h, "GET", "/api/channels", nil, cookies)
+	var chs []map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &chs)
+	if len(chs) == 0 {
+		t.Fatal("no channels")
+	}
+	channelID := int(chs[0]["id"].(float64))
+
+	// Create message
+	w = doReqWithCookie(h, "POST", fmt.Sprintf("/api/channels/%d/messages", channelID),
+		map[string]string{"content": "hello world"}, cookies)
+	if w.Code != 201 {
+		t.Fatalf("create message status = %d, body = %s", w.Code, w.Body.String())
+	}
+	var msg map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &msg)
+	msgID := int(msg["id"].(float64))
+
+	// Edit message
+	w = doReqWithCookie(h, "PUT", fmt.Sprintf("/api/messages/%d", msgID),
+		map[string]string{"content": "hello updated"}, cookies)
+	if w.Code != 200 {
+		t.Fatalf("edit message status = %d, body = %s", w.Code, w.Body.String())
+	}
+	var edited map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &edited)
+	if edited["content"] != "hello updated" {
+		t.Errorf("content = %q, want %q", edited["content"], "hello updated")
+	}
+	if edited["editedAt"] == nil {
+		t.Error("editedAt should be set")
+	}
+}
+
+func TestDeleteMessage(t *testing.T) {
+	h := setup(t)
+
+	// Bootstrap user
+	w := doReq(h, "POST", "/api/auth/bootstrap", map[string]string{
+		"username": "admin", "password": "secret",
+	})
+	if w.Code != 201 {
+		t.Fatalf("bootstrap status = %d, body = %s", w.Code, w.Body.String())
+	}
+	cookies := w.Result().Cookies()
+
+	// List channels to get #general ID
+	w = doReqWithCookie(h, "GET", "/api/channels", nil, cookies)
+	var chs []map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &chs)
+	if len(chs) == 0 {
+		t.Fatal("no channels")
+	}
+	channelID := int(chs[0]["id"].(float64))
+
+	// Create message
+	w = doReqWithCookie(h, "POST", fmt.Sprintf("/api/channels/%d/messages", channelID),
+		map[string]string{"content": "to be deleted"}, cookies)
+	if w.Code != 201 {
+		t.Fatalf("create message status = %d, body = %s", w.Code, w.Body.String())
+	}
+	var msg map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &msg)
+	msgID := int(msg["id"].(float64))
+
+	// Delete message
+	w = doReqWithCookie(h, "DELETE", fmt.Sprintf("/api/messages/%d", msgID), nil, cookies)
+	if w.Code != 200 {
+		t.Fatalf("delete message status = %d, body = %s", w.Code, w.Body.String())
+	}
+
+	// List messages - deleted message should not appear
+	w = doReqWithCookie(h, "GET", fmt.Sprintf("/api/channels/%d/messages", channelID), nil, cookies)
+	if w.Code != 200 {
+		t.Fatalf("list messages status = %d", w.Code)
+	}
+	var msgs []map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &msgs)
+	for _, m := range msgs {
+		if int(m["id"].(float64)) == msgID {
+			t.Error("deleted message should not appear in list")
+		}
 	}
 }
 

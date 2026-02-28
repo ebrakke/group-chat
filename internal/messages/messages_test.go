@@ -222,6 +222,159 @@ func TestMessageLinkPreviews(t *testing.T) {
 	}
 }
 
+func TestEditMessage(t *testing.T) {
+	d := setupTestDB(t)
+	svc := NewService(d)
+
+	msg, err := svc.Create(1, 1, "original content", "general")
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if msg.EditedAt != nil {
+		t.Error("editedAt should be nil on new message")
+	}
+
+	edited, err := svc.Edit(msg.ID, 1, "updated content")
+	if err != nil {
+		t.Fatalf("edit: %v", err)
+	}
+	if edited.Content != "updated content" {
+		t.Errorf("content = %q, want %q", edited.Content, "updated content")
+	}
+	if edited.EditedAt == nil {
+		t.Error("editedAt should be set after edit")
+	}
+
+	// Verify via GetByID
+	got, err := svc.GetByID(msg.ID)
+	if err != nil {
+		t.Fatalf("getByID: %v", err)
+	}
+	if got.Content != "updated content" {
+		t.Errorf("content = %q, want %q", got.Content, "updated content")
+	}
+	if got.EditedAt == nil {
+		t.Error("editedAt should be set after edit (via GetByID)")
+	}
+}
+
+func TestEditMessageWrongUser(t *testing.T) {
+	d := setupTestDB(t)
+	svc := NewService(d)
+
+	msg, err := svc.Create(1, 1, "alice's message", "general")
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+
+	// Bob (user 2) tries to edit Alice's (user 1) message
+	_, err = svc.Edit(msg.ID, 2, "hacked")
+	if err != ErrForbidden {
+		t.Errorf("err = %v, want ErrForbidden", err)
+	}
+
+	// Verify content unchanged
+	got, _ := svc.GetByID(msg.ID)
+	if got.Content != "alice's message" {
+		t.Errorf("content = %q, want %q", got.Content, "alice's message")
+	}
+}
+
+func TestDeleteMessage(t *testing.T) {
+	d := setupTestDB(t)
+	svc := NewService(d)
+
+	msg, err := svc.Create(1, 1, "to be deleted", "general")
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+
+	// Owner deletes
+	err = svc.Delete(msg.ID, 1, false)
+	if err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+
+	// Verify deletedAt is set
+	got, err := svc.GetByID(msg.ID)
+	if err != nil {
+		t.Fatalf("getByID: %v", err)
+	}
+	if got.DeletedAt == nil {
+		t.Error("deletedAt should be set after delete")
+	}
+}
+
+func TestDeleteMessageAdmin(t *testing.T) {
+	d := setupTestDB(t)
+	svc := NewService(d)
+
+	// Bob (user 2, member) creates a message
+	msg, err := svc.Create(1, 2, "bob's message", "general")
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+
+	// Alice (user 1, admin) deletes it with isAdmin=true
+	err = svc.Delete(msg.ID, 1, true)
+	if err != nil {
+		t.Fatalf("admin delete: %v", err)
+	}
+
+	got, _ := svc.GetByID(msg.ID)
+	if got.DeletedAt == nil {
+		t.Error("deletedAt should be set after admin delete")
+	}
+}
+
+func TestDeleteMessageWrongUser(t *testing.T) {
+	d := setupTestDB(t)
+	svc := NewService(d)
+
+	// Alice (user 1) creates a message
+	msg, err := svc.Create(1, 1, "alice's message", "general")
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+
+	// Bob (user 2, not admin) tries to delete
+	err = svc.Delete(msg.ID, 2, false)
+	if err != ErrForbidden {
+		t.Errorf("err = %v, want ErrForbidden", err)
+	}
+
+	// Verify message not deleted
+	got, _ := svc.GetByID(msg.ID)
+	if got.DeletedAt != nil {
+		t.Error("deletedAt should be nil for unauthorized delete")
+	}
+}
+
+func TestDeletedMessagesExcludedFromList(t *testing.T) {
+	d := setupTestDB(t)
+	svc := NewService(d)
+
+	svc.Create(1, 1, "msg1", "general")
+	msg2, _ := svc.Create(1, 1, "msg2", "general")
+	svc.Create(1, 1, "msg3", "general")
+
+	// Delete msg2
+	svc.Delete(msg2.ID, 1, false)
+
+	msgs, err := svc.ListChannel(1, 50, 0)
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if len(msgs) != 2 {
+		t.Fatalf("count = %d, want 2", len(msgs))
+	}
+	for _, m := range msgs {
+		if m.Content == "msg2" {
+			t.Error("deleted message should not appear in list")
+		}
+	}
+}
+
 func TestNostrEventTags(t *testing.T) {
 	d := setupTestDB(t)
 	svc := NewService(d)

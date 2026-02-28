@@ -21,6 +21,7 @@ var urlRe = regexp.MustCompile(`https?://[^\s<>\[\]()]+[^\s<>\[\]().,;:!?'")\]}]
 const maxPreviews = 3
 
 var ErrNotFound = errors.New("message not found")
+var ErrForbidden = errors.New("forbidden")
 
 type Message struct {
 	ID           int64         `json:"id"`
@@ -36,6 +37,8 @@ type Message struct {
 	IsBot        bool          `json:"isBot,omitempty"`
 	Mentions     []string      `json:"mentions,omitempty"`
 	LinkPreviews []LinkPreview `json:"linkPreviews,omitempty"`
+	EditedAt     *string       `json:"editedAt,omitempty"`
+	DeletedAt    *string       `json:"deletedAt,omitempty"`
 }
 
 type LinkPreview struct {
@@ -172,15 +175,19 @@ func (s *Service) GetByID(id int64) (*Message, error) {
 	var parentID sql.NullInt64
 	var eventID sql.NullString
 	var previewsJSON sql.NullString
+	var editedAt sql.NullString
+	var deletedAt sql.NullString
 	var role string
 	err := s.db.QueryRow(`
 		SELECT m.id, m.channel_id, m.user_id, m.parent_id, m.content, m.event_id, m.link_previews, m.created_at,
+		       m.edited_at, m.deleted_at,
 		       u.username, u.display_name, u.role,
 		       (SELECT COUNT(*) FROM messages r WHERE r.parent_id = m.id) as reply_count
 		FROM messages m
 		JOIN users u ON m.user_id = u.id
 		WHERE m.id = ?
 	`, id).Scan(&m.ID, &m.ChannelID, &m.UserID, &parentID, &m.Content, &eventID, &previewsJSON, &m.CreatedAt,
+		&editedAt, &deletedAt,
 		&m.Username, &m.DisplayName, &role, &m.ReplyCount)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
@@ -199,7 +206,61 @@ func (s *Service) GetByID(id int64) (*Message, error) {
 	if previewsJSON.Valid {
 		json.Unmarshal([]byte(previewsJSON.String), &m.LinkPreviews)
 	}
+	if editedAt.Valid {
+		m.EditedAt = &editedAt.String
+	}
+	if deletedAt.Valid {
+		m.DeletedAt = &deletedAt.String
+	}
 	return &m, nil
+}
+
+// Edit updates the content of a message. Only the message owner can edit.
+func (s *Service) Edit(messageID, userID int64, newContent string) (*Message, error) {
+	msg, err := s.GetByID(messageID)
+	if err != nil {
+		return nil, err
+	}
+	if msg.UserID != userID {
+		return nil, ErrForbidden
+	}
+
+	// Extract and serialize mentions
+	mentions := extractMentions(newContent)
+	mentionsJSON, _ := json.Marshal(mentions)
+
+	// Extract URLs and fetch OG metadata
+	previews := fetchLinkPreviews(newContent)
+	var previewsJSON []byte
+	if len(previews) > 0 {
+		previewsJSON, _ = json.Marshal(previews)
+	}
+
+	now := time.Now().UTC().Format(time.RFC3339)
+	_, err = s.db.Exec(
+		"UPDATE messages SET content = ?, mentions = ?, link_previews = ?, edited_at = ? WHERE id = ?",
+		newContent, mentionsJSON, previewsJSON, now, messageID,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.GetByID(messageID)
+}
+
+// Delete soft-deletes a message. The owner or an admin can delete.
+func (s *Service) Delete(messageID, userID int64, isAdmin bool) error {
+	msg, err := s.GetByID(messageID)
+	if err != nil {
+		return err
+	}
+	if msg.UserID != userID && !isAdmin {
+		return ErrForbidden
+	}
+
+	now := time.Now().UTC().Format(time.RFC3339)
+	_, err = s.db.Exec("UPDATE messages SET deleted_at = ? WHERE id = ?", now, messageID)
+	return err
 }
 
 // ListChannel returns top-level messages for a channel (no replies), ordered newest-first.
@@ -214,21 +275,23 @@ func (s *Service) ListChannel(channelID int64, limit int, before int64) ([]Messa
 	if before > 0 {
 		rows, err = s.db.Query(`
 			SELECT m.id, m.channel_id, m.user_id, m.content, m.event_id, m.link_previews, m.created_at,
+			       m.edited_at, m.deleted_at,
 			       u.username, u.display_name, u.role,
 			       (SELECT COUNT(*) FROM messages r WHERE r.parent_id = m.id) as reply_count
 			FROM messages m
 			JOIN users u ON m.user_id = u.id
-			WHERE m.channel_id = ? AND m.parent_id IS NULL AND m.id < ?
+			WHERE m.channel_id = ? AND m.parent_id IS NULL AND m.deleted_at IS NULL AND m.id < ?
 			ORDER BY m.id DESC LIMIT ?
 		`, channelID, before, limit)
 	} else {
 		rows, err = s.db.Query(`
 			SELECT m.id, m.channel_id, m.user_id, m.content, m.event_id, m.link_previews, m.created_at,
+			       m.edited_at, m.deleted_at,
 			       u.username, u.display_name, u.role,
 			       (SELECT COUNT(*) FROM messages r WHERE r.parent_id = m.id) as reply_count
 			FROM messages m
 			JOIN users u ON m.user_id = u.id
-			WHERE m.channel_id = ? AND m.parent_id IS NULL
+			WHERE m.channel_id = ? AND m.parent_id IS NULL AND m.deleted_at IS NULL
 			ORDER BY m.id DESC LIMIT ?
 		`, channelID, limit)
 	}
@@ -242,8 +305,11 @@ func (s *Service) ListChannel(channelID int64, limit int, before int64) ([]Messa
 		var m Message
 		var eventID sql.NullString
 		var previewsJSON sql.NullString
+		var editedAt sql.NullString
+		var deletedAt sql.NullString
 		var role string
 		if err := rows.Scan(&m.ID, &m.ChannelID, &m.UserID, &m.Content, &eventID, &previewsJSON, &m.CreatedAt,
+			&editedAt, &deletedAt,
 			&m.Username, &m.DisplayName, &role, &m.ReplyCount); err != nil {
 			return nil, err
 		}
@@ -254,6 +320,12 @@ func (s *Service) ListChannel(channelID int64, limit int, before int64) ([]Messa
 		}
 		if previewsJSON.Valid {
 			json.Unmarshal([]byte(previewsJSON.String), &m.LinkPreviews)
+		}
+		if editedAt.Valid {
+			m.EditedAt = &editedAt.String
+		}
+		if deletedAt.Valid {
+			m.DeletedAt = &deletedAt.String
 		}
 		msgs = append(msgs, m)
 	}
@@ -271,19 +343,21 @@ func (s *Service) ListThread(parentID int64, limit int, before int64) ([]Message
 	if before > 0 {
 		rows, err = s.db.Query(`
 			SELECT m.id, m.channel_id, m.user_id, m.parent_id, m.content, m.event_id, m.link_previews, m.created_at,
+			       m.edited_at, m.deleted_at,
 			       u.username, u.display_name, u.role
 			FROM messages m
 			JOIN users u ON m.user_id = u.id
-			WHERE m.parent_id = ? AND m.id < ?
+			WHERE m.parent_id = ? AND m.deleted_at IS NULL AND m.id < ?
 			ORDER BY m.id ASC LIMIT ?
 		`, parentID, before, limit)
 	} else {
 		rows, err = s.db.Query(`
 			SELECT m.id, m.channel_id, m.user_id, m.parent_id, m.content, m.event_id, m.link_previews, m.created_at,
+			       m.edited_at, m.deleted_at,
 			       u.username, u.display_name, u.role
 			FROM messages m
 			JOIN users u ON m.user_id = u.id
-			WHERE m.parent_id = ?
+			WHERE m.parent_id = ? AND m.deleted_at IS NULL
 			ORDER BY m.id ASC LIMIT ?
 		`, parentID, limit)
 	}
@@ -298,8 +372,11 @@ func (s *Service) ListThread(parentID int64, limit int, before int64) ([]Message
 		var parentID sql.NullInt64
 		var eventID sql.NullString
 		var previewsJSON sql.NullString
+		var editedAt sql.NullString
+		var deletedAt sql.NullString
 		var role string
 		if err := rows.Scan(&m.ID, &m.ChannelID, &m.UserID, &parentID, &m.Content, &eventID, &previewsJSON, &m.CreatedAt,
+			&editedAt, &deletedAt,
 			&m.Username, &m.DisplayName, &role); err != nil {
 			return nil, err
 		}
@@ -313,6 +390,12 @@ func (s *Service) ListThread(parentID int64, limit int, before int64) ([]Message
 		}
 		if previewsJSON.Valid {
 			json.Unmarshal([]byte(previewsJSON.String), &m.LinkPreviews)
+		}
+		if editedAt.Valid {
+			m.EditedAt = &editedAt.String
+		}
+		if deletedAt.Valid {
+			m.DeletedAt = &deletedAt.String
 		}
 		msgs = append(msgs, m)
 	}

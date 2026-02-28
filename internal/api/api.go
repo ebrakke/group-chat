@@ -78,6 +78,8 @@ func (h *Handler) routes() {
 	h.mux.HandleFunc("POST /api/channels/{id}/messages", h.handleCreateMessage)
 	h.mux.HandleFunc("GET /api/messages/{id}/thread", h.handleListThread)
 	h.mux.HandleFunc("POST /api/messages/{id}/reply", h.handleCreateReply)
+	h.mux.HandleFunc("PUT /api/messages/{id}", h.handleEditMessage)
+	h.mux.HandleFunc("DELETE /api/messages/{id}", h.handleDeleteMessage)
 
 	// My Threads
 	h.mux.HandleFunc("GET /api/me/threads", h.handleMyThreads)
@@ -635,6 +637,91 @@ func (h *Handler) handleCreateReply(w http.ResponseWriter, r *http.Request) {
 	h.hub.Broadcast(ws.Event{Type: "new_reply", Payload: msg, ChannelID: parent.ChannelID})
 
 	writeJSON(w, http.StatusCreated, msg)
+}
+
+func (h *Handler) handleEditMessage(w http.ResponseWriter, r *http.Request) {
+	user, err := h.requireAuth(r)
+	if err != nil {
+		writeErr(w, http.StatusUnauthorized, err)
+		return
+	}
+
+	messageID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, errors.New("invalid message id"))
+		return
+	}
+
+	var req struct {
+		Content string `json:"content"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
+	if strings.TrimSpace(req.Content) == "" {
+		writeErr(w, http.StatusBadRequest, errors.New("content required"))
+		return
+	}
+
+	msg, err := h.messages.Edit(messageID, user.ID, req.Content)
+	if errors.Is(err, messages.ErrNotFound) {
+		writeErr(w, http.StatusNotFound, err)
+		return
+	}
+	if errors.Is(err, messages.ErrForbidden) {
+		writeErr(w, http.StatusForbidden, err)
+		return
+	}
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	h.hub.Broadcast(ws.Event{Type: "message_edited", Payload: msg, ChannelID: msg.ChannelID})
+	writeJSON(w, http.StatusOK, msg)
+}
+
+func (h *Handler) handleDeleteMessage(w http.ResponseWriter, r *http.Request) {
+	user, err := h.requireAuth(r)
+	if err != nil {
+		writeErr(w, http.StatusUnauthorized, err)
+		return
+	}
+
+	messageID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, errors.New("invalid message id"))
+		return
+	}
+
+	// Get message first (for channelID for broadcast)
+	msg, err := h.messages.GetByID(messageID)
+	if errors.Is(err, messages.ErrNotFound) {
+		writeErr(w, http.StatusNotFound, err)
+		return
+	}
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	err = h.messages.Delete(messageID, user.ID, user.Role == "admin")
+	if errors.Is(err, messages.ErrForbidden) {
+		writeErr(w, http.StatusForbidden, err)
+		return
+	}
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	h.hub.Broadcast(ws.Event{
+		Type:      "message_deleted",
+		Payload:   map[string]int64{"messageId": messageID},
+		ChannelID: msg.ChannelID,
+	})
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 // --- My Threads handler ---

@@ -24,10 +24,22 @@ import (
 	"github.com/ebrakke/relay-chat/internal/ws"
 )
 
+var (
+	version   = "dev"
+	commit    = "unknown"
+	buildTime = "unknown"
+)
+
 //go:embed static/*
 var staticFS embed.FS
 
 func main() {
+	// Check for --version / -v flag
+	if len(os.Args) > 1 && (os.Args[1] == "--version" || os.Args[1] == "-v") {
+		fmt.Printf("relay-chat %s (commit: %s, built: %s)\n", version, commit, buildTime)
+		return
+	}
+
 	// Check for CLI commands
 	if len(os.Args) > 1 && os.Args[1] == "reset-password" {
 		handleResetPassword()
@@ -132,7 +144,7 @@ func main() {
 	}
 
 	// API handler
-	apiHandler := api.New(authSvc, botSvc, chanSvc, msgSvc, reactSvc, notifySvc, fileSvc, searchSvc, hub)
+	apiHandler := api.New(authSvc, botSvc, chanSvc, msgSvc, reactSvc, notifySvc, fileSvc, searchSvc, version, hub)
 
 	// Build mux
 	mux := http.NewServeMux()
@@ -234,6 +246,5 @@ func dataDir() string {
 }
 
 func init() {
-	// Print a banner
-	fmt.Println("Relay Chat - unified binary")
+	fmt.Printf("Relay Chat %s\n", version)
 }

@@ -33,11 +33,12 @@ type Handler struct {
 	notifications *notifications.Service
 	files         *files.Service
 	search        *search.Service
+	version       string
 	hub           *ws.Hub
 	mux           *http.ServeMux
 }
 
-func New(authSvc *auth.Service, botSvc *bots.Service, chanSvc *channels.Service, msgSvc *messages.Service, reactSvc *reactions.Service, notifySvc *notifications.Service, fileSvc *files.Service, searchSvc *search.Service, hub *ws.Hub) *Handler {
+func New(authSvc *auth.Service, botSvc *bots.Service, chanSvc *channels.Service, msgSvc *messages.Service, reactSvc *reactions.Service, notifySvc *notifications.Service, fileSvc *files.Service, searchSvc *search.Service, version string, hub *ws.Hub) *Handler {
 	h := &Handler{
 		auth:          authSvc,
 		bots:          botSvc,
@@ -47,6 +48,7 @@ func New(authSvc *auth.Service, botSvc *bots.Service, chanSvc *channels.Service,
 		notifications: notifySvc,
 		files:         fileSvc,
 		search:        searchSvc,
+		version:       version,
 		hub:           hub,
 		mux:           http.NewServeMux(),
 	}
@@ -140,7 +142,10 @@ func (h *Handler) routes() {
 // --- Auth handlers ---
 
 func (h *Handler) handleHealth(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+	writeJSON(w, http.StatusOK, map[string]string{
+		"status":  "ok",
+		"version": h.version,
+	})
 }
 
 func (h *Handler) handleHasUsers(w http.ResponseWriter, r *http.Request) {

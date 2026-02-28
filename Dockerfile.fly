@@ -12,13 +12,16 @@ RUN bun run build
 FROM golang:1.24-alpine AS build
 WORKDIR /src
 # cgo needed for github.com/mattn/go-sqlite3 (used by the embedded NIP-29 relay eventstore backend)
-RUN apk add --no-cache ca-certificates build-base
+RUN apk add --no-cache ca-certificates build-base git
+
+ARG VERSION=dev
 
 # go deps
 COPY go.mod go.sum ./
 RUN go mod download
 
 # app source
+COPY .git/ ./.git/
 COPY cmd/ ./cmd/
 COPY internal/ ./internal/
 COPY relay/ ./relay/
@@ -28,7 +31,10 @@ COPY --from=web /src/frontend/dist/ ./cmd/app/static/
 
 # build binary (cgo enabled for go-sqlite3)
 ENV CGO_ENABLED=1
-RUN go build -o /out/relay-chat ./cmd/app
+RUN COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo unknown) && \
+    BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ) && \
+    go build -ldflags "-X main.version=${VERSION} -X main.commit=${COMMIT} -X main.buildTime=${BUILD_TIME}" \
+    -o /out/relay-chat ./cmd/app
 
 # --- runtime ---
 FROM alpine:3.20

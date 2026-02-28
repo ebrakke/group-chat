@@ -40,7 +40,7 @@ func setup(t *testing.T) *Handler {
 	uploadDir := filepath.Join(t.TempDir(), "uploads")
 	fileSvc := files.NewService(d, uploadDir, 10<<20)
 	searchSvc := search.NewService(d)
-	return New(authSvc, botSvc, chanSvc, msgSvc, reactSvc, notifySvc, fileSvc, searchSvc, hub)
+	return New(authSvc, botSvc, chanSvc, msgSvc, reactSvc, notifySvc, fileSvc, searchSvc, "test", hub)
 }
 
 func doReq(h http.Handler, method, path string, body interface{}) *httptest.ResponseRecorder {

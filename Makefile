@@ -1,3 +1,8 @@
+VERSION ?= dev
+COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
+BUILD_TIME := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+LDFLAGS := -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.buildTime=$(BUILD_TIME)"
+
 .PHONY: build run dev test test-e2e frontend clean help mobile-sync mobile-build mobile-open
 
 help:
@@ -20,7 +25,7 @@ frontend:
 	cp -r frontend/dist/* cmd/app/static/
 
 build: frontend
-	go build -o relay-chat ./cmd/app/
+	go build $(LDFLAGS) -o relay-chat ./cmd/app/
 
 run: build
 	mkdir -p tmp

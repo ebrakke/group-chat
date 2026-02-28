@@ -45,6 +45,9 @@
   const COLLAPSED_HEIGHT = '300px';
 
   const currentUserId = $derived(authStore.user?.id ?? 0);
+  const canEdit = $derived(currentUserId === message.userId);
+  const canDelete = $derived(currentUserId === message.userId || authStore.user?.role === 'admin');
+  const showActions = $derived(!!onOpenThread || canEdit || canDelete);
   const renderedContent = $derived(renderMarkdown(message.content));
   const hasReplies = $derived(message.replyCount && message.replyCount > 0);
   const isLong = $derived(message.content.trim().split(/\s+/).length > COLLAPSE_WORD_LIMIT);
@@ -83,7 +86,9 @@
     showPicker = false;
   }
 
-  async function startEdit() {
+  let editTextarea: HTMLTextAreaElement | undefined = $state();
+
+  function startEdit() {
     editText = message.content;
     editing = true;
   }
@@ -106,12 +111,19 @@
   }
 
   async function handleDelete() {
+    if (!confirm('Delete this message?')) return;
     try {
       await messageStore.deleteMessage(message.id);
     } catch {
       // ignore
     }
   }
+
+  $effect(() => {
+    if (editing && editTextarea) {
+      editTextarea.focus();
+    }
+  });
 
   function handleEditKeydown(e: KeyboardEvent) {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -148,24 +160,26 @@
       {#if message.editedAt}
         <span class="text-[10px] italic" style="color: var(--rc-timestamp);">(edited)</span>
       {/if}
-      {#if onOpenThread}
+      {#if showActions}
         <div class="ml-auto flex items-center gap-4 shrink-0" style="opacity: {hovered ? '1' : '0'}; transition: opacity 0.1s;">
-          <button
-            class="reply-btn text-[11px] cursor-pointer hover:underline underline-offset-2"
-            style="color: var(--rc-timestamp);"
-            onclick={() => onOpenThread?.(message.id)}
-          >reply</button>
-          <button
-            bind:this={addBtnEl}
-            class="reaction-add-btn text-[11px] cursor-pointer hover:underline underline-offset-2"
-            style="color: var(--rc-timestamp);"
-            onclick={() => (showPicker = !showPicker)}
-          >react</button>
-          {#if currentUserId === message.userId}
+          {#if onOpenThread}
+            <button
+              class="reply-btn text-[11px] cursor-pointer hover:underline underline-offset-2"
+              style="color: var(--rc-timestamp);"
+              onclick={() => onOpenThread?.(message.id)}
+            >reply</button>
+            <button
+              bind:this={addBtnEl}
+              class="reaction-add-btn text-[11px] cursor-pointer hover:underline underline-offset-2"
+              style="color: var(--rc-timestamp);"
+              onclick={() => (showPicker = !showPicker)}
+            >react</button>
+          {/if}
+          {#if canEdit}
             <button class="text-[11px] cursor-pointer hover:underline underline-offset-2"
               style="color: var(--rc-timestamp);" onclick={startEdit}>edit</button>
           {/if}
-          {#if currentUserId === message.userId || authStore.user?.role === 'admin'}
+          {#if canDelete}
             <button class="text-[11px] cursor-pointer hover:underline underline-offset-2"
               style="color: var(--rc-timestamp);" onclick={handleDelete}>delete</button>
           {/if}
@@ -175,24 +189,26 @@
   {/if}
 
   <!-- Grouped hover actions — positioned absolutely so they don't affect text layout -->
-  {#if grouped && onOpenThread}
+  {#if grouped && showActions}
     <div class="absolute top-0 bottom-0 flex items-center gap-4 z-10" style="right: {compact ? '12px' : '20px'}; opacity: {hovered ? '1' : '0'}; transition: opacity 0.1s;">
-      <button
-        class="reply-btn text-[11px] cursor-pointer hover:underline underline-offset-2"
-        style="color: var(--rc-timestamp);"
-        onclick={() => onOpenThread?.(message.id)}
-      >reply</button>
-      <button
-        bind:this={addBtnEl}
-        class="reaction-add-btn text-[11px] cursor-pointer hover:underline underline-offset-2"
-        style="color: var(--rc-timestamp);"
-        onclick={() => (showPicker = !showPicker)}
-      >react</button>
-      {#if currentUserId === message.userId}
+      {#if onOpenThread}
+        <button
+          class="reply-btn text-[11px] cursor-pointer hover:underline underline-offset-2"
+          style="color: var(--rc-timestamp);"
+          onclick={() => onOpenThread?.(message.id)}
+        >reply</button>
+        <button
+          bind:this={addBtnEl}
+          class="reaction-add-btn text-[11px] cursor-pointer hover:underline underline-offset-2"
+          style="color: var(--rc-timestamp);"
+          onclick={() => (showPicker = !showPicker)}
+        >react</button>
+      {/if}
+      {#if canEdit}
         <button class="text-[11px] cursor-pointer hover:underline underline-offset-2"
           style="color: var(--rc-timestamp);" onclick={startEdit}>edit</button>
       {/if}
-      {#if currentUserId === message.userId || authStore.user?.role === 'admin'}
+      {#if canDelete}
         <button class="text-[11px] cursor-pointer hover:underline underline-offset-2"
           style="color: var(--rc-timestamp);" onclick={handleDelete}>delete</button>
       {/if}
@@ -207,6 +223,7 @@
     <!-- Content -->
     {#if editing}
       <textarea
+        bind:this={editTextarea}
         bind:value={editText}
         onkeydown={handleEditKeydown}
         class="w-full bg-transparent outline-none resize-none font-mono text-[13px] border p-2"

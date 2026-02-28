@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"regexp"
@@ -1479,9 +1480,17 @@ func (h *Handler) handleUploadFile(w http.ResponseWriter, r *http.Request) {
 	}
 	defer file.Close()
 
-	mimeType := header.Header.Get("Content-Type")
-	if mimeType == "" {
-		mimeType = "application/octet-stream"
+	// Detect MIME type server-side instead of trusting the client header
+	buf := make([]byte, 512)
+	n, err := file.Read(buf)
+	if err != nil && err != io.EOF {
+		writeErr(w, http.StatusInternalServerError, errors.New("failed to read file"))
+		return
+	}
+	mimeType := http.DetectContentType(buf[:n])
+	if _, err := file.Seek(0, io.SeekStart); err != nil {
+		writeErr(w, http.StatusInternalServerError, errors.New("failed to seek file"))
+		return
 	}
 
 	f, err := h.files.Upload(user.ID, header.Filename, mimeType, header.Size, file)
@@ -1498,8 +1507,11 @@ func (h *Handler) handleUploadFile(w http.ResponseWriter, r *http.Request) {
 	if msgIDStr := r.FormValue("messageId"); msgIDStr != "" {
 		messageID, err := strconv.ParseInt(msgIDStr, 10, 64)
 		if err == nil {
-			h.files.AttachToMessage(f.ID, messageID)
-			f.MessageID = &messageID
+			if err := h.files.AttachToMessage(f.ID, messageID); err != nil {
+				log.Printf("warning: attach file %d to message %d: %v", f.ID, messageID, err)
+			} else {
+				f.MessageID = &messageID
+			}
 		}
 	}
 

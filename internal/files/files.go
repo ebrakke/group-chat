@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -21,7 +22,7 @@ var ErrTooLarge = errors.New("file too large")
 type File struct {
 	ID           int64  `json:"id"`
 	MessageID    *int64 `json:"messageId,omitempty"`
-	Filename     string `json:"filename"`
+	Filename     string `json:"-"`
 	OriginalName string `json:"originalName"`
 	MimeType     string `json:"mimeType"`
 	SizeBytes    int64  `json:"sizeBytes"`
@@ -36,7 +37,9 @@ type Service struct {
 }
 
 func NewService(database *db.DB, uploadDir string, maxSize int64) *Service {
-	os.MkdirAll(uploadDir, 0755)
+	if err := os.MkdirAll(uploadDir, 0755); err != nil {
+		log.Printf("warning: could not create upload dir %s: %v", uploadDir, err)
+	}
 	return &Service{db: database, uploadDir: uploadDir, maxSize: maxSize}
 }
 

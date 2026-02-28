@@ -3,7 +3,7 @@ COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 BUILD_TIME := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 LDFLAGS := -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.buildTime=$(BUILD_TIME)"
 
-.PHONY: build run dev test test-e2e frontend clean help mobile-sync mobile-build mobile-open
+.PHONY: build run dev test test-e2e frontend clean help mobile-sync mobile-build mobile-open release
 
 help:
 	@echo "Relay Chat"
@@ -17,6 +17,7 @@ help:
 	@echo "  make mobile-build URL=https://... - Build Android APK (debug)"
 	@echo "  make mobile-sync  - Sync frontend to Android project"
 	@echo "  make mobile-open  - Open Android project in Android Studio"
+	@echo "  make release VERSION=0.1.0 - Build release binaries (linux/darwin × amd64/arm64)"
 	@echo "  make clean      - Remove build artifacts"
 
 frontend:
@@ -69,3 +70,9 @@ clean:
 	rm -f relay-chat
 	rm -rf frontend/dist
 	rm -rf tmp
+
+release:
+ifndef VERSION
+	$(error VERSION is required. Usage: make release VERSION=0.1.0)
+endif
+	bash scripts/release.sh $(VERSION)

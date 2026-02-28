@@ -3,6 +3,7 @@
   import { renderMarkdown } from '$lib/utils/markdown';
   import { formatTime } from '$lib/utils/time';
   import { authStore } from '$lib/stores/auth';
+  import { messageStore } from '$lib/stores/messages';
   import { api } from '$lib/api';
   import LinkPreview from './LinkPreview.svelte';
 
@@ -24,6 +25,8 @@
   let showPicker = $state(false);
   let pickerContainer: HTMLDivElement | undefined = $state();
   let addBtnEl: HTMLButtonElement | undefined = $state();
+  let editing = $state(false);
+  let editText = $state('');
 
   const EMOJI_LIST = [
     '\u{1F44D}',
@@ -79,6 +82,46 @@
     }
     showPicker = false;
   }
+
+  async function startEdit() {
+    editText = message.content;
+    editing = true;
+  }
+
+  async function saveEdit() {
+    if (!editText.trim() || editText === message.content) {
+      editing = false;
+      return;
+    }
+    try {
+      await messageStore.editMessage(message.id, editText);
+      editing = false;
+    } catch {
+      // ignore
+    }
+  }
+
+  function cancelEdit() {
+    editing = false;
+  }
+
+  async function handleDelete() {
+    try {
+      await messageStore.deleteMessage(message.id);
+    } catch {
+      // ignore
+    }
+  }
+
+  function handleEditKeydown(e: KeyboardEvent) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      saveEdit();
+    }
+    if (e.key === 'Escape') {
+      cancelEdit();
+    }
+  }
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -102,6 +145,9 @@
         <span class="text-[9px] font-bold uppercase tracking-wide px-1 py-[1px]"
               style="background: var(--rc-olive); color: var(--rc-channel-active-fg);">BOT</span>
       {/if}
+      {#if message.editedAt}
+        <span class="text-[10px] italic" style="color: var(--rc-timestamp);">(edited)</span>
+      {/if}
       {#if onOpenThread}
         <div class="ml-auto flex items-center gap-4 shrink-0" style="opacity: {hovered ? '1' : '0'}; transition: opacity 0.1s;">
           <button
@@ -115,6 +161,14 @@
             style="color: var(--rc-timestamp);"
             onclick={() => (showPicker = !showPicker)}
           >react</button>
+          {#if currentUserId === message.userId}
+            <button class="text-[11px] cursor-pointer hover:underline underline-offset-2"
+              style="color: var(--rc-timestamp);" onclick={startEdit}>edit</button>
+          {/if}
+          {#if currentUserId === message.userId || authStore.user?.role === 'admin'}
+            <button class="text-[11px] cursor-pointer hover:underline underline-offset-2"
+              style="color: var(--rc-timestamp);" onclick={handleDelete}>delete</button>
+          {/if}
         </div>
       {/if}
     </div>
@@ -134,6 +188,14 @@
         style="color: var(--rc-timestamp);"
         onclick={() => (showPicker = !showPicker)}
       >react</button>
+      {#if currentUserId === message.userId}
+        <button class="text-[11px] cursor-pointer hover:underline underline-offset-2"
+          style="color: var(--rc-timestamp);" onclick={startEdit}>edit</button>
+      {/if}
+      {#if currentUserId === message.userId || authStore.user?.role === 'admin'}
+        <button class="text-[11px] cursor-pointer hover:underline underline-offset-2"
+          style="color: var(--rc-timestamp);" onclick={handleDelete}>delete</button>
+      {/if}
     </div>
   {/if}
 
@@ -143,22 +205,36 @@
     style="color: var(--foreground); padding-left: {compact ? '44px' : '52px'}; padding-bottom: {grouped ? '1px' : compact ? '2px' : '4px'}; padding-top: {grouped ? '0' : '1px'};"
   >
     <!-- Content -->
-    <div class="relative" style="{isLong && !expanded ? `max-height: ${COLLAPSED_HEIGHT}; overflow: hidden;` : ''}">
-      <span class="msg-body break-words [&_p]:my-0 [&_a]:underline [&_a]:underline-offset-2 [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-[12px] [&_pre]:p-3 [&_pre]:my-1 [&_pre]:overflow-x-auto"
-            style="color: var(--foreground); --tw-prose-links: var(--rc-link);">
-        {@html renderedContent}
-      </span>
-      {#if isLong && !expanded}
-        <div class="absolute bottom-0 left-0 right-0 h-16 pointer-events-none"
-             style="background: linear-gradient(transparent, var(--background));"></div>
+    {#if editing}
+      <textarea
+        bind:value={editText}
+        onkeydown={handleEditKeydown}
+        class="w-full bg-transparent outline-none resize-none font-mono text-[13px] border p-2"
+        style="color: var(--foreground); border-color: var(--border);"
+        rows="3"
+      ></textarea>
+      <div class="flex gap-2 mt-1">
+        <button class="text-[11px] hover:underline cursor-pointer" style="color: var(--rc-olive);" onclick={saveEdit}>save</button>
+        <button class="text-[11px] hover:underline cursor-pointer" style="color: var(--rc-timestamp);" onclick={cancelEdit}>cancel</button>
+      </div>
+    {:else}
+      <div class="relative" style="{isLong && !expanded ? `max-height: ${COLLAPSED_HEIGHT}; overflow: hidden;` : ''}">
+        <span class="msg-body break-words [&_p]:my-0 [&_a]:underline [&_a]:underline-offset-2 [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-[12px] [&_pre]:p-3 [&_pre]:my-1 [&_pre]:overflow-x-auto"
+              style="color: var(--foreground); --tw-prose-links: var(--rc-link);">
+          {@html renderedContent}
+        </span>
+        {#if isLong && !expanded}
+          <div class="absolute bottom-0 left-0 right-0 h-16 pointer-events-none"
+               style="background: linear-gradient(transparent, var(--background));"></div>
+        {/if}
+      </div>
+      {#if isLong}
+        <button
+          class="text-[11px] mt-1 hover:underline underline-offset-2 cursor-pointer"
+          style="color: var(--rc-olive);"
+          onclick={() => (expanded = !expanded)}
+        >{expanded ? 'show less' : 'show more'}</button>
       {/if}
-    </div>
-    {#if isLong}
-      <button
-        class="text-[11px] mt-1 hover:underline underline-offset-2 cursor-pointer"
-        style="color: var(--rc-olive);"
-        onclick={() => (expanded = !expanded)}
-      >{expanded ? 'show less' : 'show more'}</button>
     {/if}
 
     <!-- Link Previews -->

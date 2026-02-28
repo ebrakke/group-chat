@@ -37,6 +37,19 @@ class ThreadStore {
     }
   }
 
+  updateReply(updated: Message) {
+    if (!this.replies) return;
+    const idx = this.replies.findIndex((r) => r.id === updated.id);
+    if (idx === -1) return;
+    this.replies = [...this.replies];
+    this.replies[idx] = { ...this.replies[idx], ...updated };
+  }
+
+  removeReply(messageId: number) {
+    if (!this.replies) return;
+    this.replies = this.replies.filter((r) => r.id !== messageId);
+  }
+
   async checkMuted(parentId: number) {
     try {
       const res = await api<{ muted: boolean }>('GET', `/api/threads/${parentId}/mute`);

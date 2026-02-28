@@ -64,6 +64,35 @@ class MessageStore {
     }
   }
 
+  async editMessage(messageId: number, content: string) {
+    return await api<Message>('PUT', `/api/messages/${messageId}`, { content });
+  }
+
+  async deleteMessage(messageId: number) {
+    await api('DELETE', `/api/messages/${messageId}`);
+  }
+
+  updateMessage(updated: Message) {
+    const channelId = updated.channelId;
+    const messages = this.byChannel[channelId];
+    if (!messages) return;
+    const idx = messages.findIndex((m) => m.id === updated.id);
+    if (idx === -1) return;
+    const copy = [...messages];
+    copy[idx] = { ...copy[idx], ...updated };
+    this.byChannel[channelId] = copy;
+  }
+
+  removeMessage(messageId: number) {
+    for (const channelId of Object.keys(this.byChannel)) {
+      const messages = this.byChannel[Number(channelId)];
+      const idx = messages.findIndex((m) => m.id === messageId);
+      if (idx === -1) continue;
+      this.byChannel[Number(channelId)] = messages.filter((m) => m.id !== messageId);
+      break;
+    }
+  }
+
   incrementReplyCount(parentId: number) {
     for (const channelId of Object.keys(this.byChannel)) {
       const messages = this.byChannel[Number(channelId)];

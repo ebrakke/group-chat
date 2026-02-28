@@ -109,6 +109,18 @@ class WebSocketManager {
           messageStore.updateReaction(payload.messageId, payload.emoji, payload.userId, false);
         }
         break;
+      case 'message_edited':
+        if (payload) {
+          messageStore.updateMessage(payload);
+          threadStore.updateReply(payload);
+        }
+        break;
+      case 'message_deleted':
+        if (payload) {
+          messageStore.removeMessage(payload.messageId);
+          threadStore.removeReply(payload.messageId);
+        }
+        break;
       case 'channel_created':
         if (payload) {
           channelStore.addChannel({ id: payload.id, name: payload.name });

@@ -27,6 +27,8 @@ export interface Message {
   mentions?: string[];
   reactions?: Reaction[];
   linkPreviews?: LinkPreview[];
+  editedAt?: string | null;
+  deletedAt?: string | null;
 }
 
 export interface Reaction {

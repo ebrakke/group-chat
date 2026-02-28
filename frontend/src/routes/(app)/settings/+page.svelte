@@ -3,6 +3,7 @@
   import { goto } from '$app/navigation';
   import { api } from '$lib/api';
   import { toastStore } from '$lib/stores/toast.svelte';
+  import { themeStore, THEMES } from '$lib/stores/theme.svelte';
   import { authStore } from '$lib/stores/auth';
   import { channelStore } from '$lib/stores/channels';
   import type { Bot, BotToken, ChannelBinding, Invite, Channel, User } from '$lib/types';
@@ -325,6 +326,27 @@
   <!-- Content -->
   <div class="flex-1 overflow-y-auto p-5">
     <div class="max-w-2xl mx-auto space-y-5">
+
+      <!-- Theme -->
+      <div class="border p-4" style="border-color: var(--border);">
+        <h3 class="text-[13px] font-bold mb-3" style="color: var(--foreground);">theme</h3>
+        <div class="flex gap-3 flex-wrap">
+          {#each THEMES as theme (theme.id)}
+            <button
+              onclick={() => themeStore.set(theme.id)}
+              class="border-2 p-3 min-w-[100px] text-left cursor-pointer"
+              style="background: {theme.colors.bg}; border-color: {themeStore.current === theme.id ? theme.colors.accent : 'transparent'};"
+            >
+              <div class="text-[12px] font-bold font-mono" style="color: {theme.colors.fg};">{theme.name}</div>
+              <div class="flex gap-1 mt-2">
+                <span class="w-4 h-4 rounded-full border" style="background: {theme.colors.bg}; border-color: {theme.colors.fg};"></span>
+                <span class="w-4 h-4 rounded-full" style="background: {theme.colors.fg};"></span>
+                <span class="w-4 h-4 rounded-full" style="background: {theme.colors.accent};"></span>
+              </div>
+            </button>
+          {/each}
+        </div>
+      </div>
 
       <!-- Account -->
       <div class="border p-4" style="border-color: var(--border);">

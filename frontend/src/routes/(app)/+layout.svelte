@@ -146,12 +146,12 @@
   <!-- Main content area -->
   <div class="flex-1 flex flex-col min-w-0 min-h-0">
     <!-- Mobile top nav bar -->
-    <div class="md:hidden flex items-center h-10 px-3 border-b shrink-0"
+    <div class="md:hidden flex items-center h-12 px-3 border-b shrink-0"
          style="border-color: var(--border); background: var(--background);">
       <button
         id="sidebar-toggle"
         onclick={toggleSidebar}
-        class="p-1"
+        class="p-2"
         style="color: var(--rc-timestamp);"
         aria-label="Toggle sidebar"
       >
@@ -167,7 +167,7 @@
       <button
         id="open-search"
         onclick={() => searchStore.toggle()}
-        class="p-1"
+        class="p-2"
         style="color: var(--rc-timestamp);"
         aria-label="Search"
       >
@@ -178,7 +178,7 @@
       <button
         id="open-admin"
         onclick={() => goto('/settings')}
-        class="p-1"
+        class="p-2"
         style="color: var(--rc-timestamp);"
         aria-label="Settings"
       >

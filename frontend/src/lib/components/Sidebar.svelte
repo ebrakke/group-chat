@@ -88,7 +88,7 @@
       >channels</span>
       <button
         onclick={openCreateModal}
-        class="text-[13px] leading-none hover:opacity-70"
+        class="text-[16px] leading-none hover:opacity-70 p-1"
         style="color: var(--rc-timestamp);"
         title="Create channel"
       >+</button>
@@ -100,7 +100,7 @@
         <li>
           <button
             onclick={() => navigateToChannel(channel.id)}
-            class="w-full flex items-center gap-1.5 px-4 py-[5px] text-[13px] text-left"
+            class="w-full flex items-center gap-1.5 px-4 py-2 text-[13px] text-left"
             style="background: {active ? 'var(--rc-channel-active-bg)' : 'transparent'}; color: {active ? 'var(--rc-channel-active-fg)' : 'var(--foreground)'};"
             aria-current={active ? 'page' : undefined}
           >
@@ -127,25 +127,25 @@
   <div class="border-t px-4 pt-3 pb-3 flex flex-col gap-[6px]" style="border-color: var(--border);">
     <button
       onclick={() => { searchStore.toggle(); onCloseSidebar?.(); }}
-      class="text-left text-[12px] hover:underline underline-offset-2"
+      class="text-left text-[12px] hover:underline underline-offset-2 py-1"
       style="color: var(--rc-timestamp);"
     >search</button>
     <button
       onclick={() => { goto('/threads'); onCloseSidebar?.(); }}
-      class="text-left text-[12px] hover:underline underline-offset-2"
+      class="text-left text-[12px] hover:underline underline-offset-2 py-1"
       style="color: var(--rc-timestamp);"
     >my threads</button>
     <button
       id="open-settings-btn"
       onclick={() => { goto('/settings'); onCloseSidebar?.(); }}
-      class="text-left text-[12px] hover:underline underline-offset-2"
+      class="text-left text-[12px] hover:underline underline-offset-2 py-1"
       style="color: var(--rc-timestamp);"
     >settings</button>
     {#if authStore.isAdmin}
       <button
         id="toggle-admin"
         onclick={() => { goto('/settings'); onCloseSidebar?.(); }}
-        class="text-left text-[12px] hover:underline underline-offset-2"
+        class="text-left text-[12px] hover:underline underline-offset-2 py-1"
         style="color: var(--rc-timestamp);"
       >admin</button>
     {/if}

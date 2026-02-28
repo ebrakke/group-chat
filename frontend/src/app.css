@@ -49,3 +49,10 @@ html, body {
 *::-webkit-scrollbar-thumb:hover {
   background: oklch(0.65 0.020 78);
 }
+
+/* On touch devices, always show message action buttons */
+@media (hover: none) {
+  .msg-actions {
+    opacity: 1 !important;
+  }
+}

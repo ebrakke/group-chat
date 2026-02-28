@@ -122,7 +122,7 @@
       ></textarea>
     </div>
     <input type="file" class="hidden" bind:this={fileInput} onchange={handleFileSelect} multiple />
-    <button onclick={() => fileInput?.click()} class="text-[11px] px-2 py-1 border shrink-0 cursor-pointer"
+    <button onclick={() => fileInput?.click()} class="text-[12px] px-3 py-1.5 border shrink-0 cursor-pointer"
       style="border-color: var(--border); color: var(--rc-timestamp);">attach</button>
     <button
       id={sendButtonId}

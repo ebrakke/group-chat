@@ -94,14 +94,14 @@
       <div class="flex items-center gap-3">
         <button
           onclick={handleToggleMute}
-          class="text-[11px] hover:underline underline-offset-2"
+          class="text-[12px] hover:underline underline-offset-2 px-1.5 py-1"
           style="color: var(--rc-timestamp);"
           title={muted ? 'Unmute thread' : 'Mute thread'}
         >{muted ? 'unmute' : 'mute'}</button>
         <button
           id="close-thread"
           onclick={onClose}
-          class="text-[16px] leading-none hover:opacity-60"
+          class="text-[18px] leading-none hover:opacity-60 p-1"
           style="color: var(--rc-timestamp);"
           aria-label="Close thread"
         >&times;</button>

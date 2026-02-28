@@ -163,26 +163,26 @@
         <span class="text-[10px] italic" style="color: var(--rc-timestamp);">(edited)</span>
       {/if}
       {#if showActions}
-        <div class="ml-auto flex items-center gap-4 shrink-0" style="opacity: {hovered ? '1' : '0'}; transition: opacity 0.1s;">
+        <div class="msg-actions ml-auto flex items-center gap-4 shrink-0" style="opacity: {hovered ? '1' : '0'}; transition: opacity 0.1s;">
           {#if onOpenThread}
             <button
-              class="reply-btn text-[11px] cursor-pointer hover:underline underline-offset-2"
+              class="reply-btn text-[12px] cursor-pointer hover:underline underline-offset-2 px-1.5 py-1 -my-1"
               style="color: var(--rc-timestamp);"
               onclick={() => onOpenThread?.(message.id)}
             >reply</button>
             <button
               bind:this={addBtnEl}
-              class="reaction-add-btn text-[11px] cursor-pointer hover:underline underline-offset-2"
+              class="reaction-add-btn text-[12px] cursor-pointer hover:underline underline-offset-2 px-1.5 py-1 -my-1"
               style="color: var(--rc-timestamp);"
               onclick={() => (showPicker = !showPicker)}
             >react</button>
           {/if}
           {#if canEdit}
-            <button class="text-[11px] cursor-pointer hover:underline underline-offset-2"
+            <button class="text-[12px] cursor-pointer hover:underline underline-offset-2 px-1.5 py-1 -my-1"
               style="color: var(--rc-timestamp);" onclick={startEdit}>edit</button>
           {/if}
           {#if canDelete}
-            <button class="text-[11px] cursor-pointer hover:underline underline-offset-2"
+            <button class="text-[12px] cursor-pointer hover:underline underline-offset-2 px-1.5 py-1 -my-1"
               style="color: var(--rc-timestamp);" onclick={handleDelete}>delete</button>
           {/if}
         </div>
@@ -192,26 +192,26 @@
 
   <!-- Grouped hover actions — positioned absolutely so they don't affect text layout -->
   {#if grouped && showActions}
-    <div class="absolute top-0 bottom-0 flex items-center gap-4 z-10" style="right: {compact ? '12px' : '20px'}; opacity: {hovered ? '1' : '0'}; transition: opacity 0.1s;">
+    <div class="msg-actions absolute top-0 bottom-0 flex items-center gap-4 z-10" style="right: {compact ? '12px' : '20px'}; opacity: {hovered ? '1' : '0'}; transition: opacity 0.1s;">
       {#if onOpenThread}
         <button
-          class="reply-btn text-[11px] cursor-pointer hover:underline underline-offset-2"
+          class="reply-btn text-[12px] cursor-pointer hover:underline underline-offset-2 px-1.5 py-1 -my-1"
           style="color: var(--rc-timestamp);"
           onclick={() => onOpenThread?.(message.id)}
         >reply</button>
         <button
           bind:this={addBtnEl}
-          class="reaction-add-btn text-[11px] cursor-pointer hover:underline underline-offset-2"
+          class="reaction-add-btn text-[12px] cursor-pointer hover:underline underline-offset-2 px-1.5 py-1 -my-1"
           style="color: var(--rc-timestamp);"
           onclick={() => (showPicker = !showPicker)}
         >react</button>
       {/if}
       {#if canEdit}
-        <button class="text-[11px] cursor-pointer hover:underline underline-offset-2"
+        <button class="text-[12px] cursor-pointer hover:underline underline-offset-2 px-1.5 py-1 -my-1"
           style="color: var(--rc-timestamp);" onclick={startEdit}>edit</button>
       {/if}
       {#if canDelete}
-        <button class="text-[11px] cursor-pointer hover:underline underline-offset-2"
+        <button class="text-[12px] cursor-pointer hover:underline underline-offset-2 px-1.5 py-1 -my-1"
           style="color: var(--rc-timestamp);" onclick={handleDelete}>delete</button>
       {/if}
     </div>
@@ -290,7 +290,7 @@
       <div class="flex flex-wrap items-center gap-1 mt-1">
         {#each message.reactions as reaction (reaction.emoji)}
           <button
-            class="reaction-pill inline-flex items-center gap-1 px-2 py-0.5 text-[11px] border transition-colors"
+            class="reaction-pill inline-flex items-center gap-1 px-2.5 py-1 text-[11px] border transition-colors"
             style="background: {reaction.userIds.includes(currentUserId) ? 'var(--rc-mention-bg)' : 'var(--rc-muted)'}; border-color: var(--border); color: var(--foreground);"
             onclick={() => toggleReaction(reaction.emoji)}
           >
@@ -311,7 +311,7 @@
     >
       {#each EMOJI_LIST as emoji}
         <button
-          class="reaction-picker-btn text-xl w-10 h-10 flex items-center justify-center hover:opacity-70"
+          class="reaction-picker-btn text-2xl w-11 h-11 flex items-center justify-center hover:opacity-70"
           style="background: transparent;"
           onclick={() => toggleReaction(emoji)}
         >{emoji}</button>

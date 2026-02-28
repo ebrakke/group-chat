@@ -42,3 +42,6 @@ Thumbs.db
 /app
 relay-chat
 
+# Mobile build config
+mobile/server-url.txt
+

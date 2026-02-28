@@ -127,8 +127,8 @@ test.describe.serial("Full E2E flow", () => {
     // User B should see it via WebSocket
     await expect(pageB.locator(".message .msg-body", { hasText: "Hello from Admin!" })).toBeVisible({ timeout: 5000 });
 
-    // User B opens thread and replies
-    await pageB.locator(".reply-btn").first().click();
+    // User B opens thread by clicking the message body
+    await pageB.locator(".message .msg-body", { hasText: "Hello from Admin!" }).click();
     await expect(pageB.locator("#thread-panel")).toBeVisible({ timeout: 3000 });
 
     await pageB.fill("#reply-input", "Reply from Member!");
@@ -141,8 +141,8 @@ test.describe.serial("Full E2E flow", () => {
     // On Fly preview envs WS delivery can be a bit slower; give it more time.
     await expect(pageA.locator(".reply-btn", { hasText: "(1)" })).toBeVisible({ timeout: 15_000 });
 
-    // User A opens thread to verify
-    await pageA.locator(".reply-btn").first().click();
+    // User A opens thread via reply count link
+    await pageA.locator(".reply-count-btn").first().click();
     await expect(pageA.locator("#thread-panel")).toBeVisible({ timeout: 3000 });
     await expect(pageA.locator(".thread-replies .msg-body", { hasText: "Reply from Member!" })).toBeVisible({ timeout: 5000 });
 
@@ -167,7 +167,8 @@ test.describe.serial("Full E2E flow", () => {
     // Find the message container
     const msg = page.locator(".message", { has: page.locator(".msg-body", { hasText: msgText }) });
 
-    // --- Test 1: Clicking + opens picker exactly once ---
+    // --- Test 1: Hover message then click react to open picker ---
+    await msg.hover();
     const addBtn = msg.locator(".reaction-add-btn");
     await addBtn.click();
 
@@ -183,6 +184,7 @@ test.describe.serial("Full E2E flow", () => {
     await expect(picker).toBeHidden({ timeout: 3000 });
 
     // --- Test 3: Selecting emoji from picker adds a pill ---
+    await msg.hover();
     await addBtn.click();
     await expect(picker).toBeVisible({ timeout: 3000 });
 

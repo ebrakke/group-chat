@@ -50,9 +50,3 @@ html, body {
   background: oklch(0.65 0.020 78);
 }
 
-/* On touch devices, tap a message to reveal actions */
-@media (hover: none) {
-  .message.tapped .msg-actions {
-    opacity: 1 !important;
-  }
-}

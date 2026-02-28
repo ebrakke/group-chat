@@ -227,8 +227,8 @@ test.describe.serial("Mobile UX Audit", () => {
     await page.click("#submit");
     await expect(page.locator("#channel-header-text")).toHaveText("# general", { timeout: 10000 });
 
-    // Click reply on a message
-    await page.locator(".reply-btn").first().click();
+    // Tap reply count link to open thread
+    await page.locator(".reply-count-btn").first().click();
     await expect(page.locator("#thread-panel")).toBeVisible({ timeout: 3000 });
 
     await page.waitForTimeout(300);
@@ -260,15 +260,28 @@ test.describe.serial("Mobile UX Audit", () => {
     await page.click("#submit");
     await expect(page.locator("#channel-header-text")).toHaveText("# general", { timeout: 10000 });
 
-    // Open reaction picker
-    const addBtn = page.locator(".reaction-add-btn").first();
-    await addBtn.click();
+    // Long-press a message to open bottom sheet
+    const msg = page.locator(".message").first();
+    await msg.dispatchEvent('touchstart');
+    await page.waitForTimeout(600);
+    await msg.dispatchEvent('touchend');
+
+    // Bottom sheet should appear with react option
+    const reactBtn = page.locator(".reaction-add-btn");
+    await expect(reactBtn).toBeVisible({ timeout: 3000 });
+
+    // Tap react to show emoji grid
+    await reactBtn.click();
 
     await page.waitForTimeout(300);
     await page.screenshot({ path: "screenshots/10-reaction-picker-mobile.png", fullPage: false });
 
+    // Emoji picker should be visible inside bottom sheet
+    const picker = page.locator(".reaction-picker");
+    await expect(picker).toBeVisible({ timeout: 3000 });
+
     // Picker should fit on screen
-    const pickerBox = await page.locator(".reaction-picker").boundingBox();
+    const pickerBox = await picker.boundingBox();
     const viewportWidth = await page.evaluate(() => window.innerWidth);
     console.log(`Picker box: ${JSON.stringify(pickerBox)}`);
     if (pickerBox) {

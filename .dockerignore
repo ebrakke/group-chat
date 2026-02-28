@@ -1,0 +1,32 @@
+# Don't send local build artifacts as Docker context
+cmd/app/static/
+frontend/dist/
+frontend/node_modules/
+frontend/.svelte-kit/
+
+# Data and temp files
+tmp/
+data/
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+dist/
+
+# IDE and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Test artifacts
+test-results/
+playwright-report/
+tests/
+
+# Mobile (not needed for server build)
+mobile/
+
+# Worktrees
+.worktrees/
+.claude/

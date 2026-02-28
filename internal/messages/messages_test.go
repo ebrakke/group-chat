@@ -375,6 +375,93 @@ func TestDeletedMessagesExcludedFromList(t *testing.T) {
 	}
 }
 
+func TestEditDeletedMessage(t *testing.T) {
+	d := setupTestDB(t)
+	svc := NewService(d)
+
+	msg, err := svc.Create(1, 1, "will be deleted", "general")
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+
+	// Delete the message
+	err = svc.Delete(msg.ID, 1, false)
+	if err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+
+	// Attempt to edit the deleted message
+	_, err = svc.Edit(msg.ID, 1, "trying to edit deleted")
+	if err != ErrNotFound {
+		t.Errorf("err = %v, want ErrNotFound", err)
+	}
+}
+
+func TestDeletedRepliesExcludedFromThread(t *testing.T) {
+	d := setupTestDB(t)
+	svc := NewService(d)
+
+	parent, err := svc.Create(1, 1, "parent", "general")
+	if err != nil {
+		t.Fatalf("create parent: %v", err)
+	}
+
+	reply, err := svc.CreateReply(parent.ID, 2, "reply to delete", "general")
+	if err != nil {
+		t.Fatalf("create reply: %v", err)
+	}
+
+	// Delete the reply
+	err = svc.Delete(reply.ID, 2, false)
+	if err != nil {
+		t.Fatalf("delete reply: %v", err)
+	}
+
+	// ListThread should return 0 replies
+	replies, err := svc.ListThread(parent.ID, 50, 0)
+	if err != nil {
+		t.Fatalf("list thread: %v", err)
+	}
+	if len(replies) != 0 {
+		t.Errorf("reply count = %d, want 0", len(replies))
+	}
+}
+
+func TestDeletedReplyCountExcluded(t *testing.T) {
+	d := setupTestDB(t)
+	svc := NewService(d)
+
+	parent, err := svc.Create(1, 1, "parent", "general")
+	if err != nil {
+		t.Fatalf("create parent: %v", err)
+	}
+
+	reply1, err := svc.CreateReply(parent.ID, 2, "reply 1", "general")
+	if err != nil {
+		t.Fatalf("create reply1: %v", err)
+	}
+
+	_, err = svc.CreateReply(parent.ID, 2, "reply 2", "general")
+	if err != nil {
+		t.Fatalf("create reply2: %v", err)
+	}
+
+	// Delete one reply
+	err = svc.Delete(reply1.ID, 2, false)
+	if err != nil {
+		t.Fatalf("delete reply1: %v", err)
+	}
+
+	// Fetch parent via GetByID — replyCount should be 1, not 2
+	got, err := svc.GetByID(parent.ID)
+	if err != nil {
+		t.Fatalf("getByID: %v", err)
+	}
+	if got.ReplyCount != 1 {
+		t.Errorf("replyCount = %d, want 1", got.ReplyCount)
+	}
+}
+
 func TestNostrEventTags(t *testing.T) {
 	d := setupTestDB(t)
 	svc := NewService(d)

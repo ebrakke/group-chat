@@ -182,7 +182,7 @@ func (s *Service) GetByID(id int64) (*Message, error) {
 		SELECT m.id, m.channel_id, m.user_id, m.parent_id, m.content, m.event_id, m.link_previews, m.created_at,
 		       m.edited_at, m.deleted_at,
 		       u.username, u.display_name, u.role,
-		       (SELECT COUNT(*) FROM messages r WHERE r.parent_id = m.id) as reply_count
+		       (SELECT COUNT(*) FROM messages r WHERE r.parent_id = m.id AND r.deleted_at IS NULL) as reply_count
 		FROM messages m
 		JOIN users u ON m.user_id = u.id
 		WHERE m.id = ?
@@ -220,6 +220,9 @@ func (s *Service) Edit(messageID, userID int64, newContent string) (*Message, er
 	msg, err := s.GetByID(messageID)
 	if err != nil {
 		return nil, err
+	}
+	if msg.DeletedAt != nil {
+		return nil, ErrNotFound
 	}
 	if msg.UserID != userID {
 		return nil, ErrForbidden
@@ -277,7 +280,7 @@ func (s *Service) ListChannel(channelID int64, limit int, before int64) ([]Messa
 			SELECT m.id, m.channel_id, m.user_id, m.content, m.event_id, m.link_previews, m.created_at,
 			       m.edited_at, m.deleted_at,
 			       u.username, u.display_name, u.role,
-			       (SELECT COUNT(*) FROM messages r WHERE r.parent_id = m.id) as reply_count
+			       (SELECT COUNT(*) FROM messages r WHERE r.parent_id = m.id AND r.deleted_at IS NULL) as reply_count
 			FROM messages m
 			JOIN users u ON m.user_id = u.id
 			WHERE m.channel_id = ? AND m.parent_id IS NULL AND m.deleted_at IS NULL AND m.id < ?
@@ -288,7 +291,7 @@ func (s *Service) ListChannel(channelID int64, limit int, before int64) ([]Messa
 			SELECT m.id, m.channel_id, m.user_id, m.content, m.event_id, m.link_previews, m.created_at,
 			       m.edited_at, m.deleted_at,
 			       u.username, u.display_name, u.role,
-			       (SELECT COUNT(*) FROM messages r WHERE r.parent_id = m.id) as reply_count
+			       (SELECT COUNT(*) FROM messages r WHERE r.parent_id = m.id AND r.deleted_at IS NULL) as reply_count
 			FROM messages m
 			JOIN users u ON m.user_id = u.id
 			WHERE m.channel_id = ? AND m.parent_id IS NULL AND m.deleted_at IS NULL
@@ -431,15 +434,16 @@ func (s *Service) ListUserThreads(userID int64, limit int) ([]ThreadSummary, err
 			u.display_name,
 			u.role,
 			p.content,
-			(SELECT COUNT(*) FROM messages r WHERE r.parent_id = p.id) AS reply_count,
+			(SELECT COUNT(*) FROM messages r WHERE r.parent_id = p.id AND r.deleted_at IS NULL) AS reply_count,
 			COALESCE(
-				(SELECT MAX(r2.created_at) FROM messages r2 WHERE r2.parent_id = p.id),
+				(SELECT MAX(r2.created_at) FROM messages r2 WHERE r2.parent_id = p.id AND r2.deleted_at IS NULL),
 				p.created_at
 			) AS last_activity
 		FROM messages p
 		JOIN users u ON p.user_id = u.id
 		JOIN channels c ON p.channel_id = c.id
 		WHERE p.parent_id IS NULL
+		  AND p.deleted_at IS NULL
 		  AND p.id IN (
 			  SELECT m1.id FROM messages m1
 			  WHERE m1.user_id = ? AND m1.parent_id IS NULL
@@ -447,7 +451,7 @@ func (s *Service) ListUserThreads(userID int64, limit int) ([]ThreadSummary, err
 			  SELECT m2.parent_id FROM messages m2
 			  WHERE m2.user_id = ? AND m2.parent_id IS NOT NULL
 		  )
-		  AND (SELECT COUNT(*) FROM messages r WHERE r.parent_id = p.id) > 0
+		  AND (SELECT COUNT(*) FROM messages r WHERE r.parent_id = p.id AND r.deleted_at IS NULL) > 0
 		ORDER BY last_activity DESC
 		LIMIT ?
 	`, userID, userID, limit)

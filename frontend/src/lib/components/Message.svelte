@@ -24,6 +24,7 @@
   } = $props();
 
   let hovered = $state(false);
+  let tapped = $state(false);
   let showPicker = $state(false);
   let pickerContainer: HTMLDivElement | undefined = $state();
   let addBtnEl: HTMLButtonElement | undefined = $state();
@@ -55,11 +56,29 @@
   const isLong = $derived(message.content.trim().split(/\s+/).length > COLLAPSE_WORD_LIMIT);
   let expanded = $state(false);
 
+  let messageEl: HTMLDivElement | undefined = $state();
+
   function handleDocumentClick(e: MouseEvent) {
     const target = e.target as Node;
     if (pickerContainer?.contains(target)) return;
     if (addBtnEl?.contains(target)) return;
     showPicker = false;
+  }
+
+  function handleOutsideTap(e: MouseEvent) {
+    if (messageEl?.contains(e.target as Node)) return;
+    tapped = false;
+    document.removeEventListener('click', handleOutsideTap);
+  }
+
+  function handleTap() {
+    // Only for touch devices
+    if (window.matchMedia('(hover: none)').matches) {
+      tapped = !tapped;
+      if (tapped) {
+        setTimeout(() => document.addEventListener('click', handleOutsideTap), 0);
+      }
+    }
   }
 
   $effect(() => {
@@ -140,10 +159,12 @@
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
-  class="message relative"
-  style="padding-left: {compact ? '12px' : '20px'}; padding-right: {compact ? '12px' : '20px'}; margin-top: {grouped ? '1px' : compact ? '8px' : '16px'}; background: {hovered ? 'var(--rc-message-hover)' : 'transparent'};"
+  bind:this={messageEl}
+  class="message relative {tapped ? 'tapped' : ''}"
+  style="padding-left: {compact ? '12px' : '20px'}; padding-right: {compact ? '12px' : '20px'}; margin-top: {grouped ? '1px' : compact ? '8px' : '16px'}; background: {hovered || tapped ? 'var(--rc-message-hover)' : 'transparent'};"
   onmouseenter={() => (hovered = true)}
   onmouseleave={() => (hovered = false)}
+  onclick={handleTap}
 >
   {#if !grouped}
     <!-- Header: timestamp + author + hover actions -->

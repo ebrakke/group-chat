@@ -64,11 +64,12 @@ func (h *Handler) routes() {
 	h.mux.HandleFunc("GET /api/health", h.handleHealth)
 
 	// Auth
+	authRL := newRateLimiter(10, time.Minute)
 	h.mux.HandleFunc("GET /api/auth/has-users", h.handleHasUsers)
-	h.mux.HandleFunc("POST /api/auth/bootstrap", h.handleBootstrap)
-	h.mux.HandleFunc("POST /api/auth/login", h.handleLogin)
+	h.mux.HandleFunc("POST /api/auth/bootstrap", authRL.middleware(h.handleBootstrap))
+	h.mux.HandleFunc("POST /api/auth/login", authRL.middleware(h.handleLogin))
 	h.mux.HandleFunc("POST /api/auth/logout", h.handleLogout)
-	h.mux.HandleFunc("POST /api/auth/signup", h.handleSignup)
+	h.mux.HandleFunc("POST /api/auth/signup", authRL.middleware(h.handleSignup))
 	h.mux.HandleFunc("GET /api/auth/me", h.handleMe)
 
 	// Account

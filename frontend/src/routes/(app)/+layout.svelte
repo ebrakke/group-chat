@@ -11,6 +11,7 @@
   import { initNativeNotifications, setupBackButton } from '$lib/utils/native';
   import Sidebar from '$lib/components/Sidebar.svelte';
   import SearchPanel from '$lib/components/SearchPanel.svelte';
+  import Toast from '$lib/components/Toast.svelte';
 
   let { children } = $props();
   let sidebarOpen = $state(false);
@@ -200,6 +201,8 @@
     </div>
   {/if}
 </div>
+
+<Toast />
 
 {#if searchStore.open}
   <SearchPanel />

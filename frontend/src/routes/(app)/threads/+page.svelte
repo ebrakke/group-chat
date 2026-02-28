@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { threadStore } from '$lib/stores/threads';
+  import { toastStore } from '$lib/stores/toast.svelte';
   import { formatRelativeTime } from '$lib/utils/time';
 
   let loading = $state(true);
@@ -10,7 +11,7 @@
     try {
       await threadStore.loadMyThreads();
     } catch {
-      // ignore load errors
+      toastStore.error('Failed to load threads');
     }
     loading = false;
   });

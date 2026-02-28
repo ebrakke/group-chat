@@ -1,4 +1,5 @@
 import { api } from '$lib/api';
+import { toastStore } from '$lib/stores/toast.svelte';
 import type { SearchResult } from '$lib/types';
 
 class SearchStore {
@@ -22,6 +23,7 @@ class SearchStore {
       );
     } catch {
       this.results = [];
+      toastStore.error('Search failed');
     } finally {
       this.loading = false;
     }

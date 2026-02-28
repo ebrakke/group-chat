@@ -1,6 +1,7 @@
 <script lang="ts">
   import { threadStore } from '$lib/stores/threads';
   import { uploadFile } from '$lib/api';
+  import { toastStore } from '$lib/stores/toast.svelte';
   import { renderMarkdown } from '$lib/utils/markdown';
   import { formatTime } from '$lib/utils/time';
   import MessageList from './MessageList.svelte';
@@ -63,7 +64,7 @@
       }
       await threadStore.loadReplies(threadStore.openThreadId);
     } catch {
-      // ignore send errors
+      toastStore.error('Failed to send reply');
     }
   }
 

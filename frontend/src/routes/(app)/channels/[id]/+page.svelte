@@ -6,6 +6,7 @@
   import { messageStore } from '$lib/stores/messages';
   import { threadStore } from '$lib/stores/threads';
   import { uploadFile } from '$lib/api';
+  import { toastStore } from '$lib/stores/toast.svelte';
   import MessageList from '$lib/components/MessageList.svelte';
   import MessageInput from '$lib/components/MessageInput.svelte';
   import ThreadPanel from '$lib/components/ThreadPanel.svelte';
@@ -23,7 +24,7 @@
     try {
       await messageStore.loadChannel(id);
     } catch {
-      // ignore load errors
+      toastStore.error('Failed to load messages');
     }
     loaded = true;
   }
@@ -83,7 +84,7 @@
       }
       await messageStore.loadChannel(channelId);
     } catch {
-      // ignore send errors
+      toastStore.error('Failed to send message');
     }
   }
 

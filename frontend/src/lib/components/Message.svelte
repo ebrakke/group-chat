@@ -5,6 +5,7 @@
   import { authStore } from '$lib/stores/auth';
   import { messageStore } from '$lib/stores/messages';
   import { api } from '$lib/api';
+  import { toastStore } from '$lib/stores/toast.svelte';
   import LinkPreview from './LinkPreview.svelte';
   import FilePreview from './FilePreview.svelte';
 
@@ -82,7 +83,7 @@
       }
       onReactionChange?.();
     } catch {
-      // ignore
+      toastStore.error('Failed to update reaction');
     }
     showPicker = false;
   }
@@ -103,7 +104,7 @@
       await messageStore.editMessage(message.id, editText);
       editing = false;
     } catch {
-      // ignore
+      toastStore.error('Failed to edit message');
     }
   }
 
@@ -116,7 +117,7 @@
     try {
       await messageStore.deleteMessage(message.id);
     } catch {
-      // ignore
+      toastStore.error('Failed to delete message');
     }
   }
 

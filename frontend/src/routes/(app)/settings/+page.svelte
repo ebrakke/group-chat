@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { api } from '$lib/api';
+  import { toastStore } from '$lib/stores/toast.svelte';
   import { authStore } from '$lib/stores/auth';
   import { channelStore } from '$lib/stores/channels';
   import type { Bot, BotToken, ChannelBinding, Invite, Channel, User } from '$lib/types';
@@ -66,7 +67,7 @@
       );
       baseUrl = settings.baseUrl || '';
     } catch {
-      // ignore
+      toastStore.error('Failed to load settings');
     }
   }
 
@@ -91,7 +92,7 @@
     try {
       invites = await api<Invite[]>('GET', '/api/invites');
     } catch {
-      // ignore
+      toastStore.error('Failed to load invites');
     }
   }
 
@@ -102,7 +103,7 @@
       inviteResult = `${window.location.origin}/invite/${result.code}`;
       await loadInvites();
     } catch {
-      // ignore
+      toastStore.error('Failed to create invite');
     } finally {
       creatingInvite = false;
     }
@@ -142,7 +143,7 @@
     try {
       users = await api<User[]>('GET', '/api/users');
     } catch {
-      // ignore
+      toastStore.error('Failed to load users');
     }
   }
 
@@ -161,7 +162,7 @@
       resetPasswordResult = tempPassword;
       resetPasswordUser = user.displayName;
     } catch {
-      // ignore
+      toastStore.error('Failed to reset password');
     } finally {
       resettingPasswordId = null;
     }
@@ -172,7 +173,7 @@
     try {
       bots = await api<Bot[]>('GET', '/api/bots');
     } catch {
-      // ignore
+      toastStore.error('Failed to load bots');
     }
   }
 
@@ -203,7 +204,7 @@
       if (managingBot?.id === bot.id) managingBot = null;
       await loadBots();
     } catch {
-      // ignore
+      toastStore.error('Failed to delete bot');
     } finally {
       deletingBot = false;
     }
@@ -242,7 +243,7 @@
       newTokenLabel = '';
       await loadBotTokens(managingBot.id);
     } catch {
-      // ignore
+      toastStore.error('Failed to generate token');
     } finally {
       generatingToken = false;
     }
@@ -253,7 +254,7 @@
       await api('DELETE', `/api/bots/tokens/${tokenId}`);
       if (managingBot) await loadBotTokens(managingBot.id);
     } catch {
-      // ignore
+      toastStore.error('Failed to revoke token');
     }
   }
 
@@ -268,7 +269,7 @@
       bindChannelId = null;
       await loadBotBindings(managingBot.id);
     } catch {
-      // ignore
+      toastStore.error('Failed to bind channel');
     }
   }
 
@@ -278,7 +279,7 @@
       await api('DELETE', `/api/bots/${managingBot.id}/bindings/${channelId}`);
       await loadBotBindings(managingBot.id);
     } catch {
-      // ignore
+      toastStore.error('Failed to unbind channel');
     }
   }
 

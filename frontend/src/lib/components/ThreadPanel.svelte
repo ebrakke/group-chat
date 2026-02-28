@@ -1,5 +1,6 @@
 <script lang="ts">
   import { threadStore } from '$lib/stores/threads';
+  import { uploadFile } from '$lib/api';
   import { renderMarkdown } from '$lib/utils/markdown';
   import { formatTime } from '$lib/utils/time';
   import MessageList from './MessageList.svelte';
@@ -41,10 +42,25 @@
     document.addEventListener('mouseup', onUp);
   }
 
-  async function handleSendReply(content: string) {
+  async function handleSendReply(content: string, files?: File[]) {
     if (!threadStore.openThreadId) return;
     try {
-      await threadStore.sendReply(threadStore.openThreadId, content);
+      // Always send a reply if there's content or files (files need a message to attach to)
+      const replyContent = content || (files?.length ? files.map(f => f.name).join(', ') : '');
+      if (replyContent) {
+        await threadStore.sendReply(threadStore.openThreadId, replyContent);
+      }
+      if (files?.length) {
+        // Reload to get the reply ID for file attachment
+        await threadStore.loadReplies(threadStore.openThreadId);
+        const replyMsgs = threadStore.replies;
+        const lastReply = replyMsgs[replyMsgs.length - 1];
+        if (lastReply) {
+          for (const f of files) {
+            await uploadFile(f, lastReply.id);
+          }
+        }
+      }
       await threadStore.loadReplies(threadStore.openThreadId);
     } catch {
       // ignore send errors

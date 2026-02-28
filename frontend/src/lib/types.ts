@@ -27,6 +27,7 @@ export interface Message {
   mentions?: string[];
   reactions?: Reaction[];
   linkPreviews?: LinkPreview[];
+  files?: FileAttachment[];
   editedAt?: string | null;
   deletedAt?: string | null;
 }
@@ -83,6 +84,16 @@ export interface ChannelBinding {
   channelName?: string;
   canRead: boolean;
   canWrite: boolean;
+}
+
+export interface FileAttachment {
+  id: number;
+  messageId?: number;
+  originalName: string;
+  mimeType: string;
+  sizeBytes: number;
+  uploaderId: number;
+  createdAt: string;
 }
 
 export interface Invite {

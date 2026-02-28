@@ -6,6 +6,7 @@
   import { messageStore } from '$lib/stores/messages';
   import { api } from '$lib/api';
   import LinkPreview from './LinkPreview.svelte';
+  import FilePreview from './FilePreview.svelte';
 
   let {
     message,
@@ -259,6 +260,15 @@
       <div class="mt-1.5">
         {#each message.linkPreviews as preview (preview.url)}
           <LinkPreview {preview} />
+        {/each}
+      </div>
+    {/if}
+
+    <!-- File Attachments -->
+    {#if message.files?.length}
+      <div class="mt-1">
+        {#each message.files as file (file.id)}
+          <FilePreview {file} />
         {/each}
       </div>
     {/if}

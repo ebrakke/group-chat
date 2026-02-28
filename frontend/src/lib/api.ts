@@ -1,4 +1,5 @@
 import { getApiBase, isNative } from './utils/platform';
+import type { FileAttachment } from './types';
 
 let sessionToken: string | null = null;
 
@@ -36,4 +37,25 @@ export async function api<T = unknown>(method: string, path: string, body?: unkn
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || 'Request failed');
   return data as T;
+}
+
+export async function uploadFile(file: globalThis.File, messageId?: number): Promise<FileAttachment> {
+  const form = new FormData();
+  form.append('file', file);
+  if (messageId) form.append('messageId', String(messageId));
+
+  const headers: Record<string, string> = {};
+  const opts: RequestInit = { method: 'POST', body: form, headers };
+
+  if (isNative() && sessionToken) {
+    headers['Authorization'] = `Bearer ${sessionToken}`;
+  } else {
+    opts.credentials = 'include';
+  }
+
+  const base = getApiBase();
+  const res = await fetch(`${base}/api/upload`, opts);
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Upload failed');
+  return data as FileAttachment;
 }

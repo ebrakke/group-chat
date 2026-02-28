@@ -456,27 +456,41 @@ func (h *Handler) handleCreateChannel(w http.ResponseWriter, r *http.Request) {
 
 // --- Message handlers ---
 
-type messageWithReactions struct {
+type messageResponse struct {
 	messages.Message
 	Reactions []reactions.ReactionSummary `json:"reactions"`
+	Files     []files.File               `json:"files,omitempty"`
 }
 
-func (h *Handler) attachReactions(msgs []messages.Message) []messageWithReactions {
+func (h *Handler) enrichMessages(msgs []messages.Message) []messageResponse {
 	ids := make([]int64, len(msgs))
 	for i, m := range msgs {
 		ids[i] = m.ID
 	}
 	summaryMap, _ := h.reactions.SummaryForMessages(ids)
 
-	result := make([]messageWithReactions, len(msgs))
+	result := make([]messageResponse, len(msgs))
 	for i, m := range msgs {
 		s := summaryMap[m.ID]
 		if s == nil {
 			s = []reactions.ReactionSummary{}
 		}
-		result[i] = messageWithReactions{Message: m, Reactions: s}
+		msgFiles, _ := h.files.ListByMessage(m.ID)
+		result[i] = messageResponse{Message: m, Reactions: s, Files: msgFiles}
 	}
 	return result
+}
+
+func (h *Handler) enrichMessage(msg *messages.Message) messageResponse {
+	var r []reactions.ReactionSummary
+	summaryMap, _ := h.reactions.SummaryForMessages([]int64{msg.ID})
+	if s := summaryMap[msg.ID]; s != nil {
+		r = s
+	} else {
+		r = []reactions.ReactionSummary{}
+	}
+	msgFiles, _ := h.files.ListByMessage(msg.ID)
+	return messageResponse{Message: *msg, Reactions: r, Files: msgFiles}
 }
 
 func (h *Handler) handleListMessages(w http.ResponseWriter, r *http.Request) {
@@ -503,7 +517,7 @@ func (h *Handler) handleListMessages(w http.ResponseWriter, r *http.Request) {
 	if msgs == nil {
 		msgs = []messages.Message{}
 	}
-	writeJSON(w, http.StatusOK, h.attachReactions(msgs))
+	writeJSON(w, http.StatusOK, h.enrichMessages(msgs))
 }
 
 func (h *Handler) handleCreateMessage(w http.ResponseWriter, r *http.Request) {
@@ -555,10 +569,12 @@ func (h *Handler) handleCreateMessage(w http.ResponseWriter, r *http.Request) {
 
 	// Notifications are sent by the message service via callback
 
-	// Broadcast to WebSocket clients
-	h.hub.Broadcast(ws.Event{Type: "new_message", Payload: msg, ChannelID: channelID})
+	enriched := h.enrichMessage(msg)
 
-	writeJSON(w, http.StatusCreated, msg)
+	// Broadcast to WebSocket clients
+	h.hub.Broadcast(ws.Event{Type: "new_message", Payload: enriched, ChannelID: channelID})
+
+	writeJSON(w, http.StatusCreated, enriched)
 }
 
 func (h *Handler) handleListThread(w http.ResponseWriter, r *http.Request) {
@@ -585,7 +601,7 @@ func (h *Handler) handleListThread(w http.ResponseWriter, r *http.Request) {
 	if msgs == nil {
 		msgs = []messages.Message{}
 	}
-	writeJSON(w, http.StatusOK, h.attachReactions(msgs))
+	writeJSON(w, http.StatusOK, h.enrichMessages(msgs))
 }
 
 func (h *Handler) handleCreateReply(w http.ResponseWriter, r *http.Request) {
@@ -643,10 +659,12 @@ func (h *Handler) handleCreateReply(w http.ResponseWriter, r *http.Request) {
 
 	// Notifications are sent by the message service via callback
 
-	// Broadcast to WebSocket clients
-	h.hub.Broadcast(ws.Event{Type: "new_reply", Payload: msg, ChannelID: parent.ChannelID})
+	enriched := h.enrichMessage(msg)
 
-	writeJSON(w, http.StatusCreated, msg)
+	// Broadcast to WebSocket clients
+	h.hub.Broadcast(ws.Event{Type: "new_reply", Payload: enriched, ChannelID: parent.ChannelID})
+
+	writeJSON(w, http.StatusCreated, enriched)
 }
 
 func (h *Handler) handleEditMessage(w http.ResponseWriter, r *http.Request) {
@@ -688,8 +706,9 @@ func (h *Handler) handleEditMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	h.hub.Broadcast(ws.Event{Type: "message_edited", Payload: msg, ChannelID: msg.ChannelID})
-	writeJSON(w, http.StatusOK, msg)
+	enriched := h.enrichMessage(msg)
+	h.hub.Broadcast(ws.Event{Type: "message_edited", Payload: enriched, ChannelID: msg.ChannelID})
+	writeJSON(w, http.StatusOK, enriched)
 }
 
 func (h *Handler) handleDeleteMessage(w http.ResponseWriter, r *http.Request) {

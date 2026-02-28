@@ -5,6 +5,7 @@
   import { channelStore } from '$lib/stores/channels';
   import { messageStore } from '$lib/stores/messages';
   import { threadStore } from '$lib/stores/threads';
+  import { uploadFile } from '$lib/api';
   import MessageList from '$lib/components/MessageList.svelte';
   import MessageInput from '$lib/components/MessageInput.svelte';
   import ThreadPanel from '$lib/components/ThreadPanel.svelte';
@@ -62,10 +63,24 @@
     });
   });
 
-  async function handleSend(content: string) {
+  async function handleSend(content: string, files?: File[]) {
     try {
-      await messageStore.send(channelId, content);
-      // Reload messages to get the sent message (until WebSocket is set up)
+      // Always send a message if there's content or files (files need a message to attach to)
+      const msgContent = content || (files?.length ? files.map(f => f.name).join(', ') : '');
+      if (msgContent) {
+        await messageStore.send(channelId, msgContent);
+      }
+      if (files?.length) {
+        // Reload to get the message ID for file attachment
+        await messageStore.loadChannel(channelId);
+        const msgs = messageStore.getMessages(channelId);
+        const lastMsg = msgs[msgs.length - 1];
+        if (lastMsg) {
+          for (const f of files) {
+            await uploadFile(f, lastMsg.id);
+          }
+        }
+      }
       await messageStore.loadChannel(channelId);
     } catch {
       // ignore send errors

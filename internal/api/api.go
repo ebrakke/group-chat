@@ -20,6 +20,7 @@ import (
 	"github.com/ebrakke/relay-chat/internal/messages"
 	"github.com/ebrakke/relay-chat/internal/notifications"
 	"github.com/ebrakke/relay-chat/internal/reactions"
+	"github.com/ebrakke/relay-chat/internal/search"
 	"github.com/ebrakke/relay-chat/internal/ws"
 )
 
@@ -31,11 +32,12 @@ type Handler struct {
 	reactions     *reactions.Service
 	notifications *notifications.Service
 	files         *files.Service
+	search        *search.Service
 	hub           *ws.Hub
 	mux           *http.ServeMux
 }
 
-func New(authSvc *auth.Service, botSvc *bots.Service, chanSvc *channels.Service, msgSvc *messages.Service, reactSvc *reactions.Service, notifySvc *notifications.Service, fileSvc *files.Service, hub *ws.Hub) *Handler {
+func New(authSvc *auth.Service, botSvc *bots.Service, chanSvc *channels.Service, msgSvc *messages.Service, reactSvc *reactions.Service, notifySvc *notifications.Service, fileSvc *files.Service, searchSvc *search.Service, hub *ws.Hub) *Handler {
 	h := &Handler{
 		auth:          authSvc,
 		bots:          botSvc,
@@ -44,6 +46,7 @@ func New(authSvc *auth.Service, botSvc *bots.Service, chanSvc *channels.Service,
 		reactions:     reactSvc,
 		notifications: notifySvc,
 		files:         fileSvc,
+		search:        searchSvc,
 		hub:           hub,
 		mux:           http.NewServeMux(),
 	}
@@ -125,6 +128,9 @@ func (h *Handler) routes() {
 	h.mux.HandleFunc("POST /api/upload", h.handleUploadFile)
 	h.mux.HandleFunc("GET /api/files/{id}", h.handleGetFile)
 	h.mux.HandleFunc("DELETE /api/files/{id}", h.handleDeleteFile)
+
+	// Search
+	h.mux.HandleFunc("GET /api/search", h.handleSearch)
 
 	// Admin settings
 	h.mux.HandleFunc("GET /api/admin/settings", h.handleGetAdminSettings)
@@ -1604,6 +1610,31 @@ func (h *Handler) handleDeleteFile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// --- Search ---
+
+func (h *Handler) handleSearch(w http.ResponseWriter, r *http.Request) {
+	_, err := h.requireAuth(r)
+	if err != nil {
+		writeErr(w, http.StatusUnauthorized, err)
+		return
+	}
+	q := r.URL.Query().Get("q")
+	if q == "" {
+		writeErr(w, http.StatusBadRequest, errors.New("q parameter required"))
+		return
+	}
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	results, err := h.search.Search(q, limit)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	if results == nil {
+		results = []search.Result{}
+	}
+	writeJSON(w, http.StatusOK, results)
 }
 
 // --- Helpers ---

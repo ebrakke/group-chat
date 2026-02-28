@@ -15,6 +15,7 @@ import (
 	"github.com/ebrakke/relay-chat/internal/bots"
 	"github.com/ebrakke/relay-chat/internal/channels"
 	"github.com/ebrakke/relay-chat/internal/db"
+	"github.com/ebrakke/relay-chat/internal/files"
 	"github.com/ebrakke/relay-chat/internal/messages"
 	"github.com/ebrakke/relay-chat/internal/notifications"
 	"github.com/ebrakke/relay-chat/internal/reactions"
@@ -73,6 +74,9 @@ func main() {
 	}
 	msgSvc := messages.NewService(database)
 	reactSvc := reactions.NewService(database)
+	uploadDir := filepath.Join(dataDir(), "uploads")
+	maxUploadSize := int64(10 << 20) // 10MB
+	fileSvc := files.NewService(database, uploadDir, maxUploadSize)
 	notifySvc := notifications.NewService(database, baseURL)
 
 	// Register webhook provider (always available)
@@ -126,7 +130,7 @@ func main() {
 	}
 
 	// API handler
-	apiHandler := api.New(authSvc, botSvc, chanSvc, msgSvc, reactSvc, notifySvc, hub)
+	apiHandler := api.New(authSvc, botSvc, chanSvc, msgSvc, reactSvc, notifySvc, fileSvc, hub)
 
 	// Build mux
 	mux := http.NewServeMux()

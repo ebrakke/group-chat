@@ -13,9 +13,10 @@ import (
 	"github.com/ebrakke/relay-chat/internal/bots"
 	"github.com/ebrakke/relay-chat/internal/channels"
 	"github.com/ebrakke/relay-chat/internal/db"
+	"github.com/ebrakke/relay-chat/internal/files"
 	"github.com/ebrakke/relay-chat/internal/messages"
-	"github.com/ebrakke/relay-chat/internal/reactions"
 	"github.com/ebrakke/relay-chat/internal/notifications"
+	"github.com/ebrakke/relay-chat/internal/reactions"
 	"github.com/ebrakke/relay-chat/internal/ws"
 )
 
@@ -35,7 +36,9 @@ func setup(t *testing.T) *Handler {
 	hub := ws.NewHub()
 	chanSvc.EnsureGeneral()
 	notifySvc := notifications.NewService(d, "http://localhost:8080")
-	return New(authSvc, botSvc, chanSvc, msgSvc, reactSvc, notifySvc, hub)
+	uploadDir := filepath.Join(t.TempDir(), "uploads")
+	fileSvc := files.NewService(d, uploadDir, 10<<20)
+	return New(authSvc, botSvc, chanSvc, msgSvc, reactSvc, notifySvc, fileSvc, hub)
 }
 
 func doReq(h http.Handler, method, path string, body interface{}) *httptest.ResponseRecorder {

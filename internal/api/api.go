@@ -4,6 +4,7 @@ package api
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"regexp"
@@ -14,6 +15,7 @@ import (
 	"github.com/ebrakke/relay-chat/internal/auth"
 	"github.com/ebrakke/relay-chat/internal/bots"
 	"github.com/ebrakke/relay-chat/internal/channels"
+	"github.com/ebrakke/relay-chat/internal/files"
 	"github.com/ebrakke/relay-chat/internal/messages"
 	"github.com/ebrakke/relay-chat/internal/notifications"
 	"github.com/ebrakke/relay-chat/internal/reactions"
@@ -27,11 +29,12 @@ type Handler struct {
 	messages      *messages.Service
 	reactions     *reactions.Service
 	notifications *notifications.Service
+	files         *files.Service
 	hub           *ws.Hub
 	mux           *http.ServeMux
 }
 
-func New(authSvc *auth.Service, botSvc *bots.Service, chanSvc *channels.Service, msgSvc *messages.Service, reactSvc *reactions.Service, notifySvc *notifications.Service, hub *ws.Hub) *Handler {
+func New(authSvc *auth.Service, botSvc *bots.Service, chanSvc *channels.Service, msgSvc *messages.Service, reactSvc *reactions.Service, notifySvc *notifications.Service, fileSvc *files.Service, hub *ws.Hub) *Handler {
 	h := &Handler{
 		auth:          authSvc,
 		bots:          botSvc,
@@ -39,6 +42,7 @@ func New(authSvc *auth.Service, botSvc *bots.Service, chanSvc *channels.Service,
 		messages:      msgSvc,
 		reactions:     reactSvc,
 		notifications: notifySvc,
+		files:         fileSvc,
 		hub:           hub,
 		mux:           http.NewServeMux(),
 	}
@@ -115,6 +119,11 @@ func (h *Handler) routes() {
 	// Push subscriptions
 	h.mux.HandleFunc("POST /api/push/subscribe", h.handlePushSubscribe)
 	h.mux.HandleFunc("DELETE /api/push/subscribe", h.handlePushUnsubscribe)
+
+	// Files
+	h.mux.HandleFunc("POST /api/upload", h.handleUploadFile)
+	h.mux.HandleFunc("GET /api/files/{id}", h.handleGetFile)
+	h.mux.HandleFunc("DELETE /api/files/{id}", h.handleDeleteFile)
 
 	// Admin settings
 	h.mux.HandleFunc("GET /api/admin/settings", h.handleGetAdminSettings)
@@ -1447,6 +1456,123 @@ func (h *Handler) handleUpdateAdminSettings(w http.ResponseWriter, r *http.Reque
 
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]bool{"success": true})
+}
+
+// --- File handlers ---
+
+func (h *Handler) handleUploadFile(w http.ResponseWriter, r *http.Request) {
+	user, err := h.requireAuth(r)
+	if err != nil {
+		writeErr(w, http.StatusUnauthorized, err)
+		return
+	}
+
+	if err := r.ParseMultipartForm(10 << 20); err != nil {
+		writeErr(w, http.StatusBadRequest, errors.New("invalid multipart form"))
+		return
+	}
+
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, errors.New("file field required"))
+		return
+	}
+	defer file.Close()
+
+	mimeType := header.Header.Get("Content-Type")
+	if mimeType == "" {
+		mimeType = "application/octet-stream"
+	}
+
+	f, err := h.files.Upload(user.ID, header.Filename, mimeType, header.Size, file)
+	if errors.Is(err, files.ErrTooLarge) {
+		writeErr(w, http.StatusRequestEntityTooLarge, err)
+		return
+	}
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	// Optionally attach to a message
+	if msgIDStr := r.FormValue("messageId"); msgIDStr != "" {
+		messageID, err := strconv.ParseInt(msgIDStr, 10, 64)
+		if err == nil {
+			h.files.AttachToMessage(f.ID, messageID)
+			f.MessageID = &messageID
+		}
+	}
+
+	writeJSON(w, http.StatusCreated, f)
+}
+
+func (h *Handler) handleGetFile(w http.ResponseWriter, r *http.Request) {
+	_, err := h.requireAuth(r)
+	if err != nil {
+		writeErr(w, http.StatusUnauthorized, err)
+		return
+	}
+
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, errors.New("invalid file id"))
+		return
+	}
+
+	f, err := h.files.GetByID(id)
+	if errors.Is(err, files.ErrNotFound) {
+		writeErr(w, http.StatusNotFound, err)
+		return
+	}
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	path := h.files.FilePath(f.Filename)
+	w.Header().Set("Content-Type", f.MimeType)
+	if files.IsImage(f.MimeType) {
+		w.Header().Set("Content-Disposition", "inline")
+	} else {
+		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", f.OriginalName))
+	}
+	http.ServeFile(w, r, path)
+}
+
+func (h *Handler) handleDeleteFile(w http.ResponseWriter, r *http.Request) {
+	user, err := h.requireAuth(r)
+	if err != nil {
+		writeErr(w, http.StatusUnauthorized, err)
+		return
+	}
+
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, errors.New("invalid file id"))
+		return
+	}
+
+	f, err := h.files.GetByID(id)
+	if errors.Is(err, files.ErrNotFound) {
+		writeErr(w, http.StatusNotFound, err)
+		return
+	}
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	if f.UploaderID != user.ID && user.Role != "admin" {
+		writeErr(w, http.StatusForbidden, errors.New("not allowed"))
+		return
+	}
+
+	if err := h.files.Delete(id); err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
 // --- Helpers ---

@@ -2,6 +2,7 @@
   import { goto } from '$app/navigation';
   import { authStore } from '$lib/stores/auth';
   import { channelStore } from '$lib/stores/channels';
+  import { searchStore } from '$lib/stores/search';
   import { stopNativeNotifications } from '$lib/utils/native';
 
   let { onCloseSidebar }: { onCloseSidebar?: () => void } = $props();
@@ -124,6 +125,11 @@
 
   <!-- Footer -->
   <div class="border-t px-4 pt-3 pb-3 flex flex-col gap-[6px]" style="border-color: var(--border);">
+    <button
+      onclick={() => { searchStore.toggle(); onCloseSidebar?.(); }}
+      class="text-left text-[12px] hover:underline underline-offset-2"
+      style="color: var(--rc-timestamp);"
+    >search</button>
     <button
       onclick={() => { goto('/threads'); onCloseSidebar?.(); }}
       class="text-left text-[12px] hover:underline underline-offset-2"

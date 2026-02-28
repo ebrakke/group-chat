@@ -101,3 +101,15 @@ export interface Invite {
   useCount: number;
   maxUses?: number | null;
 }
+
+export interface SearchResult {
+  id: number;
+  channelId: number;
+  channelName: string;
+  userId: number;
+  username: string;
+  displayName: string;
+  content: string;
+  createdAt: string;
+  parentId?: number;
+}

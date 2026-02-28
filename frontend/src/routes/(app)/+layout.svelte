@@ -5,10 +5,12 @@
   import { channelStore } from '$lib/stores/channels';
   import { threadStore } from '$lib/stores/threads';
   import { authStore } from '$lib/stores/auth';
+  import { searchStore } from '$lib/stores/search';
   import { wsManager } from '$lib/ws';
   import { isNative, isMobile } from '$lib/utils/platform';
   import { initNativeNotifications, setupBackButton } from '$lib/utils/native';
   import Sidebar from '$lib/components/Sidebar.svelte';
+  import SearchPanel from '$lib/components/SearchPanel.svelte';
 
   let { children } = $props();
   let sidebarOpen = $state(false);
@@ -23,9 +25,18 @@
   const MAX_Y_DRIFT = 80;
   const MAX_DURATION = 500;
 
+  function handleKeydown(e: KeyboardEvent) {
+    if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+      e.preventDefault();
+      searchStore.toggle();
+    }
+  }
+
   onMount(async () => {
     channelStore.load();
     wsManager.connect();
+
+    window.addEventListener('keydown', handleKeydown);
 
     // Start foreground service + local notifications on native
     if (isNative()) {
@@ -35,6 +46,10 @@
     // Set up Android back button
     setupBackButton({
       closeThread: () => {
+        if (searchStore.open) {
+          searchStore.close();
+          return true;
+        }
         if (threadStore.openThreadId !== null) {
           threadStore.closeThread();
           return true;
@@ -61,6 +76,7 @@
 
   onDestroy(async () => {
     wsManager.disconnect();
+    window.removeEventListener('keydown', handleKeydown);
   });
 
   function closeSidebar() {
@@ -148,6 +164,17 @@
       </button>
       <div class="flex-1"></div>
       <button
+        id="open-search"
+        onclick={() => searchStore.toggle()}
+        class="p-1"
+        style="color: var(--rc-timestamp);"
+        aria-label="Search"
+      >
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+      </button>
+      <button
         id="open-admin"
         onclick={() => goto('/settings')}
         class="p-1"
@@ -173,3 +200,7 @@
     </div>
   {/if}
 </div>
+
+{#if searchStore.open}
+  <SearchPanel />
+{/if}

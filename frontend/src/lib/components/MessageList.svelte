@@ -82,5 +82,9 @@
     {/if}
 
     <Message message={msg} {onOpenThread} {grouped} {compact} />
+  {:else}
+    <div class="flex items-center justify-center h-full text-[12px] font-mono" style="color: var(--rc-timestamp);">
+      <p>no messages yet</p>
+    </div>
   {/each}
 </div>

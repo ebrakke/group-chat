@@ -113,7 +113,13 @@
     </div>
 
     <!-- Messages -->
-    <MessageList {messages} onOpenThread={openThread} />
+    {#if !loaded}
+      <div class="flex-1 flex items-center justify-center">
+        <span class="text-[12px] font-mono" style="color: var(--rc-timestamp);">loading...</span>
+      </div>
+    {:else}
+      <MessageList {messages} onOpenThread={openThread} />
+    {/if}
 
     <!-- Input -->
     <MessageInput

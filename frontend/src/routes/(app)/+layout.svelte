@@ -195,9 +195,9 @@
   </div>
 
   {#if !wsManager.connected}
-    <div class="fixed bottom-4 right-4 px-3 py-1.5 text-[11px] z-50 border font-mono"
-         style="background: var(--rc-muted); color: var(--rc-muted-fg); border-color: var(--border);">
-      Reconnecting...
+    <div class="fixed top-0 left-0 right-0 z-50 px-3 py-1.5 text-[12px] font-mono text-center border-b"
+         style="background: var(--rc-mention-badge); color: oklch(0.97 0 0); border-color: var(--rc-mention-badge);">
+      Connection lost — reconnecting...
     </div>
   {/if}
 </div>

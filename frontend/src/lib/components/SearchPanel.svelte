@@ -59,9 +59,11 @@
   <!-- Results -->
   <div class="flex-1 overflow-y-auto px-5 py-3">
     {#if searchStore.loading}
-      <p class="text-[12px]" style="color: var(--rc-timestamp);">searching...</p>
+      <p class="text-[12px] font-mono" style="color: var(--rc-timestamp);">searching...</p>
     {:else if searchStore.query && searchStore.results.length === 0}
-      <p class="text-[12px]" style="color: var(--rc-timestamp);">no results found</p>
+      <p class="text-[12px] font-mono" style="color: var(--rc-timestamp);">no results found</p>
+    {:else if !searchStore.query}
+      <p class="text-[12px] font-mono" style="color: var(--rc-timestamp);">type to search messages</p>
     {:else}
       {#each searchStore.results as result (result.id)}
         <button

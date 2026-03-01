@@ -19,6 +19,8 @@
   let pendingFiles = $state<globalThis.File[]>([]);
   let fileInput: HTMLInputElement | undefined = $state();
 
+  const hasContent = $derived(text.trim().length > 0 || pendingFiles.length > 0);
+
   function autoResize() {
     if (!textarea) return;
     textarea.style.height = 'auto';
@@ -99,9 +101,12 @@
     </div>
   {/if}
 
-  <div id="composer" class="shrink-0 border-t px-2 py-2 md:px-4 md:py-3 flex items-center gap-1.5 md:gap-2"
+  <input type="file" class="hidden" bind:this={fileInput} onchange={handleFileSelect} multiple />
+
+  <!-- Desktop layout -->
+  <div id="composer" class="hidden md:flex shrink-0 border-t px-4 py-3 items-center gap-2"
        style="border-color: var(--border);">
-    <span class="text-[13px] select-none hidden md:inline" style="color: var(--rc-timestamp);">{'>'}</span>
+    <span class="text-[13px] select-none" style="color: var(--rc-timestamp);">{'>'}</span>
     <div class="relative flex-1">
       <MentionAutocomplete
         bind:this={autocomplete}
@@ -121,18 +126,58 @@
         class="w-full bg-transparent outline-none resize-none font-mono placeholder:opacity-40"
       ></textarea>
     </div>
-    <input type="file" class="hidden" bind:this={fileInput} onchange={handleFileSelect} multiple />
-    <button onclick={() => fileInput?.click()} class="shrink-0 cursor-pointer hover:opacity-60 md:text-[12px] md:px-3 md:py-1.5 md:border text-[18px] leading-none px-1"
-      style="border-color: var(--border); color: var(--rc-timestamp);"
-      title="Attach file"
-    ><span class="md:hidden">+</span><span class="hidden md:inline">attach</span></button>
+    <button onclick={() => fileInput?.click()} class="text-[12px] px-3 py-1.5 border shrink-0 cursor-pointer"
+      style="border-color: var(--border); color: var(--rc-timestamp);">attach</button>
     <button
       id={sendButtonId}
       onclick={send}
-      disabled={!text.trim() && pendingFiles.length === 0}
-      class="shrink-0 disabled:opacity-30 md:text-[11px] md:px-3 md:py-1.5 md:border font-mono text-[18px] leading-none px-1"
+      disabled={!hasContent}
+      class="text-[11px] px-3 py-1.5 border font-mono disabled:opacity-30 shrink-0"
       style="background: var(--rc-channel-active-bg); color: var(--rc-channel-active-fg); border-color: var(--rc-channel-active-bg);"
-      title="Send"
-    ><span class="md:hidden">&uarr;</span><span class="hidden md:inline">send</span></button>
+    >send</button>
+  </div>
+
+  <!-- Mobile layout: textarea + send on top, action buttons below -->
+  <div class="md:hidden shrink-0 border-t" style="border-color: var(--border);">
+    <div class="flex items-end gap-2 px-3 pt-2 pb-1">
+      <div class="relative flex-1">
+        <MentionAutocomplete
+          inputEl={textarea}
+          onSelect={handleAutocompleteSelect}
+        />
+        <textarea
+          bind:this={textarea}
+          bind:value={text}
+          oninput={handleInput}
+          onkeydown={handleKeydown}
+          onpaste={handlePaste}
+          {placeholder}
+          rows="1"
+          style="font-size: 14px; color: var(--foreground);"
+          class="w-full bg-transparent outline-none resize-none font-mono placeholder:opacity-40"
+        ></textarea>
+      </div>
+      <button
+        onclick={send}
+        disabled={!hasContent}
+        class="shrink-0 w-8 h-8 flex items-center justify-center rounded-full disabled:opacity-30 mb-0.5"
+        style="background: var(--rc-channel-active-bg); color: var(--rc-channel-active-fg);"
+        title="Send"
+      >
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M12 5l7 7-7 7" />
+        </svg>
+      </button>
+    </div>
+    <div class="flex items-center gap-1 px-3 pb-2">
+      <button onclick={() => fileInput?.click()} class="p-1.5 cursor-pointer hover:opacity-60"
+        style="color: var(--rc-timestamp);"
+        title="Attach file"
+      >
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
+        </svg>
+      </button>
+    </div>
   </div>
 </div>

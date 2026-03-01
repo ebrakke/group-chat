@@ -7,6 +7,7 @@
   import { authStore } from '$lib/stores/auth';
   import { channelStore } from '$lib/stores/channels';
   import type { Bot, BotToken, ChannelBinding, Invite, Channel, User } from '$lib/types';
+  import Avatar from '$lib/components/Avatar.svelte';
 
   // --- Change Password ---
   let currentPassword = $state('');
@@ -15,6 +16,11 @@
   let changePwMessage = $state('');
   let changePwError = $state('');
   let changingPassword = $state(false);
+
+  // --- Avatar ---
+  let uploadingAvatar = $state(false);
+  let avatarMessage = $state('');
+  let avatarError = $state('');
 
   // --- Users (admin) ---
   let users = $state<User[]>([]);
@@ -136,6 +142,43 @@
       autoHide((v) => (changePwError = v));
     } finally {
       changingPassword = false;
+    }
+  }
+
+  // --- Avatar ---
+  async function handleAvatarUpload(e: Event) {
+    const input = e.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      avatarError = 'Image must be less than 5MB';
+      autoHide((v) => (avatarError = v));
+      return;
+    }
+    uploadingAvatar = true;
+    avatarError = '';
+    avatarMessage = '';
+    try {
+      await authStore.updateAvatar(file);
+      avatarMessage = 'Profile picture updated';
+      input.value = '';
+      autoHide((v) => (avatarMessage = v));
+    } catch (err: unknown) {
+      avatarError = err instanceof Error ? err.message : 'Failed to upload';
+      autoHide((v) => (avatarError = v));
+    } finally {
+      uploadingAvatar = false;
+    }
+  }
+
+  async function handleAvatarRemove() {
+    try {
+      await authStore.removeAvatar();
+      avatarMessage = 'Profile picture removed';
+      autoHide((v) => (avatarMessage = v));
+    } catch (err: unknown) {
+      avatarError = err instanceof Error ? err.message : 'Failed to remove';
+      autoHide((v) => (avatarError = v));
     }
   }
 
@@ -361,8 +404,24 @@
             <span class="text-[12px]" style="color: var(--foreground);">{authStore.user?.displayName}</span>
           </div>
         </div>
+        <!-- Profile Picture -->
+        <div class="flex items-center gap-3 mt-3">
+          <Avatar url={authStore.user?.avatarUrl} displayName={authStore.user?.displayName || '?'} username={authStore.user?.username} size={48} />
+          <div class="flex flex-col gap-1">
+            <label class="text-[11px] hover:underline underline-offset-2 cursor-pointer" style="color: var(--rc-olive);">
+              {uploadingAvatar ? 'uploading...' : 'change picture'}
+              <input type="file" accept="image/*" onchange={handleAvatarUpload} disabled={uploadingAvatar} class="hidden" />
+            </label>
+            {#if authStore.user?.avatarUrl}
+              <button onclick={handleAvatarRemove} class="text-[11px] text-left hover:underline underline-offset-2"
+                      style="color: var(--rc-mention-badge);">remove</button>
+            {/if}
+          </div>
+        </div>
+        {#if avatarMessage}<p class="text-[11px] mt-2" style="color: var(--rc-olive);">{avatarMessage}</p>{/if}
+        {#if avatarError}<p class="text-[11px] mt-2" style="color: var(--rc-mention-badge);">{avatarError}</p>{/if}
         <button id="logout" onclick={() => { authStore.logout(); goto('/login'); }}
-                class="text-[11px] hover:underline underline-offset-2"
+                class="text-[11px] hover:underline underline-offset-2 mt-3"
                 style="color: var(--rc-mention-badge);">logout</button>
         <!-- Change Password -->
         <div class="mt-4 pt-3 border-t" style="border-color: var(--border);">

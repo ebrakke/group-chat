@@ -37,6 +37,13 @@
   let touchTimer: ReturnType<typeof setTimeout> | undefined;
   let showProfileCard = $state(false);
   let profileCardAnchorRect: DOMRect | null = $state(null);
+  let activeReactionTooltip = $state<string | null>(null);
+
+  function formatReactorNames(names: string[]): string {
+    if (!names || names.length === 0) return '';
+    if (names.length <= 3) return names.join(', ');
+    return `${names.slice(0, 3).join(', ')}, and ${names.length - 3} more`;
+  }
 
   const EMOJI_LIST = [
     '\u{1F44D}',
@@ -385,14 +392,36 @@
     {#if message.reactions?.length}
       <div class="flex flex-wrap items-center gap-1 mt-1">
         {#each message.reactions as reaction (reaction.emoji)}
-          <button
-            class="reaction-pill inline-flex items-center gap-1 px-2.5 py-1 text-[11px] border transition-colors"
-            style="background: {reaction.userIds.includes(currentUserId) ? 'var(--rc-mention-bg)' : 'var(--rc-muted)'}; border-color: var(--border); color: var(--foreground);"
-            onclick={(e) => { e.stopPropagation(); toggleReaction(reaction.emoji); }}
-          >
-            <span>{reaction.emoji}</span>
-            <span class="reaction-count">{reaction.count}</span>
-          </button>
+          <div class="relative">
+            <button
+              class="reaction-pill inline-flex items-center gap-1 px-2.5 py-1 text-[11px] border transition-colors"
+              style="background: {reaction.userIds.includes(currentUserId) ? 'var(--rc-mention-bg)' : 'var(--rc-muted)'}; border-color: var(--border); color: var(--foreground);"
+              onclick={(e) => { e.stopPropagation(); toggleReaction(reaction.emoji); }}
+              onmouseenter={(e) => {
+                if (!isTouch) {
+                  activeReactionTooltip = reaction.emoji;
+                }
+              }}
+              onmouseleave={() => { if (!isTouch) activeReactionTooltip = null; }}
+              onpointerdown={(e) => {
+                if (isTouch) {
+                  e.stopPropagation();
+                  activeReactionTooltip = activeReactionTooltip === reaction.emoji ? null : reaction.emoji;
+                }
+              }}
+            >
+              <span>{reaction.emoji}</span>
+              <span class="reaction-count">{reaction.count}</span>
+            </button>
+            {#if activeReactionTooltip === reaction.emoji && reaction.userNames?.length}
+              <div
+                class="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-1 text-[11px] whitespace-nowrap border z-30 pointer-events-none"
+                style="background: var(--background); border-color: var(--border); color: var(--foreground);"
+              >
+                {formatReactorNames(reaction.userNames)}
+              </div>
+            {/if}
+          </div>
         {/each}
       </div>
     {/if}

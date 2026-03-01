@@ -1,6 +1,6 @@
 <script lang="ts">
   import { page } from '$app/stores';
-  import { onMount } from 'svelte';
+  import { goto } from '$app/navigation';
   import { untrack } from 'svelte';
   import { channelStore } from '$lib/stores/channels';
   import { messageStore } from '$lib/stores/messages';
@@ -37,15 +37,20 @@
     }
   });
 
-  // Open thread from URL query param
-  onMount(() => {
+  // Sync thread state with URL query param
+  $effect(() => {
     const threadParam = $page.url.searchParams.get('thread');
-    if (threadParam) {
-      const parentId = Number(threadParam);
-      if (parentId) {
-        openThread(parentId);
+    const parentId = threadParam ? Number(threadParam) : null;
+    const isLoaded = loaded;
+
+    untrack(() => {
+      if (parentId && isLoaded && parentId !== threadStore.openThreadId) {
+        const parentMsg = messageStore.getMessages(channelId).find((m) => m.id === parentId);
+        threadStore.openThread(parentId, parentMsg);
+      } else if (!parentId && threadStore.openThreadId !== null) {
+        threadStore.closeThread();
       }
-    }
+    });
   });
 
   // Mark channel as read when messages load or new ones arrive via WebSocket
@@ -89,12 +94,11 @@
   }
 
   function openThread(parentId: number) {
-    const parentMsg = messages.find((m) => m.id === parentId);
-    threadStore.openThread(parentId, parentMsg);
+    goto(`/channels/${channelId}?thread=${parentId}`);
   }
 
   function closeThread() {
-    threadStore.closeThread();
+    goto(`/channels/${channelId}`);
   }
 </script>
 

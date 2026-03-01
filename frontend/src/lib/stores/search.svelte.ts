@@ -6,7 +6,6 @@ class SearchStore {
   results = $state<SearchResult[]>([]);
   query = $state('');
   loading = $state(false);
-  open = $state(false);
 
   async search(query: string) {
     if (!query.trim()) {
@@ -29,16 +28,7 @@ class SearchStore {
     }
   }
 
-  toggle() {
-    this.open = !this.open;
-    if (!this.open) {
-      this.results = [];
-      this.query = '';
-    }
-  }
-
   close() {
-    this.open = false;
     this.results = [];
     this.query = '';
   }

@@ -3,14 +3,11 @@
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import { channelStore } from '$lib/stores/channels';
-  import { threadStore } from '$lib/stores/threads';
   import { authStore } from '$lib/stores/auth';
-  import { searchStore } from '$lib/stores/search';
   import { wsManager } from '$lib/ws';
   import { isNative, isMobile } from '$lib/utils/platform';
   import { initNativeNotifications, setupBackButton } from '$lib/utils/native';
   import Sidebar from '$lib/components/Sidebar.svelte';
-  import SearchPanel from '$lib/components/SearchPanel.svelte';
   import Toast from '$lib/components/Toast.svelte';
 
   let { children } = $props();
@@ -29,7 +26,7 @@
   function handleKeydown(e: KeyboardEvent) {
     if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
       e.preventDefault();
-      searchStore.toggle();
+      goto('/search');
     }
   }
 
@@ -47,12 +44,11 @@
     // Set up Android back button
     setupBackButton({
       closeThread: () => {
-        if (searchStore.open) {
-          searchStore.close();
-          return true;
-        }
-        if (threadStore.openThreadId !== null) {
-          threadStore.closeThread();
+        // Threads and search are URL-driven — history.back() handles them
+        const pathname = $page.url.pathname;
+        const hasThread = $page.url.searchParams.has('thread');
+        if (pathname === '/search' || hasThread) {
+          history.back();
           return true;
         }
         return false;
@@ -166,7 +162,7 @@
       <div class="flex-1"></div>
       <button
         id="open-search"
-        onclick={() => searchStore.toggle()}
+        onclick={() => goto('/search')}
         class="p-2"
         style="color: var(--rc-timestamp);"
         aria-label="Search"
@@ -203,7 +199,3 @@
 </div>
 
 <Toast />
-
-{#if searchStore.open}
-  <SearchPanel />
-{/if}

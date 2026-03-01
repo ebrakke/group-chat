@@ -1,14 +1,36 @@
 <script lang="ts">
-  import { goto } from '$app/navigation';
+  import { goto, replaceState } from '$app/navigation';
+  import { page } from '$app/stores';
   import { searchStore } from '$lib/stores/search';
   import { formatRelativeTime } from '$lib/utils/time';
 
-  let searchInput = $state('');
+  let searchInput = $state($page.url.searchParams.get('q') ?? '');
   let debounceTimer: ReturnType<typeof setTimeout>;
   let inputEl: HTMLInputElement | undefined = $state();
 
+  // Run initial search if ?q= is present on mount
+  $effect(() => {
+    if (inputEl) inputEl.focus();
+  });
+
+  $effect(() => {
+    const initialQuery = $page.url.searchParams.get('q');
+    if (initialQuery && !searchStore.query) {
+      searchStore.search(initialQuery);
+    }
+  });
+
   function handleInput() {
     clearTimeout(debounceTimer);
+    // Update URL with replaceState (no history entry per keystroke)
+    const url = new URL($page.url);
+    if (searchInput.trim()) {
+      url.searchParams.set('q', searchInput);
+    } else {
+      url.searchParams.delete('q');
+    }
+    replaceState(url, {});
+
     debounceTimer = setTimeout(() => {
       searchStore.search(searchInput);
     }, 300);
@@ -16,25 +38,26 @@
 
   function navigateToResult(result: { channelId: number; parentId?: number }) {
     const url = `/channels/${result.channelId}` + (result.parentId ? `?thread=${result.parentId}` : '');
-    goto(url);
     searchStore.close();
+    goto(url);
   }
 
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === 'Escape') {
       searchStore.close();
+      history.back();
     }
   }
 
-  // Auto-focus when mounted
-  $effect(() => {
-    if (inputEl) inputEl.focus();
-  });
+  function handleClose() {
+    searchStore.close();
+    history.back();
+  }
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
-  class="fixed inset-0 z-50 flex flex-col"
+  class="flex flex-col h-full"
   style="background: var(--background);"
   onkeydown={handleKeydown}
 >
@@ -50,7 +73,7 @@
       style="color: var(--foreground);"
     />
     <button
-      onclick={() => searchStore.close()}
+      onclick={handleClose}
       class="text-[11px] px-2 py-1 hover:underline"
       style="color: var(--rc-timestamp);"
     >close</button>

@@ -103,49 +103,17 @@
 
   <input type="file" class="hidden" bind:this={fileInput} onchange={handleFileSelect} multiple />
 
-  <!-- Desktop layout -->
-  <div id="composer" class="hidden md:flex shrink-0 border-t px-4 py-3 items-center gap-2"
-       style="border-color: var(--border);">
-    <span class="text-[13px] select-none" style="color: var(--rc-timestamp);">{'>'}</span>
-    <div class="relative flex-1">
-      <MentionAutocomplete
-        bind:this={autocomplete}
-        inputEl={textarea}
-        onSelect={handleAutocompleteSelect}
-      />
-      <textarea
-        id={inputId}
-        bind:this={textarea}
-        bind:value={text}
-        oninput={handleInput}
-        onkeydown={handleKeydown}
-        onpaste={handlePaste}
-        {placeholder}
-        rows="1"
-        style="font-size: 13px; color: var(--foreground);"
-        class="w-full bg-transparent outline-none resize-none font-mono placeholder:opacity-40"
-      ></textarea>
-    </div>
-    <button onclick={() => fileInput?.click()} class="text-[12px] px-3 py-1.5 border shrink-0 cursor-pointer"
-      style="border-color: var(--border); color: var(--rc-timestamp);">attach</button>
-    <button
-      id={sendButtonId}
-      onclick={send}
-      disabled={!hasContent}
-      class="text-[11px] px-3 py-1.5 border font-mono disabled:opacity-30 shrink-0"
-      style="background: var(--rc-channel-active-bg); color: var(--rc-channel-active-fg); border-color: var(--rc-channel-active-bg);"
-    >send</button>
-  </div>
-
-  <!-- Mobile layout: textarea + send on top, action buttons below -->
-  <div class="md:hidden shrink-0 border-t" style="border-color: var(--border);">
-    <div class="flex items-end gap-2 px-3 pt-2 pb-1">
+  <div id="composer" class="shrink-0 border-t" style="border-color: var(--border);">
+    <div class="flex items-end md:items-center gap-2 px-3 md:px-4 pt-2 md:py-3 pb-1 md:pb-3">
+      <span class="hidden md:inline text-[13px] select-none" style="color: var(--rc-timestamp);">{'>'}</span>
       <div class="relative flex-1">
         <MentionAutocomplete
+          bind:this={autocomplete}
           inputEl={textarea}
           onSelect={handleAutocompleteSelect}
         />
         <textarea
+          id={inputId}
           bind:this={textarea}
           bind:value={text}
           oninput={handleInput}
@@ -153,14 +121,23 @@
           onpaste={handlePaste}
           {placeholder}
           rows="1"
-          style="font-size: 14px; color: var(--foreground);"
-          class="w-full bg-transparent outline-none resize-none font-mono placeholder:opacity-40"
+          class="w-full bg-transparent outline-none resize-none font-mono placeholder:opacity-40 text-[14px] md:text-[13px]"
+          style="color: var(--foreground);"
         ></textarea>
       </div>
+      <button onclick={() => fileInput?.click()} class="hidden md:block text-[12px] px-3 py-1.5 border shrink-0 cursor-pointer"
+        style="border-color: var(--border); color: var(--rc-timestamp);">attach</button>
+      <button
+        id={sendButtonId}
+        onclick={send}
+        disabled={!hasContent}
+        class="hidden md:block text-[11px] px-3 py-1.5 border font-mono disabled:opacity-30 shrink-0"
+        style="background: var(--rc-channel-active-bg); color: var(--rc-channel-active-fg); border-color: var(--rc-channel-active-bg);"
+      >send</button>
       <button
         onclick={send}
         disabled={!hasContent}
-        class="shrink-0 w-8 h-8 flex items-center justify-center rounded-full disabled:opacity-30 mb-0.5"
+        class="md:hidden shrink-0 w-8 h-8 flex items-center justify-center rounded-full disabled:opacity-30 mb-0.5"
         style="background: var(--rc-channel-active-bg); color: var(--rc-channel-active-fg);"
         title="Send"
       >
@@ -169,7 +146,7 @@
         </svg>
       </button>
     </div>
-    <div class="flex items-center gap-1 px-3 pb-2">
+    <div class="md:hidden flex items-center gap-1 px-3 pb-2">
       <button onclick={() => fileInput?.click()} class="p-1.5 cursor-pointer hover:opacity-60"
         style="color: var(--rc-timestamp);"
         title="Attach file"

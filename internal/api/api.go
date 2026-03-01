@@ -184,9 +184,6 @@ func (h *Handler) handleBootstrap(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Auto-join #general
-	h.autoJoinGeneral(user.ID)
-
 	setSessionCookie(w, token)
 	writeJSON(w, http.StatusCreated, map[string]interface{}{"user": user, "token": token})
 }
@@ -263,9 +260,6 @@ func (h *Handler) handleSignup(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, err)
 		return
 	}
-
-	// Auto-join #general
-	h.autoJoinGeneral(user.ID)
 
 	setSessionCookie(w, token)
 	writeJSON(w, http.StatusCreated, map[string]interface{}{"user": user, "token": token})
@@ -511,7 +505,7 @@ func (h *Handler) handleMarkRead(w http.ResponseWriter, r *http.Request) {
 var channelNameRe = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
 
 func (h *Handler) handleCreateChannel(w http.ResponseWriter, r *http.Request) {
-	user, err := h.requireAuth(r)
+	_, err := h.requireAuth(r)
 	if err != nil {
 		writeErr(w, http.StatusUnauthorized, err)
 		return
@@ -547,11 +541,6 @@ func (h *Handler) handleCreateChannel(w http.ResponseWriter, r *http.Request) {
 		}
 		writeErr(w, http.StatusInternalServerError, err)
 		return
-	}
-
-	// Add creator as a member of the new channel
-	if err := h.channels.AddMember(ch.ID, user.ID); err != nil {
-		log.Printf("Warning: failed to add creator to channel %s: %v", ch.Name, err)
 	}
 
 	h.hub.Broadcast(ws.Event{Type: "channel_created", Payload: ch})
@@ -1736,17 +1725,6 @@ func (h *Handler) handleSearch(w http.ResponseWriter, r *http.Request) {
 }
 
 // --- Helpers ---
-
-func (h *Handler) autoJoinGeneral(userID int64) {
-	ch, err := h.channels.EnsureGeneral()
-	if err != nil {
-		log.Printf("warning: could not ensure #general: %v", err)
-		return
-	}
-	if err := h.channels.AddMember(ch.ID, userID); err != nil {
-		log.Printf("warning: could not add user %d to #general: %v", userID, err)
-	}
-}
 
 func (h *Handler) requireAuth(r *http.Request) (*auth.User, error) {
 	token := extractToken(r)

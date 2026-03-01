@@ -18,8 +18,6 @@ func setupTestDB(t *testing.T) (*db.DB, *messages.Service) {
 
 	d.Exec("INSERT INTO users (username, display_name, password_hash, role) VALUES ('alice', 'Alice', 'hash', 'admin')")
 	d.Exec("INSERT INTO channels (name) VALUES ('general')")
-	d.Exec("INSERT INTO channel_members (channel_id, user_id) VALUES (1, 1)")
-
 	return d, messages.NewService(d)
 }
 

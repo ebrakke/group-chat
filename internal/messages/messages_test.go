@@ -19,9 +19,6 @@ func setupTestDB(t *testing.T) *db.DB {
 	d.Exec("INSERT INTO users (username, display_name, password_hash, role) VALUES ('alice', 'Alice', 'hash', 'admin')")
 	d.Exec("INSERT INTO users (username, display_name, password_hash, role) VALUES ('bob', 'Bob', 'hash', 'member')")
 	d.Exec("INSERT INTO channels (name) VALUES ('general')")
-	d.Exec("INSERT INTO channel_members (channel_id, user_id) VALUES (1, 1)")
-	d.Exec("INSERT INTO channel_members (channel_id, user_id) VALUES (1, 2)")
-
 	return d
 }
 

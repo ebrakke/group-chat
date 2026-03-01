@@ -3,6 +3,7 @@ import { getSessionToken } from './api';
 import { messageStore } from './stores/messages';
 import { channelStore } from './stores/channels';
 import { threadStore } from './stores/threads';
+import { authStore } from './stores/auth.svelte';
 import { showNativeNotification } from './utils/native';
 
 function showBrowserNotification(title: string, body: string) {
@@ -72,8 +73,8 @@ class WebSocketManager {
           if (payload.channelId !== channelStore.activeChannelId) {
             channelStore.updateUnread(payload.channelId, 1, false);
           }
-          // Browser notification when tab is hidden or message is in another channel
-          if (document.hidden || payload.channelId !== channelStore.activeChannelId) {
+          // Browser notification when tab is hidden or message is in another channel (skip own messages)
+          if (payload.userId !== authStore.user?.id && (document.hidden || payload.channelId !== channelStore.activeChannelId)) {
             const ch = channelStore.channels.find((c) => c.id === payload.channelId);
             const channelName = ch ? `#${ch.name}` : 'New message';
             const preview = payload.content?.substring(0, 100) || '';
@@ -89,8 +90,8 @@ class WebSocketManager {
         if (payload) {
           messageStore.incrementReplyCount(payload.parentId);
           threadStore.addReply(payload);
-          // Browser notification when reply is in a different thread than the open one
-          if (payload.parentId !== threadStore.openThreadId) {
+          // Browser notification when reply is in a different thread than the open one (skip own replies)
+          if (payload.userId !== authStore.user?.id && payload.parentId !== threadStore.openThreadId) {
             const preview = payload.content?.substring(0, 100) || '';
             showBrowserNotification('Thread reply', `${payload.displayName}: ${preview}`);
             showNativeNotification('Thread reply', `${payload.displayName}: ${preview}`, {

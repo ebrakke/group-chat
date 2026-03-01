@@ -1,4 +1,4 @@
-// Package channels manages chat channels and membership.
+// Package channels manages chat channels and read-state tracking.
 package channels
 
 import (
@@ -87,44 +87,6 @@ func (s *Service) List() ([]Channel, error) {
 	return channels, rows.Err()
 }
 
-// AddMember adds a user to a channel.
-func (s *Service) AddMember(channelID, userID int64) error {
-	_, err := s.db.Exec(
-		"INSERT OR IGNORE INTO channel_members (channel_id, user_id) VALUES (?, ?)",
-		channelID, userID,
-	)
-	return err
-}
-
-// ListMembers returns user IDs in a channel.
-func (s *Service) ListMembers(channelID int64) ([]int64, error) {
-	rows, err := s.db.Query("SELECT user_id FROM channel_members WHERE channel_id = ?", channelID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var ids []int64
-	for rows.Next() {
-		var id int64
-		if err := rows.Scan(&id); err != nil {
-			return nil, err
-		}
-		ids = append(ids, id)
-	}
-	return ids, rows.Err()
-}
-
-// IsMember checks if a user is a member of a channel.
-func (s *Service) IsMember(channelID, userID int64) (bool, error) {
-	var count int
-	err := s.db.QueryRow(
-		"SELECT COUNT(*) FROM channel_members WHERE channel_id = ? AND user_id = ?",
-		channelID, userID,
-	).Scan(&count)
-	return count > 0, err
-}
-
 // ChannelWithUnread extends Channel with unread tracking info.
 type ChannelWithUnread struct {
 	Channel
@@ -149,7 +111,7 @@ func (s *Service) ListForUser(userID int64, username string) ([]ChannelWithUnrea
 				  AND lower(json_each.value) = lower(?)
 			) AS has_mention
 		FROM channels c
-		LEFT JOIN channel_members cm ON cm.channel_id = c.id AND cm.user_id = ?
+		LEFT JOIN channel_reads cm ON cm.channel_id = c.id AND cm.user_id = ?
 		ORDER BY c.name
 	`, username, userID)
 	if err != nil {
@@ -169,12 +131,13 @@ func (s *Service) ListForUser(userID int64, username string) ([]ChannelWithUnrea
 }
 
 // MarkRead updates the last-read message ID for a user in a channel.
-// The cursor only moves forward (MAX prevents going backward).
+// Uses upsert so it works without pre-existing rows. Cursor only moves forward.
 func (s *Service) MarkRead(channelID, userID, msgID int64) error {
 	_, err := s.db.Exec(`
-		UPDATE channel_members
-		SET last_read_msg_id = MAX(COALESCE(last_read_msg_id, 0), ?)
-		WHERE channel_id = ? AND user_id = ?
-	`, msgID, channelID, userID)
+		INSERT INTO channel_reads (channel_id, user_id, last_read_msg_id)
+		VALUES (?, ?, ?)
+		ON CONFLICT(channel_id, user_id) DO UPDATE
+		SET last_read_msg_id = MAX(COALESCE(channel_reads.last_read_msg_id, 0), excluded.last_read_msg_id)
+	`, channelID, userID, msgID)
 	return err
 }

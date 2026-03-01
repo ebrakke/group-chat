@@ -71,17 +71,11 @@ func main() {
 	if os.Getenv("DEV_MODE") == "true" {
 		hasUsers, err := authSvc.HasUsers()
 		if err == nil && !hasUsers {
-			user, _, err := authSvc.Bootstrap("admin", "admin", "Dev Admin")
+			_, _, err := authSvc.Bootstrap("admin", "admin", "Dev Admin")
 			if err != nil {
 				log.Printf("Dev mode: failed to auto-bootstrap admin user: %v", err)
 			} else {
 				log.Printf("Dev mode: auto-bootstrapped admin/admin user")
-				// Add admin to #general
-				ch, err := chanSvc.EnsureGeneral()
-				if err == nil {
-					chanSvc.AddMember(ch.ID, user.ID)
-					log.Printf("Dev mode: added admin to #general")
-				}
 			}
 		}
 	}

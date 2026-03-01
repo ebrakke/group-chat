@@ -18,8 +18,6 @@ func setupTestDB(t *testing.T) *db.DB {
 	d.Exec("INSERT INTO users (username, display_name, password_hash, role) VALUES ('alice', 'Alice', 'hash', 'admin')")
 	d.Exec("INSERT INTO users (username, display_name, password_hash, role) VALUES ('bob', 'Bob', 'hash', 'member')")
 	d.Exec("INSERT INTO channels (name) VALUES ('general')")
-	d.Exec("INSERT INTO channel_members (channel_id, user_id) VALUES (1, 1)")
-	d.Exec("INSERT INTO channel_members (channel_id, user_id) VALUES (1, 2)")
 	d.Exec("INSERT INTO messages (channel_id, user_id, content, created_at) VALUES (1, 1, 'hello', '2024-01-01T00:00:00Z')")
 	d.Exec("INSERT INTO messages (channel_id, user_id, content, created_at) VALUES (1, 2, 'world', '2024-01-01T00:00:01Z')")
 

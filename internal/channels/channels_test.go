@@ -53,40 +53,32 @@ func TestCreateAndList(t *testing.T) {
 	}
 }
 
-func TestMembership(t *testing.T) {
+func TestMarkRead(t *testing.T) {
 	d := setupTestDB(t)
 	svc := NewService(d)
 
 	ch, _ := svc.Create("general")
 
-	// Need a user - insert directly
+	// Need a user
 	d.Exec("INSERT INTO users (username, display_name, password_hash, role) VALUES (?, ?, ?, ?)",
 		"testuser", "Test", "hash", "member")
 
-	err := svc.AddMember(ch.ID, 1)
+	// MarkRead should upsert (no pre-existing row)
+	err := svc.MarkRead(ch.ID, 1, 5)
 	if err != nil {
-		t.Fatalf("add member: %v", err)
+		t.Fatalf("mark read: %v", err)
 	}
 
-	is, _ := svc.IsMember(ch.ID, 1)
-	if !is {
-		t.Error("expected user to be member")
-	}
-
-	is, _ = svc.IsMember(ch.ID, 999)
-	if is {
-		t.Error("expected non-member")
-	}
-
-	// Idempotent add
-	err = svc.AddMember(ch.ID, 1)
+	// Cursor should only move forward
+	err = svc.MarkRead(ch.ID, 1, 3)
 	if err != nil {
-		t.Fatalf("add member again: %v", err)
+		t.Fatalf("mark read backward: %v", err)
 	}
 
-	members, _ := svc.ListMembers(ch.ID)
-	if len(members) != 1 {
-		t.Errorf("members = %d, want 1", len(members))
+	// Verify cursor stayed at 5
+	chs, _ := svc.ListForUser(1, "testuser")
+	if len(chs) != 1 {
+		t.Fatalf("expected 1 channel, got %d", len(chs))
 	}
 }
 

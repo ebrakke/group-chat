@@ -1,4 +1,4 @@
-export type ThemeId = 'parchment' | 'terminal' | 'midnight' | 'dracula' | 'solarized';
+export type ThemeId = 'parchment' | 'terminal' | 'midnight' | 'dracula' | 'solarized' | 'synthwave' | 'coffee' | 'nord' | 'sakura';
 
 export interface ThemeInfo {
   id: ThemeId;
@@ -31,6 +31,26 @@ export const THEMES: ThemeInfo[] = [
     id: 'solarized',
     name: 'Solarized',
     colors: { bg: 'oklch(0.94 0.03 90)', fg: 'oklch(0.27 0.05 230)', accent: 'oklch(0.52 0.12 150)' }
+  },
+  {
+    id: 'synthwave',
+    name: 'Synthwave',
+    colors: { bg: 'oklch(0.12 0.03 290)', fg: 'oklch(0.90 0.03 220)', accent: 'oklch(0.65 0.25 350)' }
+  },
+  {
+    id: 'coffee',
+    name: 'Coffee',
+    colors: { bg: 'oklch(0.18 0.03 55)', fg: 'oklch(0.90 0.03 80)', accent: 'oklch(0.60 0.15 55)' }
+  },
+  {
+    id: 'nord',
+    name: 'Nord',
+    colors: { bg: 'oklch(0.18 0.015 240)', fg: 'oklch(0.92 0.01 230)', accent: 'oklch(0.70 0.15 160)' }
+  },
+  {
+    id: 'sakura',
+    name: 'Sakura',
+    colors: { bg: 'oklch(0.95 0.025 350)', fg: 'oklch(0.22 0.05 330)', accent: 'oklch(0.60 0.15 350)' }
   }
 ];
 

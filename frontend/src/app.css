@@ -171,3 +171,103 @@ html, body {
   --rc-input-bg: oklch(0.90 0.032 90);
 }
 
+[data-theme="synthwave"] {
+  color-scheme: dark;
+
+  --background: oklch(0.12 0.03 290);
+  --foreground: oklch(0.90 0.03 220);
+  --border: oklch(0.28 0.05 290);
+
+  --rc-sidebar-bg: oklch(0.09 0.035 290);
+  --rc-channel-active-bg: oklch(0.65 0.25 350);
+  --rc-channel-active-fg: oklch(0.97 0.01 350);
+  --rc-message-hover: oklch(0.16 0.035 290);
+  --rc-timestamp: oklch(0.55 0.08 220);
+  --rc-link: oklch(0.75 0.12 200);
+  --rc-mention-badge: oklch(0.65 0.25 350);
+  --rc-mention-bg: oklch(0.25 0.08 350 / 0.4);
+  --rc-thread-bg: oklch(0.14 0.03 290);
+  --rc-olive: oklch(0.75 0.12 200);
+  --rc-divider-label: oklch(0.45 0.06 290);
+
+  --rc-muted: oklch(0.18 0.04 290);
+  --rc-muted-fg: oklch(0.55 0.06 220);
+  --rc-destructive: oklch(0.65 0.20 25);
+  --rc-input-bg: oklch(0.16 0.035 290);
+}
+
+[data-theme="coffee"] {
+  color-scheme: dark;
+
+  --background: oklch(0.18 0.03 55);
+  --foreground: oklch(0.90 0.03 80);
+  --border: oklch(0.32 0.04 55);
+
+  --rc-sidebar-bg: oklch(0.14 0.03 55);
+  --rc-channel-active-bg: oklch(0.60 0.15 55);
+  --rc-channel-active-fg: oklch(0.97 0.02 80);
+  --rc-message-hover: oklch(0.22 0.035 55);
+  --rc-timestamp: oklch(0.55 0.05 65);
+  --rc-link: oklch(0.70 0.10 80);
+  --rc-mention-badge: oklch(0.60 0.15 55);
+  --rc-mention-bg: oklch(0.28 0.06 55 / 0.4);
+  --rc-thread-bg: oklch(0.20 0.03 55);
+  --rc-olive: oklch(0.70 0.10 80);
+  --rc-divider-label: oklch(0.48 0.04 60);
+
+  --rc-muted: oklch(0.24 0.035 55);
+  --rc-muted-fg: oklch(0.55 0.05 65);
+  --rc-destructive: oklch(0.60 0.18 25);
+  --rc-input-bg: oklch(0.22 0.035 55);
+}
+
+[data-theme="nord"] {
+  color-scheme: dark;
+
+  --background: oklch(0.18 0.015 240);
+  --foreground: oklch(0.92 0.01 230);
+  --border: oklch(0.30 0.02 240);
+
+  --rc-sidebar-bg: oklch(0.15 0.015 240);
+  --rc-channel-active-bg: oklch(0.70 0.15 160);
+  --rc-channel-active-fg: oklch(0.15 0.015 240);
+  --rc-message-hover: oklch(0.22 0.018 240);
+  --rc-timestamp: oklch(0.55 0.02 230);
+  --rc-link: oklch(0.72 0.10 230);
+  --rc-mention-badge: oklch(0.65 0.15 30);
+  --rc-mention-bg: oklch(0.28 0.05 30 / 0.35);
+  --rc-thread-bg: oklch(0.20 0.015 240);
+  --rc-olive: oklch(0.70 0.15 160);
+  --rc-divider-label: oklch(0.48 0.02 230);
+
+  --rc-muted: oklch(0.24 0.018 240);
+  --rc-muted-fg: oklch(0.55 0.02 230);
+  --rc-destructive: oklch(0.65 0.18 25);
+  --rc-input-bg: oklch(0.22 0.018 240);
+}
+
+[data-theme="sakura"] {
+  color-scheme: light;
+
+  --background: oklch(0.95 0.025 350);
+  --foreground: oklch(0.22 0.05 330);
+  --border: oklch(0.82 0.04 350);
+
+  --rc-sidebar-bg: oklch(0.92 0.03 350);
+  --rc-channel-active-bg: oklch(0.22 0.05 330);
+  --rc-channel-active-fg: oklch(0.95 0.025 350);
+  --rc-message-hover: oklch(0.93 0.028 350);
+  --rc-timestamp: oklch(0.52 0.05 340);
+  --rc-link: oklch(0.45 0.12 330);
+  --rc-mention-badge: oklch(0.55 0.18 350);
+  --rc-mention-bg: oklch(0.90 0.04 350 / 0.5);
+  --rc-thread-bg: oklch(0.93 0.028 350);
+  --rc-olive: oklch(0.60 0.15 350);
+  --rc-divider-label: oklch(0.55 0.04 340);
+
+  --rc-muted: oklch(0.89 0.03 350);
+  --rc-muted-fg: oklch(0.48 0.04 340);
+  --rc-destructive: oklch(0.50 0.20 25);
+  --rc-input-bg: oklch(0.91 0.03 350);
+}
+

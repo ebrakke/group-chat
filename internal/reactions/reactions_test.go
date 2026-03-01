@@ -158,6 +158,9 @@ func TestSummaryForMessages(t *testing.T) {
 			if len(s.UserIDs) != 2 {
 				t.Errorf("👍 userIds = %d, want 2", len(s.UserIDs))
 			}
+			if len(s.UserNames) != 2 {
+				t.Errorf("👍 userNames = %d, want 2", len(s.UserNames))
+			}
 		}
 	}
 	if !found {

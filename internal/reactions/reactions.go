@@ -43,9 +43,10 @@ type Reaction struct {
 
 // ReactionSummary is an aggregated view of reactions per emoji on a message.
 type ReactionSummary struct {
-	Emoji   string  `json:"emoji"`
-	Count   int     `json:"count"`
-	UserIDs []int64 `json:"userIds"`
+	Emoji     string   `json:"emoji"`
+	Count     int      `json:"count"`
+	UserIDs   []int64  `json:"userIds"`
+	UserNames []string `json:"userNames"`
 }
 
 // Service provides reaction operations.
@@ -188,11 +189,14 @@ func (s *Service) SummaryForMessages(messageIDs []int64) (map[int64][]ReactionSu
 	}
 
 	rows, err := s.db.Query(
-		fmt.Sprintf(`SELECT message_id, emoji, COUNT(*) as cnt, GROUP_CONCAT(user_id) as user_ids
-			FROM reactions
-			WHERE message_id IN (%s)
-			GROUP BY message_id, emoji
-			ORDER BY message_id, MIN(id)`, string(placeholders)),
+		fmt.Sprintf(`SELECT r.message_id, r.emoji, COUNT(*) as cnt,
+			GROUP_CONCAT(r.user_id) as user_ids,
+			GROUP_CONCAT(u.display_name) as user_names
+			FROM reactions r
+			JOIN users u ON r.user_id = u.id
+			WHERE r.message_id IN (%s)
+			GROUP BY r.message_id, r.emoji
+			ORDER BY r.message_id, MIN(r.id)`, string(placeholders)),
 		args...,
 	)
 	if err != nil {
@@ -206,7 +210,8 @@ func (s *Service) SummaryForMessages(messageIDs []int64) (map[int64][]ReactionSu
 		var emoji string
 		var count int
 		var userIDsStr string
-		if err := rows.Scan(&msgID, &emoji, &count, &userIDsStr); err != nil {
+		var userNamesStr string
+		if err := rows.Scan(&msgID, &emoji, &count, &userIDsStr, &userNamesStr); err != nil {
 			return nil, err
 		}
 		var userIDs []int64
@@ -217,10 +222,12 @@ func (s *Service) SummaryForMessages(messageIDs []int64) (map[int64][]ReactionSu
 				userIDs = append(userIDs, uid)
 			}
 		}
+		userNames := splitCSV(userNamesStr)
 		result[msgID] = append(result[msgID], ReactionSummary{
-			Emoji:   emoji,
-			Count:   count,
-			UserIDs: userIDs,
+			Emoji:     emoji,
+			Count:     count,
+			UserIDs:   userIDs,
+			UserNames: userNames,
 		})
 	}
 	return result, rows.Err()

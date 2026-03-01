@@ -16,8 +16,8 @@
     loading = false;
   });
 
-  function navigateToThread(channelId: number, parentId: number) {
-    goto(`/channels/${channelId}?thread=${parentId}`);
+  function navigateToThread(channelName: string, parentId: number) {
+    goto(`/channels/${channelName}?thread=${parentId}`);
   }
 </script>
 
@@ -42,7 +42,7 @@
         <button
           class="w-full text-left px-5 py-3 border-b transition-colors hover:opacity-80"
           style="border-color: var(--border);"
-          onclick={() => navigateToThread(thread.channelId, thread.parentId)}
+          onclick={() => navigateToThread(thread.channelName, thread.parentId)}
         >
           <div class="flex items-center justify-between mb-1">
             <span class="text-[12px]" style="color: var(--rc-timestamp);">

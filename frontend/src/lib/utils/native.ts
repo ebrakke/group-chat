@@ -30,10 +30,11 @@ export async function initNativeNotifications(): Promise<void> {
         const extra = event.notification?.extra;
         if (!extra) return;
 
-        if (extra.threadId && extra.channelId) {
-          window.location.href = `/channels/${extra.channelId}?thread=${extra.threadId}`;
-        } else if (extra.channelId) {
-          window.location.href = `/channels/${extra.channelId}`;
+        const slug = extra.channelName || extra.channelId;
+        if (extra.threadId && slug) {
+          window.location.href = `/channels/${slug}?thread=${extra.threadId}`;
+        } else if (slug) {
+          window.location.href = `/channels/${slug}`;
         }
       }
     );
@@ -57,7 +58,7 @@ export async function initNativeNotifications(): Promise<void> {
 export async function showNativeNotification(
   title: string,
   body: string,
-  data?: { channelId?: number; threadId?: number }
+  data?: { channelId?: number; threadId?: number; channelName?: string }
 ): Promise<void> {
   if (!isNative()) return;
 

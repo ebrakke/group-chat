@@ -80,6 +80,7 @@ class WebSocketManager {
             showBrowserNotification(channelName, `${payload.displayName}: ${preview}`);
             showNativeNotification(channelName, `${payload.displayName}: ${preview}`, {
               channelId: payload.channelId,
+              channelName: ch?.name,
             });
           }
         }
@@ -95,6 +96,7 @@ class WebSocketManager {
             showNativeNotification('Thread reply', `${payload.displayName}: ${preview}`, {
               channelId: payload.channelId,
               threadId: payload.parentId,
+              channelName: channelStore.getNameById(payload.channelId),
             });
           }
         }

@@ -12,9 +12,10 @@
   import ThreadPanel from '$lib/components/ThreadPanel.svelte';
   import ProfilePanel from '$lib/components/ProfilePanel.svelte';
 
-  let channelId = $derived(Number($page.params.id));
-  let channel = $derived(channelStore.channels.find((c) => c.id === channelId));
-  let messages = $derived(messageStore.getMessages(channelId));
+  let channelSlug = $derived($page.params.id);
+  let channel = $derived(channelStore.getByName(channelSlug));
+  let channelId = $derived(channel?.id ?? 0);
+  let messages = $derived(channelId ? messageStore.getMessages(channelId) : []);
   let threadOpen = $derived(threadStore.openThreadId !== null);
 
   let loaded = $state(false);
@@ -44,6 +45,18 @@
     }
     loaded = true;
   }
+
+  // Backward compat: redirect numeric IDs to slug
+  $effect(() => {
+    const slug = channelSlug;
+    if (/^\d+$/.test(slug)) {
+      const name = channelStore.getNameById(Number(slug));
+      if (name) {
+        goto(`/channels/${name}`, { replaceState: true });
+        return;
+      }
+    }
+  });
 
   // Load messages when channel changes
   $effect(() => {
@@ -110,11 +123,11 @@
   }
 
   function openThread(parentId: number) {
-    goto(`/channels/${channelId}?thread=${parentId}`);
+    goto(`/channels/${channelSlug}?thread=${parentId}`);
   }
 
   function closeThread() {
-    goto(`/channels/${channelId}`);
+    goto(`/channels/${channelSlug}`);
   }
 
   function openProfile(profile: ProfileData) {

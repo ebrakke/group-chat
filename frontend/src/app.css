@@ -124,6 +124,28 @@ html, body {
   --rc-input-bg: oklch(0.19 0.025 280);
 }
 
+/* Mention & channel mention styling */
+.rc-mention {
+  background: var(--rc-mention-bg);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-weight: 600;
+}
+
+.rc-channel-mention {
+  background: var(--rc-mention-bg);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-weight: 600;
+  text-decoration: none;
+  color: inherit;
+}
+
+.rc-channel-mention:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 [data-theme="solarized"] {
   color-scheme: light;
 

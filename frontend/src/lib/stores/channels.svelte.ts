@@ -46,6 +46,14 @@ class ChannelStore {
       this.channels = [...this.channels, channel];
     }
   }
+
+  getByName(name: string): Channel | undefined {
+    return this.channels.find((c) => c.name === name);
+  }
+
+  getNameById(id: number): string | undefined {
+    return this.channels.find((c) => c.id === id)?.name;
+  }
 }
 
 export const channelStore = new ChannelStore();

@@ -36,8 +36,8 @@
     }, 300);
   }
 
-  function navigateToResult(result: { channelId: number; parentId?: number }) {
-    const url = `/channels/${result.channelId}` + (result.parentId ? `?thread=${result.parentId}` : '');
+  function navigateToResult(result: { channelName: string; parentId?: number }) {
+    const url = `/channels/${result.channelName}` + (result.parentId ? `?thread=${result.parentId}` : '');
     searchStore.close();
     goto(url);
   }

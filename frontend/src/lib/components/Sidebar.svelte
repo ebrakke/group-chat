@@ -24,8 +24,8 @@
     input.value = newChannelName;
   }
 
-  function navigateToChannel(id: number) {
-    goto(`/channels/${id}`);
+  function navigateToChannel(name: string) {
+    goto(`/channels/${name}`);
     onCloseSidebar?.();
   }
 
@@ -39,7 +39,7 @@
       const channel = await channelStore.create(name);
       showCreateModal = false;
       newChannelName = '';
-      goto(`/channels/${channel.id}`);
+      goto(`/channels/${channel.name}`);
       onCloseSidebar?.();
     } catch (err: unknown) {
       createError = err instanceof Error ? err.message : 'Failed to create channel';
@@ -98,7 +98,7 @@
         {@const active = channelStore.activeChannelId === channel.id}
         <li>
           <button
-            onclick={() => navigateToChannel(channel.id)}
+            onclick={() => navigateToChannel(channel.name)}
             class="w-full flex items-center gap-1.5 px-4 py-2 text-[13px] text-left"
             style="background: {active ? 'var(--rc-channel-active-bg)' : 'transparent'}; color: {active ? 'var(--rc-channel-active-fg)' : 'var(--foreground)'};"
             aria-current={active ? 'page' : undefined}

@@ -5,7 +5,7 @@
   // Auto-redirect to the first channel when channels are loaded
   $effect(() => {
     if (channelStore.channels.length > 0) {
-      goto(`/channels/${channelStore.channels[0].id}`, { replaceState: true });
+      goto(`/channels/${channelStore.channels[0].name}`, { replaceState: true });
     }
   });
 </script>

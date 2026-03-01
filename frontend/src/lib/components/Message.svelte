@@ -278,13 +278,13 @@
       {#if onOpenThread}
         <button
           bind:this={reactBtnEl}
-          class="reaction-add-btn text-[15px] px-1.5 py-0.5 cursor-pointer hover:opacity-60"
+          class="reaction-add-btn text-[18px] px-2 py-1 cursor-pointer hover:opacity-60"
           style="color: var(--rc-timestamp); background: transparent;"
           onclick={(e) => { e.stopPropagation(); showPicker = !showPicker; showMoreMenu = false; }}
           title="React"
         >&#x263A;</button>
         <button
-          class="reply-btn text-[15px] px-1.5 py-0.5 cursor-pointer hover:opacity-60"
+          class="reply-btn text-[18px] px-2 py-1 cursor-pointer hover:opacity-60"
           style="color: var(--rc-timestamp); background: transparent;"
           onclick={(e) => { e.stopPropagation(); onOpenThread?.(message.id); }}
           title="Reply in thread"
@@ -293,7 +293,7 @@
       {#if canEdit || canDelete}
         <div class="relative">
           <button
-            class="text-[15px] px-1.5 py-0.5 cursor-pointer hover:opacity-60"
+            class="text-[18px] px-2 py-1 cursor-pointer hover:opacity-60"
             style="color: var(--rc-timestamp); background: transparent;"
             onclick={(e) => { e.stopPropagation(); showMoreMenu = !showMoreMenu; showPicker = false; }}
             title="More actions"

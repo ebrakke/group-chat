@@ -9,6 +9,7 @@
   import LinkPreview from './LinkPreview.svelte';
   import FilePreview from './FilePreview.svelte';
   import Avatar from './Avatar.svelte';
+  import ProfileCard from './ProfileCard.svelte';
 
   let {
     message,
@@ -34,6 +35,8 @@
   let editing = $state(false);
   let editText = $state('');
   let touchTimer: ReturnType<typeof setTimeout> | undefined;
+  let showProfileCard = $state(false);
+  let profileCardAnchorRect: DOMRect | null = $state(null);
 
   const EMOJI_LIST = [
     '\u{1F44D}',
@@ -210,6 +213,13 @@
       cancelEdit();
     }
   }
+
+  function handleProfileClick(e: MouseEvent) {
+    e.stopPropagation();
+    const target = e.currentTarget as HTMLElement;
+    profileCardAnchorRect = target.getBoundingClientRect();
+    showProfileCard = true;
+  }
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -230,9 +240,14 @@
         class="text-[11px] tabular-nums shrink-0 select-none w-9 self-baseline"
         style="color: var(--rc-timestamp);"
       >{formatTime(message.createdAt)}</span>
-      <Avatar url={message.avatarUrl} displayName={message.displayName} username={message.username} size={compact ? 28 : 36} />
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <span class="cursor-pointer" onclick={handleProfileClick}>
+        <Avatar url={message.avatarUrl} displayName={message.displayName} username={message.username} size={compact ? 28 : 36} />
+      </span>
       <div class="flex items-baseline gap-1.5 min-w-0">
-        <span class="text-[13px] font-bold truncate" style="color: var(--foreground);">
+        <!-- svelte-ignore a11y_no_static_element_interactions -->
+        <span class="text-[13px] font-bold truncate cursor-pointer hover:underline underline-offset-2" style="color: var(--foreground);"
+              onclick={handleProfileClick}>
           {message.displayName}
         </span>
         {#if message.isBot}
@@ -395,6 +410,20 @@
     </div>
   {/if}
 </div>
+
+<!-- Profile Card -->
+{#if showProfileCard && profileCardAnchorRect}
+  <ProfileCard
+    displayName={message.displayName}
+    username={message.username}
+    avatarUrl={message.avatarUrl}
+    role={message.role}
+    userCreatedAt={message.userCreatedAt}
+    isBot={message.isBot}
+    anchorRect={profileCardAnchorRect}
+    onClose={() => (showProfileCard = false)}
+  />
+{/if}
 
 <!-- Mobile bottom sheet (rendered outside message div for proper fixed positioning) -->
 {#if showBottomSheet}

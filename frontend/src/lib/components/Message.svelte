@@ -115,6 +115,14 @@
     }
   }
 
+  // Browser steals gesture (e.g. iOS swipe-back) — cancel the timer
+  function handleTouchCancel() {
+    if (touchTimer) {
+      clearTimeout(touchTimer);
+      touchTimer = undefined;
+    }
+  }
+
   function closeBottomSheet() {
     showBottomSheet = false;
     bottomSheetReacting = false;
@@ -236,6 +244,7 @@
   ontouchstart={handleTouchStart}
   ontouchend={handleTouchEnd}
   ontouchmove={handleTouchMove}
+  ontouchcancel={handleTouchCancel}
 >
   {#if !grouped}
     <!-- Header: avatar + author + timestamp (Slack-style) -->

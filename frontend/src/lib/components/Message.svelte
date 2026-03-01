@@ -92,6 +92,9 @@
   function handleTouchStart(e: TouchEvent) {
     const target = e.target as HTMLElement;
     if (target.closest('a, button, .reaction-pill')) return;
+    // Don't trigger long-press for edge swipes (sidebar gesture zone)
+    const touch = e.touches[0];
+    if (touch.clientX < 30) return;
     touchTimer = setTimeout(() => {
       touchTimer = undefined;
       showBottomSheet = true;

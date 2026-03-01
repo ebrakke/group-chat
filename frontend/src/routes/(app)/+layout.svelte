@@ -66,6 +66,11 @@
           goto('/channels');
           return true;
         }
+        // On a channel page — open sidebar instead of closing app
+        if (pathname.startsWith('/channels/') && !sidebarOpen) {
+          sidebarOpen = true;
+          return true;
+        }
         return false;
       }
     });

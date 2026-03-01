@@ -227,7 +227,7 @@
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
   class="message relative"
-  style="padding-left: {isTouch ? '12px' : compact ? '12px' : '16px'}; padding-right: {isTouch ? '12px' : compact ? '12px' : '16px'}; margin-top: {grouped ? '1px' : compact ? '8px' : isTouch ? '8px' : '16px'}; background: {hovered ? 'var(--rc-message-hover)' : 'transparent'};"
+  style="padding-left: {isTouch ? '12px' : compact ? '12px' : '16px'}; padding-right: {isTouch ? '12px' : compact ? '12px' : '16px'}; margin-top: {grouped ? '1px' : compact ? '8px' : isTouch ? '8px' : '16px'}; background: {hovered ? 'var(--rc-message-hover)' : 'transparent'}; {isTouch ? '-webkit-user-select: none; user-select: none; -webkit-touch-callout: none;' : ''}"
   onmouseenter={() => (hovered = true)}
   onmouseleave={() => { hovered = false; showMoreMenu = false; }}
   ontouchstart={handleTouchStart}

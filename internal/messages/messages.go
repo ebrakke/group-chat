@@ -35,6 +35,7 @@ type Message struct {
 	DisplayName  string        `json:"displayName"`
 	ReplyCount   int           `json:"replyCount,omitempty"`
 	IsBot        bool          `json:"isBot,omitempty"`
+	AvatarURL    string        `json:"avatarUrl,omitempty"`
 	Mentions     []string      `json:"mentions,omitempty"`
 	LinkPreviews []LinkPreview `json:"linkPreviews,omitempty"`
 	EditedAt     *string       `json:"editedAt,omitempty"`
@@ -178,17 +179,18 @@ func (s *Service) GetByID(id int64) (*Message, error) {
 	var editedAt sql.NullString
 	var deletedAt sql.NullString
 	var role string
+	var avatarFileID sql.NullInt64
 	err := s.db.QueryRow(`
 		SELECT m.id, m.channel_id, m.user_id, m.parent_id, m.content, m.event_id, m.link_previews, m.created_at,
 		       m.edited_at, m.deleted_at,
-		       u.username, u.display_name, u.role,
+		       u.username, u.display_name, u.role, u.profile_picture_id,
 		       (SELECT COUNT(*) FROM messages r WHERE r.parent_id = m.id AND r.deleted_at IS NULL) as reply_count
 		FROM messages m
 		JOIN users u ON m.user_id = u.id
 		WHERE m.id = ?
 	`, id).Scan(&m.ID, &m.ChannelID, &m.UserID, &parentID, &m.Content, &eventID, &previewsJSON, &m.CreatedAt,
 		&editedAt, &deletedAt,
-		&m.Username, &m.DisplayName, &role, &m.ReplyCount)
+		&m.Username, &m.DisplayName, &role, &avatarFileID, &m.ReplyCount)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
 	}
@@ -196,6 +198,9 @@ func (s *Service) GetByID(id int64) (*Message, error) {
 		return nil, err
 	}
 	m.IsBot = role == "bot"
+	if avatarFileID.Valid {
+		m.AvatarURL = fmt.Sprintf("/api/files/%d", avatarFileID.Int64)
+	}
 	m.Mentions = extractMentions(m.Content)
 	if parentID.Valid {
 		m.ParentID = &parentID.Int64
@@ -279,7 +284,7 @@ func (s *Service) ListChannel(channelID int64, limit int, before int64) ([]Messa
 		rows, err = s.db.Query(`
 			SELECT m.id, m.channel_id, m.user_id, m.content, m.event_id, m.link_previews, m.created_at,
 			       m.edited_at, m.deleted_at,
-			       u.username, u.display_name, u.role,
+			       u.username, u.display_name, u.role, u.profile_picture_id,
 			       (SELECT COUNT(*) FROM messages r WHERE r.parent_id = m.id AND r.deleted_at IS NULL) as reply_count
 			FROM messages m
 			JOIN users u ON m.user_id = u.id
@@ -290,7 +295,7 @@ func (s *Service) ListChannel(channelID int64, limit int, before int64) ([]Messa
 		rows, err = s.db.Query(`
 			SELECT m.id, m.channel_id, m.user_id, m.content, m.event_id, m.link_previews, m.created_at,
 			       m.edited_at, m.deleted_at,
-			       u.username, u.display_name, u.role,
+			       u.username, u.display_name, u.role, u.profile_picture_id,
 			       (SELECT COUNT(*) FROM messages r WHERE r.parent_id = m.id AND r.deleted_at IS NULL) as reply_count
 			FROM messages m
 			JOIN users u ON m.user_id = u.id
@@ -311,12 +316,16 @@ func (s *Service) ListChannel(channelID int64, limit int, before int64) ([]Messa
 		var editedAt sql.NullString
 		var deletedAt sql.NullString
 		var role string
+		var avatarFileID sql.NullInt64
 		if err := rows.Scan(&m.ID, &m.ChannelID, &m.UserID, &m.Content, &eventID, &previewsJSON, &m.CreatedAt,
 			&editedAt, &deletedAt,
-			&m.Username, &m.DisplayName, &role, &m.ReplyCount); err != nil {
+			&m.Username, &m.DisplayName, &role, &avatarFileID, &m.ReplyCount); err != nil {
 			return nil, err
 		}
 		m.IsBot = role == "bot"
+		if avatarFileID.Valid {
+			m.AvatarURL = fmt.Sprintf("/api/files/%d", avatarFileID.Int64)
+		}
 		m.Mentions = extractMentions(m.Content)
 		if eventID.Valid {
 			m.EventID = eventID.String
@@ -347,7 +356,7 @@ func (s *Service) ListThread(parentID int64, limit int, before int64) ([]Message
 		rows, err = s.db.Query(`
 			SELECT m.id, m.channel_id, m.user_id, m.parent_id, m.content, m.event_id, m.link_previews, m.created_at,
 			       m.edited_at, m.deleted_at,
-			       u.username, u.display_name, u.role
+			       u.username, u.display_name, u.role, u.profile_picture_id
 			FROM messages m
 			JOIN users u ON m.user_id = u.id
 			WHERE m.parent_id = ? AND m.deleted_at IS NULL AND m.id < ?
@@ -357,7 +366,7 @@ func (s *Service) ListThread(parentID int64, limit int, before int64) ([]Message
 		rows, err = s.db.Query(`
 			SELECT m.id, m.channel_id, m.user_id, m.parent_id, m.content, m.event_id, m.link_previews, m.created_at,
 			       m.edited_at, m.deleted_at,
-			       u.username, u.display_name, u.role
+			       u.username, u.display_name, u.role, u.profile_picture_id
 			FROM messages m
 			JOIN users u ON m.user_id = u.id
 			WHERE m.parent_id = ? AND m.deleted_at IS NULL
@@ -378,12 +387,16 @@ func (s *Service) ListThread(parentID int64, limit int, before int64) ([]Message
 		var editedAt sql.NullString
 		var deletedAt sql.NullString
 		var role string
+		var avatarFileID sql.NullInt64
 		if err := rows.Scan(&m.ID, &m.ChannelID, &m.UserID, &parentID, &m.Content, &eventID, &previewsJSON, &m.CreatedAt,
 			&editedAt, &deletedAt,
-			&m.Username, &m.DisplayName, &role); err != nil {
+			&m.Username, &m.DisplayName, &role, &avatarFileID); err != nil {
 			return nil, err
 		}
 		m.IsBot = role == "bot"
+		if avatarFileID.Valid {
+			m.AvatarURL = fmt.Sprintf("/api/files/%d", avatarFileID.Int64)
+		}
 		m.Mentions = extractMentions(m.Content)
 		if parentID.Valid {
 			m.ParentID = &parentID.Int64

@@ -74,6 +74,8 @@ func (h *Handler) routes() {
 
 	// Account
 	h.mux.HandleFunc("POST /api/account/password", h.handleChangePassword)
+	h.mux.HandleFunc("PUT /api/account/avatar", h.handleUploadAvatar)
+	h.mux.HandleFunc("DELETE /api/account/avatar", h.handleDeleteAvatar)
 
 	// Invites
 	h.mux.HandleFunc("POST /api/invites", h.handleCreateInvite)
@@ -305,6 +307,96 @@ func (h *Handler) handleChangePassword(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func (h *Handler) handleUploadAvatar(w http.ResponseWriter, r *http.Request) {
+	user, err := h.requireAuth(r)
+	if err != nil {
+		writeErr(w, http.StatusUnauthorized, err)
+		return
+	}
+
+	if err := r.ParseMultipartForm(5 << 20); err != nil {
+		writeErr(w, http.StatusBadRequest, errors.New("invalid multipart form"))
+		return
+	}
+
+	file, header, err := r.FormFile("file")
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, errors.New("file field required"))
+		return
+	}
+	defer file.Close()
+
+	// Detect MIME type server-side
+	buf := make([]byte, 512)
+	n, err := file.Read(buf)
+	if err != nil && err != io.EOF {
+		writeErr(w, http.StatusInternalServerError, errors.New("failed to read file"))
+		return
+	}
+	mimeType := http.DetectContentType(buf[:n])
+	if _, err := file.Seek(0, io.SeekStart); err != nil {
+		writeErr(w, http.StatusInternalServerError, errors.New("failed to seek file"))
+		return
+	}
+
+	if !files.IsImage(mimeType) {
+		writeErr(w, http.StatusBadRequest, errors.New("file must be an image"))
+		return
+	}
+
+	// Delete old avatar file if exists
+	oldFileID, _ := h.auth.GetProfilePictureFileID(user.ID)
+	if oldFileID > 0 {
+		h.files.Delete(oldFileID)
+	}
+
+	f, err := h.files.Upload(user.ID, header.Filename, mimeType, header.Size, file)
+	if errors.Is(err, files.ErrTooLarge) {
+		writeErr(w, http.StatusRequestEntityTooLarge, err)
+		return
+	}
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	if err := h.auth.SetProfilePicture(user.ID, f.ID); err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	updated, err := h.auth.GetUserByID(user.ID)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, updated)
+}
+
+func (h *Handler) handleDeleteAvatar(w http.ResponseWriter, r *http.Request) {
+	user, err := h.requireAuth(r)
+	if err != nil {
+		writeErr(w, http.StatusUnauthorized, err)
+		return
+	}
+
+	fileID, err := h.auth.ClearProfilePicture(user.ID)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	if fileID > 0 {
+		h.files.Delete(fileID)
+	}
+
+	updated, err := h.auth.GetUserByID(user.ID)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, updated)
 }
 
 // --- Invite handlers ---

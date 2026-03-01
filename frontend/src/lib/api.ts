@@ -1,5 +1,5 @@
 import { getApiBase, isNative } from './utils/platform';
-import type { FileAttachment } from './types';
+import type { FileAttachment, User } from './types';
 
 let sessionToken: string | null = null;
 
@@ -58,4 +58,28 @@ export async function uploadFile(file: globalThis.File, messageId?: number): Pro
   const data = await res.json();
   if (!res.ok) throw new Error(data.error || 'Upload failed');
   return data as FileAttachment;
+}
+
+export async function uploadAvatar(file: globalThis.File): Promise<User> {
+  const form = new FormData();
+  form.append('file', file);
+
+  const headers: Record<string, string> = {};
+  const opts: RequestInit = { method: 'PUT', body: form, headers };
+
+  if (isNative() && sessionToken) {
+    headers['Authorization'] = `Bearer ${sessionToken}`;
+  } else {
+    opts.credentials = 'include';
+  }
+
+  const base = getApiBase();
+  const res = await fetch(`${base}/api/account/avatar`, opts);
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Upload failed');
+  return data as User;
+}
+
+export async function deleteAvatar(): Promise<User> {
+  return api<User>('DELETE', '/api/account/avatar');
 }

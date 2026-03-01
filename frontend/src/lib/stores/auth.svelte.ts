@@ -1,4 +1,4 @@
-import { api, setSessionToken, getSessionToken } from '$lib/api';
+import { api, setSessionToken, getSessionToken, uploadAvatar, deleteAvatar } from '$lib/api';
 import type { User } from '$lib/types';
 
 class AuthStore {
@@ -75,6 +75,16 @@ class AuthStore {
     }
     this.user = null;
     setSessionToken(null);
+  }
+
+  async updateAvatar(file: File) {
+    const updated = await uploadAvatar(file);
+    this.user = updated;
+  }
+
+  async removeAvatar() {
+    const updated = await deleteAvatar();
+    this.user = updated;
   }
 }
 

@@ -4,6 +4,7 @@ export interface User {
   displayName: string;
   role: 'admin' | 'member';
   isBot?: boolean;
+  avatarUrl?: string;
 }
 
 export interface Channel {
@@ -24,6 +25,7 @@ export interface Message {
   displayName: string;
   replyCount?: number;
   isBot?: boolean;
+  avatarUrl?: string;
   mentions?: string[];
   reactions?: Reaction[];
   linkPreviews?: LinkPreview[];

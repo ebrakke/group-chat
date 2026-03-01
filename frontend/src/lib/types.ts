@@ -14,6 +14,13 @@ export interface Channel {
   hasMention?: boolean;
 }
 
+export interface ReplyParticipant {
+  userId: number;
+  username: string;
+  displayName: string;
+  avatarUrl?: string;
+}
+
 export interface Message {
   id: number;
   channelId: number;
@@ -24,6 +31,7 @@ export interface Message {
   username?: string;
   displayName: string;
   replyCount?: number;
+  replyParticipants?: ReplyParticipant[];
   isBot?: boolean;
   avatarUrl?: string;
   role?: string;

@@ -89,6 +89,12 @@ class WebSocketManager {
       case 'new_reply':
         if (payload) {
           messageStore.incrementReplyCount(payload.parentId);
+          messageStore.addReplyParticipant(payload.parentId, {
+            userId: payload.userId,
+            username: payload.username,
+            displayName: payload.displayName,
+            avatarUrl: payload.avatarUrl
+          });
           threadStore.addReply(payload);
           // Browser notification when reply is in a different thread than the open one (skip own replies)
           if (payload.userId !== authStore.user?.id && payload.parentId !== threadStore.openThreadId) {

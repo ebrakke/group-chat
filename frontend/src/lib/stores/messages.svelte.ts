@@ -112,6 +112,38 @@ class MessageStore {
       break;
     }
   }
+
+  addReplyParticipant(parentId: number, participant: { userId: number; username?: string; displayName: string; avatarUrl?: string }) {
+    for (const channelId of Object.keys(this.byChannel)) {
+      const messages = this.byChannel[Number(channelId)];
+      const idx = messages.findIndex((m) => m.id === parentId);
+      if (idx === -1) continue;
+
+      const msg = messages[idx];
+      const existing = msg.replyParticipants ?? [];
+      // Already in list
+      if (existing.some((p) => p.userId === participant.userId)) break;
+
+      const updated = [...messages];
+      if (existing.length < 4) {
+        updated[idx] = {
+          ...msg,
+          replyParticipants: [...existing, {
+            userId: participant.userId,
+            username: participant.username ?? '',
+            displayName: participant.displayName,
+            avatarUrl: participant.avatarUrl
+          }]
+        };
+      } else {
+        // Already at max displayed — participants list stays the same
+        // (the reply count already increments via incrementReplyCount)
+        updated[idx] = { ...msg, replyParticipants: [...existing] };
+      }
+      this.byChannel[Number(channelId)] = updated;
+      break;
+    }
+  }
 }
 
 export const messageStore = new MessageStore();

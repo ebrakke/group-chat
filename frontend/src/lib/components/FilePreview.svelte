@@ -1,12 +1,15 @@
 <script lang="ts">
   import type { FileAttachment } from '$lib/types';
   import { getApiBase } from '$lib/utils/platform';
+  import ImageLightbox from './ImageLightbox.svelte';
 
   let { file }: { file: FileAttachment } = $props();
 
   const isImage = $derived(file.mimeType.startsWith('image/'));
   const fileUrl = $derived(`${getApiBase()}/api/files/${file.id}`);
   const sizeLabel = $derived(formatSize(file.sizeBytes));
+
+  let lightboxOpen = $state(false);
 
   function formatSize(bytes: number): string {
     if (bytes < 1024) return `${bytes} B`;
@@ -16,7 +19,11 @@
 </script>
 
 {#if isImage}
-  <a href={fileUrl} target="_blank" rel="noopener" class="block mt-1">
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <span
+    class="block mt-1 cursor-pointer"
+    onclick={(e) => { e.stopPropagation(); lightboxOpen = true; }}
+  >
     <img
       src={fileUrl}
       alt={file.originalName}
@@ -24,7 +31,11 @@
       style="border-color: var(--border);"
       loading="lazy"
     />
-  </a>
+  </span>
+
+  {#if lightboxOpen}
+    <ImageLightbox src={fileUrl} alt={file.originalName} onClose={() => (lightboxOpen = false)} />
+  {/if}
 {:else}
   <a
     href={fileUrl}

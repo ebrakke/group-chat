@@ -99,9 +99,9 @@
     </div>
   {/if}
 
-  <div id="composer" class="shrink-0 border-t px-4 py-3 flex items-center gap-2"
+  <div id="composer" class="shrink-0 border-t px-4 py-3 md:py-3 flex items-center gap-2"
        style="border-color: var(--border);">
-    <span class="text-[13px] select-none" style="color: var(--rc-timestamp);">{'>'}</span>
+    <span class="text-[13px] select-none hidden md:inline" style="color: var(--rc-timestamp);">{'>'}</span>
     <div class="relative flex-1">
       <MentionAutocomplete
         bind:this={autocomplete}

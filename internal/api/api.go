@@ -64,7 +64,7 @@ func (h *Handler) routes() {
 	h.mux.HandleFunc("GET /api/health", h.handleHealth)
 
 	// Auth
-	authRL := newRateLimiter(10, time.Minute)
+	authRL := newRateLimiter(30, time.Minute)
 	h.mux.HandleFunc("GET /api/auth/has-users", h.handleHasUsers)
 	h.mux.HandleFunc("POST /api/auth/bootstrap", authRL.middleware(h.handleBootstrap))
 	h.mux.HandleFunc("POST /api/auth/login", authRL.middleware(h.handleLogin))

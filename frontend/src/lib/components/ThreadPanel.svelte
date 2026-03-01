@@ -89,8 +89,14 @@
     <!-- Header -->
     <div class="flex items-center justify-between px-3 py-3 border-b shrink-0"
          style="border-color: var(--border);">
-      <span class="text-[10px] uppercase tracking-[0.14em]"
-            style="color: var(--rc-timestamp);">thread</span>
+      <div class="flex items-baseline gap-1.5 min-w-0 flex-1 mr-2">
+        <span class="text-[10px] uppercase tracking-[0.14em] shrink-0"
+              style="color: var(--rc-timestamp);">thread</span>
+        {#if parentMessage}
+          <span class="text-[11px] truncate"
+                style="color: var(--rc-timestamp);">{parentMessage.content.slice(0, 50)}{parentMessage.content.length > 50 ? '...' : ''}</span>
+        {/if}
+      </div>
       <div class="flex items-center gap-3">
         <button
           onclick={handleToggleMute}

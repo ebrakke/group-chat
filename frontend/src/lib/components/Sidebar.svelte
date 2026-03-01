@@ -168,9 +168,14 @@
           authStore.logout();
           goto('/login');
         }}
-        class="ml-auto text-[11px] hover:underline shrink-0"
+        class="ml-auto hover:opacity-60 shrink-0 p-1"
         style="color: var(--rc-timestamp);"
-      >out</button>
+        title="Log out"
+      >
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+        </svg>
+      </button>
     </div>
   </div>
 </aside>

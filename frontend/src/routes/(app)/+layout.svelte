@@ -124,16 +124,6 @@
   ontouchstart={handleTouchStart}
   ontouchend={handleTouchEnd}
 >
-  <!-- Mobile backdrop -->
-  {#if sidebarOpen}
-    <button
-      id="sidebar-backdrop"
-      onclick={closeSidebar}
-      class="fixed inset-0 z-30 bg-black/30 md:hidden"
-      aria-label="Close sidebar"
-    ></button>
-  {/if}
-
   <!-- Sidebar -->
   <div
     class="fixed inset-y-0 left-0 z-30 w-52 transform transition-transform duration-200 ease-in-out md:relative md:translate-x-0 md:z-0 {sidebarOpen
@@ -143,10 +133,20 @@
     <Sidebar onCloseSidebar={closeSidebar} />
   </div>
 
+  <!-- Mobile backdrop (after sidebar so it covers the non-sidebar area and catches close taps) -->
+  {#if sidebarOpen}
+    <button
+      id="sidebar-backdrop"
+      onclick={closeSidebar}
+      class="fixed inset-0 z-30 bg-black/30 md:hidden"
+      aria-label="Close sidebar"
+    ></button>
+  {/if}
+
   <!-- Main content area -->
   <div class="flex-1 flex flex-col min-w-0 min-h-0">
     <!-- Mobile top nav bar -->
-    <div class="md:hidden flex items-center h-12 px-3 border-b shrink-0"
+    <div class="md:hidden flex items-center h-12 px-3 border-b shrink-0 z-40 relative"
          style="border-color: var(--border); background: var(--background);">
       <button
         id="sidebar-toggle"

@@ -63,7 +63,12 @@
     {:else if searchStore.query && searchStore.results.length === 0}
       <p class="text-[12px] font-mono" style="color: var(--rc-timestamp);">no results found</p>
     {:else if !searchStore.query}
-      <p class="text-[12px] font-mono" style="color: var(--rc-timestamp);">type to search messages</p>
+      <div class="flex flex-col items-center justify-center h-full gap-2">
+        <p class="text-[13px] font-mono" style="color: var(--rc-timestamp);">type to search messages</p>
+        <p class="text-[11px] font-mono hidden md:block" style="color: var(--rc-timestamp);">
+          <kbd class="px-1.5 py-0.5 border text-[10px]" style="border-color: var(--border);">{navigator.platform?.includes('Mac') ? '\u2318' : 'Ctrl'}+K</kbd> to open anytime
+        </p>
+      </div>
     {:else}
       {#each searchStore.results as result (result.id)}
         <button

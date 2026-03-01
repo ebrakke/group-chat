@@ -16,6 +16,8 @@
   } = $props();
 
   let container: HTMLDivElement | undefined = $state();
+  let isAtBottom = $state(true);
+  let resizeObserver: ResizeObserver | undefined;
 
   const GROUP_WINDOW_MS = 5 * 60 * 1000; // 5 minutes
 
@@ -51,22 +53,47 @@
     return !isSameDay(msg.createdAt, prev.createdAt);
   }
 
-  async function scrollToBottom() {
-    await tick();
+  function scrollToBottom() {
     if (container) {
       container.scrollTop = container.scrollHeight;
     }
   }
 
+  // Re-scroll when content resizes (e.g. images loading)
   $effect(() => {
-    // Track messages length to trigger scroll
+    if (!container) return;
+
+    resizeObserver?.disconnect();
+    resizeObserver = new ResizeObserver(() => {
+      if (isAtBottom) scrollToBottom();
+    });
+
+    // Observe the scroll content so image loads trigger re-scroll
+    for (const child of container.children) {
+      resizeObserver.observe(child);
+    }
+
+    return () => resizeObserver?.disconnect();
+  });
+
+  // Track whether user is scrolled to bottom
+  function handleScroll() {
+    if (!container) return;
+    const { scrollTop, scrollHeight, clientHeight } = container;
+    isAtBottom = scrollHeight - scrollTop - clientHeight < 50;
+  }
+
+  $effect(() => {
+    // Scroll to bottom when new messages arrive (if already at bottom)
     if (messages.length) {
-      scrollToBottom();
+      tick().then(() => {
+        if (isAtBottom) scrollToBottom();
+      });
     }
   });
 </script>
 
-<div id="messages" bind:this={container} class="message-list flex-1 overflow-y-auto py-2">
+<div id="messages" bind:this={container} class="message-list flex-1 overflow-y-auto py-2" onscroll={handleScroll}>
   {#each messages as msg, i (msg.id)}
     {@const prev = messages[i - 1]}
     {@const showDate = showDateSeparator(msg, prev)}

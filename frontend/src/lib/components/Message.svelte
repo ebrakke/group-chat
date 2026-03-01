@@ -88,15 +88,6 @@
     }
   });
 
-  // --- Desktop: click message body to open thread ---
-  function handleClick(e: MouseEvent) {
-    if (isTouch) return;
-    if (!onOpenThread) return;
-    const target = e.target as HTMLElement;
-    if (target.closest('a, button, textarea, .reaction-pill, .msg-actions, .reaction-picker')) return;
-    onOpenThread(message.id);
-  }
-
   // --- Mobile: long-press to open bottom sheet ---
   function handleTouchStart(e: TouchEvent) {
     const target = e.target as HTMLElement;
@@ -236,10 +227,9 @@
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
   class="message relative"
-  style="padding-left: {isTouch ? '12px' : compact ? '12px' : '16px'}; padding-right: {isTouch ? '12px' : compact ? '12px' : '16px'}; margin-top: {grouped ? '1px' : compact ? '8px' : isTouch ? '8px' : '16px'}; background: {hovered ? 'var(--rc-message-hover)' : 'transparent'}; {!isTouch && onOpenThread ? 'cursor: pointer;' : ''}"
+  style="padding-left: {isTouch ? '12px' : compact ? '12px' : '16px'}; padding-right: {isTouch ? '12px' : compact ? '12px' : '16px'}; margin-top: {grouped ? '1px' : compact ? '8px' : isTouch ? '8px' : '16px'}; background: {hovered ? 'var(--rc-message-hover)' : 'transparent'};"
   onmouseenter={() => (hovered = true)}
   onmouseleave={() => { hovered = false; showMoreMenu = false; }}
-  onclick={handleClick}
   ontouchstart={handleTouchStart}
   ontouchend={handleTouchEnd}
   ontouchmove={handleTouchMove}
@@ -318,7 +308,7 @@
 
   <!-- Body — indented to align with author name -->
   <div
-    class="text-[13px] leading-relaxed"
+    class="text-[13px] leading-relaxed min-w-0 overflow-hidden"
     style="color: var(--foreground); padding-left: {isTouch ? '36px' : compact ? '36px' : '52px'}; padding-bottom: {grouped ? '1px' : compact ? '2px' : '4px'}; padding-top: {grouped ? '0' : '1px'};"
   >
     <!-- Content -->
@@ -337,7 +327,7 @@
       </div>
     {:else}
       <div class="relative" style="{isLong && !expanded ? `max-height: ${COLLAPSED_HEIGHT}; overflow: hidden;` : ''}">
-        <span class="msg-body break-words [&_p]:my-0 [&_a]:underline [&_a]:underline-offset-2 [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-[12px] [&_pre]:p-3 [&_pre]:my-1 [&_pre]:overflow-x-auto"
+        <span class="msg-body break-words [&_p]:my-0 [&_a]:underline [&_a]:underline-offset-2 [&_code]:px-1 [&_code]:py-0.5 [&_code]:text-[12px] [&_pre]:p-3 [&_pre]:my-1 [&_pre]:overflow-x-auto [&_img]:max-w-full [&_img]:h-auto"
               style="color: var(--foreground); --tw-prose-links: var(--rc-link);">
           {@html renderedContent}
         </span>
@@ -454,6 +444,11 @@
 
     {#if !bottomSheetReacting}
       <div class="px-4 pb-4 flex flex-col gap-1">
+        <button
+          class="text-left text-[13px] px-3 py-2.5 cursor-pointer"
+          style="color: var(--foreground); background: transparent;"
+          onclick={() => { navigator.clipboard.writeText(message.content); closeBottomSheet(); }}
+        >copy text</button>
         {#if onOpenThread}
           <button
             class="reply-btn text-left text-[13px] px-3 py-2.5 cursor-pointer"

@@ -8,7 +8,7 @@
   href={preview.url}
   target="_blank"
   rel="noopener noreferrer"
-  class="block max-w-sm border overflow-hidden hover:opacity-80 transition-opacity mt-2"
+  class="block max-w-full sm:max-w-sm border overflow-hidden hover:opacity-80 transition-opacity mt-2"
   style="border-color: var(--border); border-left: 2px solid var(--rc-link);"
 >
   {#if preview.image}

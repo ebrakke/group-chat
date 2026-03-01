@@ -20,7 +20,7 @@
     <img
       src={fileUrl}
       alt={file.originalName}
-      class="max-w-sm max-h-64 rounded border"
+      class="max-w-full sm:max-w-sm max-h-64 rounded border"
       style="border-color: var(--border);"
       loading="lazy"
     />

@@ -26,6 +26,8 @@ export interface Message {
   replyCount?: number;
   isBot?: boolean;
   avatarUrl?: string;
+  role?: string;
+  userCreatedAt?: string;
   mentions?: string[];
   reactions?: Reaction[];
   linkPreviews?: LinkPreview[];

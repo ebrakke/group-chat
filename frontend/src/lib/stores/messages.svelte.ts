@@ -124,22 +124,18 @@ class MessageStore {
       // Already in list
       if (existing.some((p) => p.userId === participant.userId)) break;
 
+      if (existing.length >= 4) break;
+
       const updated = [...messages];
-      if (existing.length < 4) {
-        updated[idx] = {
-          ...msg,
-          replyParticipants: [...existing, {
-            userId: participant.userId,
-            username: participant.username ?? '',
-            displayName: participant.displayName,
-            avatarUrl: participant.avatarUrl
-          }]
-        };
-      } else {
-        // Already at max displayed — participants list stays the same
-        // (the reply count already increments via incrementReplyCount)
-        updated[idx] = { ...msg, replyParticipants: [...existing] };
-      }
+      updated[idx] = {
+        ...msg,
+        replyParticipants: [...existing, {
+          userId: participant.userId,
+          username: participant.username ?? '',
+          displayName: participant.displayName,
+          avatarUrl: participant.avatarUrl
+        }]
+      };
       this.byChannel[Number(channelId)] = updated;
       break;
     }

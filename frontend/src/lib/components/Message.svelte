@@ -8,6 +8,7 @@
   import { toastStore } from '$lib/stores/toast.svelte';
   import LinkPreview from './LinkPreview.svelte';
   import FilePreview from './FilePreview.svelte';
+  import Avatar from './Avatar.svelte';
 
   let {
     message,
@@ -223,22 +224,25 @@
   ontouchmove={handleTouchMove}
 >
   {#if !grouped}
-    <!-- Header: timestamp + author -->
-    <div class="flex items-baseline gap-2 pt-1">
+    <!-- Header: avatar + timestamp + author -->
+    <div class="flex items-center gap-2 pt-1">
       <span
-        class="text-[11px] tabular-nums shrink-0 select-none w-9"
+        class="text-[11px] tabular-nums shrink-0 select-none w-9 self-baseline"
         style="color: var(--rc-timestamp);"
       >{formatTime(message.createdAt)}</span>
-      <span class="text-[13px] font-bold" style="color: var(--foreground);">
-        {message.displayName}
-      </span>
-      {#if message.isBot}
-        <span class="text-[9px] font-bold uppercase tracking-wide px-1 py-[1px]"
-              style="background: var(--rc-olive); color: var(--rc-channel-active-fg);">BOT</span>
-      {/if}
-      {#if message.editedAt}
-        <span class="text-[10px] italic" style="color: var(--rc-timestamp);">(edited)</span>
-      {/if}
+      <Avatar url={message.avatarUrl} displayName={message.displayName} username={message.username} size={compact ? 28 : 36} />
+      <div class="flex items-baseline gap-1.5 min-w-0">
+        <span class="text-[13px] font-bold truncate" style="color: var(--foreground);">
+          {message.displayName}
+        </span>
+        {#if message.isBot}
+          <span class="text-[9px] font-bold uppercase tracking-wide px-1 py-[1px] shrink-0"
+                style="background: var(--rc-olive); color: var(--rc-channel-active-fg);">BOT</span>
+        {/if}
+        {#if message.editedAt}
+          <span class="text-[10px] italic shrink-0" style="color: var(--rc-timestamp);">(edited)</span>
+        {/if}
+      </div>
     </div>
   {/if}
 
@@ -292,7 +296,7 @@
   <!-- Body — indented to align with author name -->
   <div
     class="text-[13px] leading-relaxed"
-    style="color: var(--foreground); padding-left: {compact ? '44px' : '52px'}; padding-bottom: {grouped ? '1px' : compact ? '2px' : '4px'}; padding-top: {grouped ? '0' : '1px'};"
+    style="color: var(--foreground); padding-left: {compact ? '76px' : '92px'}; padding-bottom: {grouped ? '1px' : compact ? '2px' : '4px'}; padding-top: {grouped ? '0' : '1px'};"
   >
     <!-- Content -->
     {#if editing}

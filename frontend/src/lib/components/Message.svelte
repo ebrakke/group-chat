@@ -9,6 +9,7 @@
   import LinkPreview from './LinkPreview.svelte';
   import FilePreview from './FilePreview.svelte';
   import Avatar from './Avatar.svelte';
+  import AvatarStack from './AvatarStack.svelte';
 
   let {
     message,
@@ -379,10 +380,15 @@
     {#if hasReplies && onOpenThread}
       <div class="mt-1">
         <button
-          class="reply-btn reply-count-btn text-[11px] hover:underline underline-offset-2 cursor-pointer"
+          class="reply-btn reply-count-btn flex items-center gap-1.5 text-[11px] hover:underline underline-offset-2 cursor-pointer"
           style="color: var(--rc-olive);"
           onclick={(e) => { e.stopPropagation(); onOpenThread?.(message.id); }}
-        >({message.replyCount}) {message.replyCount === 1 ? 'reply' : 'replies'}</button>
+        >
+          {#if message.replyParticipants?.length}
+            <AvatarStack participants={message.replyParticipants} totalCount={message.replyCount ?? 0} size={20} />
+          {/if}
+          {message.replyCount} {message.replyCount === 1 ? 'reply' : 'replies'}
+        </button>
       </div>
     {/if}
 

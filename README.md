@@ -1,183 +1,97 @@
 # Relay Chat
 
-A self-hosted, private group chat app built on Nostr infrastructure. Single Go binary embedding a NIP-29 relay, JSON API, WebSocket endpoint, and static SPA frontend.
+A self-hosted, private group chat for small teams. Single Go binary, no external dependencies, runs anywhere.
 
-> **⚠️ IMPORTANT: This project uses [Bun](https://bun.sh), NOT npm/yarn/pnpm. All frontend build commands use `bun`.**
+Built on [Nostr](https://nostr.com) infrastructure (NIP-29) with a modern SvelteKit frontend embedded right in the binary.
+
+## Features
+
+- **Channels & Threads** — Organize conversations by topic, reply in threads to keep things focused
+- **Real-time** — WebSocket-powered instant messaging with connection recovery
+- **Reactions** — Emoji reactions with hover tooltips showing who reacted
+- **Search** — Full-text search across all messages (SQLite FTS5)
+- **File Uploads** — Drag-and-drop file sharing with previews (10MB max)
+- **Link Previews** — Automatic Open Graph metadata for shared URLs
+- **Markdown** — Full markdown support in messages (code blocks, tables, lists, etc.)
+- **@Mentions** — Tag users with autocomplete, get notified
+- **Themes** — 5 built-in themes: Parchment, Terminal, Midnight, Dracula, Solarized
+- **Bots** — Create bot users with scoped channel permissions and API tokens
+- **Notifications** — Push via webhook, ntfy, or native Android notifications
+- **Mobile App** — Android app via Capacitor with background service and local notifications
+- **Profile Sidebar** — Click any avatar to see user details in a resizable side panel
+- **Invite System** — Admin-controlled invites with optional expiry and usage limits
+- **Nostr Relay** — Embedded NIP-29 relay at `/relay` for protocol compatibility
+
+## Quick Start
+
+**Prerequisites:** [Go 1.24+](https://go.dev) and [Bun](https://bun.sh)
+
+```bash
+git clone <repo-url> && cd relay-chat
+make dev
+```
+
+Visit http://localhost:8080 — an admin account (`admin`/`admin`) is created automatically in dev mode.
+
+For production, build a single binary:
+
+```bash
+make build
+DATA_DIR=/var/lib/relay-chat ./relay-chat
+```
+
+First visitor creates the admin account. Invite others from Settings.
+
+## Docker
+
+```bash
+docker build -f Dockerfile.fly -t relay-chat .
+docker run -p 8080:8080 -v relay-data:/data relay-chat
+```
+
+## Android App
+
+Build a debug APK that connects to your server:
+
+```bash
+make mobile-build URL=https://chat.example.com
+# APK at: mobile/android/app/build/outputs/apk/debug/app-debug.apk
+```
+
+The app runs a foreground service to keep the WebSocket alive for real-time notifications, even when backgrounded.
 
 ## Architecture
 
 ```
-cmd/app/main.go          # Entrypoint: stdlib net/http mux
-internal/
-  relay/                  # NIP-29 khatru29 relay (importable package)
-  db/                     # SQLite + numbered migrations (modernc.org/sqlite, pure-Go)
-  auth/                   # Users, sessions, invites (argon2id)
-  channels/               # Channel CRUD + membership
-  api/                    # JSON API handlers (/api/*)
-  ws/                     # WebSocket stub (/ws)
-frontend/                 # Minimal SPA (bun build)
-  src/
-    app.js                # Main application logic
-    markdown.js           # Markdown rendering (marked.js wrapper)
-    style.css             # Styles with markdown support
-  build.js                # Bun bundler with content-hash cache busting
-relay/                    # Original relay entrypoint (preserved)
+Single Go Binary
+├── HTTP Server (stdlib net/http)
+│   ├── /api/*     JSON REST API
+│   ├── /ws        WebSocket (real-time events)
+│   ├── /relay     NIP-29 Nostr relay
+│   └── /*         Embedded SPA (SvelteKit)
+├── SQLite         App database (users, channels, messages)
+└── SQLite         Relay database (Nostr events)
 ```
 
-## Routes
+**Backend:** Go, SQLite (modernc.org/sqlite — pure Go, no cgo required for the app), NIP-29 relay via khatru29
 
-| Path | Handler |
-|------|---------|
-| `/api/*` | JSON API (auth, channels, invites, users) |
-| `/ws` | WebSocket stub |
-| `/relay` | NIP-29 relay (WebSocket) |
-| `/*` | SPA static assets (falls back to index.html) |
+**Frontend:** SvelteKit 5 (runes), Tailwind CSS v4, TypeScript, built with Bun, embedded in the Go binary via `//go:embed`
 
-## Features
-
-### Markdown Support
-
-Messages support full markdown rendering via `marked.js`:
-
-- **Headers** (h1-h6) with GitHub-style underlines
-- **Text formatting**: bold, italic, inline code
-- **Code blocks** with syntax preservation
-- **Blockquotes** with left border styling
-- **Lists**: ordered and unordered
-- **Links**: open in new tab with security attributes
-- **Tables** with proper borders
-- **Images**: responsive, max-width 100%
-- **Horizontal rules**
-
-Implementation: `frontend/src/markdown.js` wraps marked.js with security defaults (noopener/noreferrer on links). Messages are rendered via `renderMarkdown()` in `app.js`.
-
-### Notifications
-
-Get mobile push notifications when:
-- Someone @mentions you
-- Someone replies to a thread you're in
-- All messages (optional)
-
-**Setup (Admin):**
-
-For simplified Pushover setup:
-1. Create a Pushover application at https://pushover.net/apps/build
-2. In Relay Chat admin settings, enter your Pushover app token
-3. Save (provider reloads automatically, no restart required)
-
-**Setup (Users):**
-
-If Pushover is enabled:
-- Go to Settings → Notifications
-- Select "Pushover"
-- Enter your Pushover user key from https://pushover.net
-- Configure notification preferences
-- Save
-
-For custom webhooks:
-- Go to Settings → Notifications
-- Select "Custom Webhook"
-- Enter your webhook URL (e.g., ntfy.sh, custom endpoint)
-- Configure notification preferences
-- Save
-
-**Notification Payload:**
-
-Webhooks receive JSON with:
-```json
-{
-  "title": "@you mentioned in #general",
-  "message": "Hey @alice check this out",
-  "sender": "Bob",
-  "channel": "general",
-  "channelId": 1,
-  "url": "https://chat.example.com/#/channel/1/thread/123",
-  "timestamp": "2026-02-17T12:34:56Z",
-  "notificationType": "mention",
-  "threadContext": "Re: previous message..."
-}
-```
-
-**Thread Muting:**
-
-Mute busy threads to stop getting notifications. Click the 🔕 icon in the thread header.
-
-## Quick Start
-
-**Prerequisites:** Install [Bun](https://bun.sh) and Go 1.21+
+## Development
 
 ```bash
-# Build frontend (bundles app.js + markdown.js + marked library)
-# ⚠️ ALWAYS use 'bun', NEVER use 'npm'
-cd frontend && bun install && bun run build && cd ..
-
-# Copy static assets
-cp frontend/dist/* cmd/app/static/
-
-# Run (uses /data by default, override with DATA_DIR)
-DATA_DIR=./tmp go run ./cmd/app/
-
-# Or build and run
-go build -o relay-chat ./cmd/app/
-DATA_DIR=./tmp ./relay-chat
+make dev          # Build + start on :8080 (auto-creates admin/admin)
+make build        # Full build (frontend + Go binary)
+make test         # Go unit tests
+make test-e2e     # Playwright E2E tests
+make release VERSION=0.1.0  # Multi-platform release binaries
 ```
 
-Visit http://localhost:8080. First visitor creates the admin account.
-
-## Dev Commands
-
-**⚠️ All frontend commands use `bun`, NOT `npm`**
+For frontend development with hot reload:
 
 ```bash
-# Run Go tests
-go test ./internal/...
-
-# Run E2E tests (builds, starts server, runs Playwright)
-./scripts/run-e2e.sh
-
-# Build frontend only (uses bun)
-cd frontend && bun run build
-
-# Install frontend dependencies (uses bun)
-cd frontend && bun install
-
-# Build Go binary only
-go build -o relay-chat ./cmd/app/
+cd frontend && bun run dev    # Vite dev server on :5173, proxies API to :8080
 ```
-
-## Auth System
-
-- **Passwords**: argon2id hashed
-- **Sessions**: HTTP-only cookie, 30-day expiry
-- **Bootstrap**: First user auto-becomes admin
-- **Invites**: Admin creates invite tokens (optional expiry + max uses)
-- **Roles**: `admin` (full control) / `member` (standard access)
-- **Usernames**: Unique forever, immutable; display names are mutable
-
-## API Endpoints
-
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| GET | `/api/health` | - | Health check |
-| GET | `/api/auth/has-users` | - | Check if bootstrap needed |
-| POST | `/api/auth/bootstrap` | - | Create first admin |
-| POST | `/api/auth/login` | - | Login |
-| POST | `/api/auth/logout` | yes | Logout |
-| POST | `/api/auth/signup` | - | Signup with invite code |
-| GET | `/api/auth/me` | yes | Current user |
-| POST | `/api/invites` | admin | Create invite |
-| GET | `/api/invites` | admin | List invites |
-| GET | `/api/channels` | yes | List channels |
-| GET | `/api/users` | admin | List users |
-| POST | `/api/users/{id}/reset-password` | admin | Reset user password |
-| GET | `/api/notifications/settings` | yes | Get notification settings |
-| POST | `/api/notifications/settings` | yes | Update notification settings |
-| POST | `/api/threads/{id}/mute` | yes | Mute thread notifications |
-| DELETE | `/api/threads/{id}/mute` | yes | Unmute thread notifications |
-| GET | `/api/threads/{id}/mute` | yes | Check thread mute status |
-| GET | `/api/notifications/providers` | yes | List available notification providers |
-| GET | `/api/admin/settings` | admin | Get server-wide settings |
-| POST | `/api/admin/settings` | admin | Update server-wide settings |
 
 ## Environment Variables
 
@@ -185,10 +99,8 @@ go build -o relay-chat ./cmd/app/
 |----------|---------|-------------|
 | `PORT` | `8080` | HTTP listen port |
 | `DATA_DIR` | `/data` | Directory for SQLite databases |
-| `DATABASE_PATH` | `$DATA_DIR/app.db` | App database path |
-| `RELAY_DATABASE_PATH` | `$DATA_DIR/relay.db` | Relay database path |
-| `RELAY_PRIVKEY` | auto-generated | Relay private key (hex) |
-| `RELAY_DOMAIN` | `localhost` | Relay domain |
+| `DEV_MODE` | - | Auto-create admin/admin if no users exist |
+| `RELAY_DOMAIN` | `localhost` | Nostr relay domain |
 
 ## License
 

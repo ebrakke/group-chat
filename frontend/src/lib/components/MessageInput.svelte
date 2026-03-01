@@ -104,8 +104,8 @@
   <input type="file" class="hidden" bind:this={fileInput} onchange={handleFileSelect} multiple />
 
   <div id="composer" class="shrink-0 border-t" style="border-color: var(--border);">
-    <div class="flex items-end md:items-center gap-2 px-3 md:px-4 pt-2 md:py-3 pb-1 md:pb-3">
-      <span class="hidden md:inline text-[13px] select-none" style="color: var(--rc-timestamp);">{'>'}</span>
+    <div class="flex items-end md:items-start gap-2 px-3 md:px-4 pt-2 md:py-3 pb-1 md:pb-3">
+      <span class="hidden md:inline text-[13px] leading-[20px] select-none" style="color: var(--rc-timestamp);">{'>'}</span>
       <div class="relative flex-1">
         <MentionAutocomplete
           bind:this={autocomplete}

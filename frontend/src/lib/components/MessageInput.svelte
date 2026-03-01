@@ -99,7 +99,7 @@
     </div>
   {/if}
 
-  <div id="composer" class="shrink-0 border-t px-4 py-3 md:py-3 flex items-center gap-2"
+  <div id="composer" class="shrink-0 border-t px-2 py-2 md:px-4 md:py-3 flex items-center gap-1.5 md:gap-2"
        style="border-color: var(--border);">
     <span class="text-[13px] select-none hidden md:inline" style="color: var(--rc-timestamp);">{'>'}</span>
     <div class="relative flex-1">
@@ -122,14 +122,17 @@
       ></textarea>
     </div>
     <input type="file" class="hidden" bind:this={fileInput} onchange={handleFileSelect} multiple />
-    <button onclick={() => fileInput?.click()} class="text-[12px] px-3 py-1.5 border shrink-0 cursor-pointer"
-      style="border-color: var(--border); color: var(--rc-timestamp);">attach</button>
+    <button onclick={() => fileInput?.click()} class="shrink-0 cursor-pointer hover:opacity-60 md:text-[12px] md:px-3 md:py-1.5 md:border text-[18px] leading-none px-1"
+      style="border-color: var(--border); color: var(--rc-timestamp);"
+      title="Attach file"
+    ><span class="md:hidden">+</span><span class="hidden md:inline">attach</span></button>
     <button
       id={sendButtonId}
       onclick={send}
       disabled={!text.trim() && pendingFiles.length === 0}
-      class="text-[11px] px-3 py-1.5 border font-mono disabled:opacity-30 shrink-0"
+      class="shrink-0 disabled:opacity-30 md:text-[11px] md:px-3 md:py-1.5 md:border font-mono text-[18px] leading-none px-1"
       style="background: var(--rc-channel-active-bg); color: var(--rc-channel-active-fg); border-color: var(--rc-channel-active-bg);"
-    >send</button>
+      title="Send"
+    ><span class="md:hidden">&uarr;</span><span class="hidden md:inline">send</span></button>
   </div>
 </div>

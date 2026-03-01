@@ -1,4 +1,4 @@
-export type ThemeId = 'parchment' | 'terminal';
+export type ThemeId = 'parchment' | 'terminal' | 'midnight' | 'dracula' | 'solarized';
 
 export interface ThemeInfo {
   id: ThemeId;
@@ -16,6 +16,21 @@ export const THEMES: ThemeInfo[] = [
     id: 'terminal',
     name: 'Terminal',
     colors: { bg: 'oklch(0.13 0.005 240)', fg: 'oklch(0.85 0.15 145)', accent: 'oklch(0.70 0.15 145)' }
+  },
+  {
+    id: 'midnight',
+    name: 'Midnight',
+    colors: { bg: 'oklch(0.15 0.01 260)', fg: 'oklch(0.90 0.01 260)', accent: 'oklch(0.45 0.12 250)' }
+  },
+  {
+    id: 'dracula',
+    name: 'Dracula',
+    colors: { bg: 'oklch(0.16 0.02 280)', fg: 'oklch(0.92 0.01 300)', accent: 'oklch(0.55 0.18 300)' }
+  },
+  {
+    id: 'solarized',
+    name: 'Solarized',
+    colors: { bg: 'oklch(0.94 0.03 90)', fg: 'oklch(0.27 0.05 230)', accent: 'oklch(0.52 0.12 150)' }
   }
 ];
 

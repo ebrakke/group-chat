@@ -74,3 +74,78 @@ html, body {
   --rc-input-bg: oklch(0.17 0.01 240);
 }
 
+[data-theme="midnight"] {
+  color-scheme: dark;
+
+  --background: oklch(0.15 0.01 260);
+  --foreground: oklch(0.90 0.01 260);
+  --border: oklch(0.30 0.015 260);
+
+  --rc-sidebar-bg: oklch(0.12 0.012 260);
+  --rc-channel-active-bg: oklch(0.45 0.12 250);
+  --rc-channel-active-fg: oklch(0.97 0.005 260);
+  --rc-message-hover: oklch(0.18 0.012 260);
+  --rc-timestamp: oklch(0.55 0.02 260);
+  --rc-link: oklch(0.65 0.15 250);
+  --rc-mention-badge: oklch(0.60 0.20 25);
+  --rc-mention-bg: oklch(0.25 0.06 25 / 0.4);
+  --rc-thread-bg: oklch(0.16 0.012 260);
+  --rc-olive: oklch(0.65 0.15 250);
+  --rc-divider-label: oklch(0.50 0.02 260);
+
+  --rc-muted: oklch(0.22 0.012 260);
+  --rc-muted-fg: oklch(0.55 0.02 260);
+  --rc-destructive: oklch(0.60 0.20 25);
+  --rc-input-bg: oklch(0.18 0.012 260);
+}
+
+[data-theme="dracula"] {
+  color-scheme: dark;
+
+  --background: oklch(0.16 0.02 280);
+  --foreground: oklch(0.92 0.01 300);
+  --border: oklch(0.30 0.03 280);
+
+  --rc-sidebar-bg: oklch(0.13 0.025 280);
+  --rc-channel-active-bg: oklch(0.55 0.18 300);
+  --rc-channel-active-fg: oklch(0.97 0.005 300);
+  --rc-message-hover: oklch(0.20 0.025 280);
+  --rc-timestamp: oklch(0.55 0.04 280);
+  --rc-link: oklch(0.70 0.15 200);
+  --rc-mention-badge: oklch(0.65 0.20 0);
+  --rc-mention-bg: oklch(0.25 0.06 0 / 0.35);
+  --rc-thread-bg: oklch(0.17 0.025 280);
+  --rc-olive: oklch(0.70 0.15 140);
+  --rc-divider-label: oklch(0.50 0.03 280);
+
+  --rc-muted: oklch(0.22 0.025 280);
+  --rc-muted-fg: oklch(0.55 0.04 280);
+  --rc-destructive: oklch(0.65 0.20 0);
+  --rc-input-bg: oklch(0.19 0.025 280);
+}
+
+[data-theme="solarized"] {
+  color-scheme: light;
+
+  --background: oklch(0.94 0.03 90);
+  --foreground: oklch(0.27 0.05 230);
+  --border: oklch(0.80 0.03 90);
+
+  --rc-sidebar-bg: oklch(0.91 0.035 90);
+  --rc-channel-active-bg: oklch(0.27 0.05 230);
+  --rc-channel-active-fg: oklch(0.94 0.03 90);
+  --rc-message-hover: oklch(0.91 0.032 90);
+  --rc-timestamp: oklch(0.52 0.04 200);
+  --rc-link: oklch(0.50 0.12 240);
+  --rc-mention-badge: oklch(0.55 0.18 28);
+  --rc-mention-bg: oklch(0.90 0.04 60 / 0.5);
+  --rc-thread-bg: oklch(0.92 0.032 90);
+  --rc-olive: oklch(0.52 0.12 150);
+  --rc-divider-label: oklch(0.52 0.04 200);
+
+  --rc-muted: oklch(0.87 0.035 90);
+  --rc-muted-fg: oklch(0.50 0.04 200);
+  --rc-destructive: oklch(0.55 0.18 28);
+  --rc-input-bg: oklch(0.90 0.032 90);
+}
+

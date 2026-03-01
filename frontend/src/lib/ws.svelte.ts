@@ -101,7 +101,7 @@ class WebSocketManager {
         break;
       case 'reaction_added':
         if (payload) {
-          messageStore.updateReaction(payload.messageId, payload.emoji, payload.userId, true);
+          messageStore.updateReaction(payload.messageId, payload.emoji, payload.userId, true, payload.displayName);
         }
         break;
       case 'reaction_removed':

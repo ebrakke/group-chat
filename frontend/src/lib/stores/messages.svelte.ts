@@ -26,7 +26,7 @@ class MessageStore {
     this.byChannel[channelId] = [...existing, msg];
   }
 
-  updateReaction(messageId: number, emoji: string, userId: number, add: boolean) {
+  updateReaction(messageId: number, emoji: string, userId: number, add: boolean, displayName?: string) {
     for (const channelId of Object.keys(this.byChannel)) {
       const messages = this.byChannel[Number(channelId)];
       const idx = messages.findIndex((m) => m.id === messageId);
@@ -40,19 +40,26 @@ class MessageStore {
         if (rIdx >= 0) {
           const r = reactions[rIdx];
           if (!r.userIds.includes(userId)) {
-            reactions[rIdx] = { ...r, count: r.count + 1, userIds: [...r.userIds, userId] };
+            reactions[rIdx] = {
+              ...r,
+              count: r.count + 1,
+              userIds: [...r.userIds, userId],
+              userNames: [...(r.userNames || []), displayName || 'Unknown']
+            };
           }
         } else {
-          reactions.push({ emoji, count: 1, userIds: [userId] });
+          reactions.push({ emoji, count: 1, userIds: [userId], userNames: [displayName || 'Unknown'] });
         }
       } else {
         if (rIdx >= 0) {
           const r = reactions[rIdx];
+          const removeIdx = r.userIds.indexOf(userId);
           const newUserIds = r.userIds.filter((id) => id !== userId);
+          const newUserNames = (r.userNames || []).filter((_, i) => i !== removeIdx);
           if (newUserIds.length === 0) {
             reactions = reactions.filter((_, i) => i !== rIdx);
           } else {
-            reactions[rIdx] = { ...r, count: newUserIds.length, userIds: newUserIds };
+            reactions[rIdx] = { ...r, count: newUserIds.length, userIds: newUserIds, userNames: newUserNames };
           }
         }
       }

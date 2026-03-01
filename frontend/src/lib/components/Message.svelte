@@ -225,7 +225,7 @@
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
   class="message relative"
-  style="padding-left: {compact ? '12px' : '20px'}; padding-right: {compact ? '12px' : '20px'}; margin-top: {grouped ? '1px' : compact ? '8px' : '16px'}; background: {hovered ? 'var(--rc-message-hover)' : 'transparent'}; {!isTouch && onOpenThread ? 'cursor: pointer;' : ''}"
+  style="padding-left: {isTouch ? '12px' : compact ? '12px' : '20px'}; padding-right: {isTouch ? '12px' : compact ? '12px' : '20px'}; margin-top: {grouped ? '1px' : compact ? '8px' : isTouch ? '8px' : '16px'}; background: {hovered ? 'var(--rc-message-hover)' : 'transparent'}; {!isTouch && onOpenThread ? 'cursor: pointer;' : ''}"
   onmouseenter={() => (hovered = true)}
   onmouseleave={() => { hovered = false; showMoreMenu = false; }}
   onclick={handleClick}
@@ -236,13 +236,15 @@
   {#if !grouped}
     <!-- Header: avatar + timestamp + author -->
     <div class="flex items-center gap-2 pt-1">
-      <span
-        class="text-[11px] tabular-nums shrink-0 select-none w-9 self-baseline"
-        style="color: var(--rc-timestamp);"
-      >{formatTime(message.createdAt)}</span>
+      {#if !isTouch}
+        <span
+          class="text-[11px] tabular-nums shrink-0 select-none w-9 self-baseline"
+          style="color: var(--rc-timestamp);"
+        >{formatTime(message.createdAt)}</span>
+      {/if}
       <!-- svelte-ignore a11y_no_static_element_interactions -->
       <span class="cursor-pointer" onclick={handleProfileClick}>
-        <Avatar url={message.avatarUrl} displayName={message.displayName} username={message.username} size={compact ? 28 : 36} />
+        <Avatar url={message.avatarUrl} displayName={message.displayName} username={message.username} size={isTouch ? 28 : compact ? 28 : 36} />
       </span>
       <div class="flex items-baseline gap-1.5 min-w-0">
         <!-- svelte-ignore a11y_no_static_element_interactions -->
@@ -250,6 +252,9 @@
               onclick={handleProfileClick}>
           {message.displayName}
         </span>
+        {#if isTouch}
+          <span class="text-[11px] tabular-nums shrink-0 select-none" style="color: var(--rc-timestamp);">{formatTime(message.createdAt)}</span>
+        {/if}
         {#if message.isBot}
           <span class="text-[9px] font-bold uppercase tracking-wide px-1 py-[1px] shrink-0"
                 style="background: var(--rc-olive); color: var(--rc-channel-active-fg);">BOT</span>
@@ -311,7 +316,7 @@
   <!-- Body — indented to align with author name -->
   <div
     class="text-[13px] leading-relaxed"
-    style="color: var(--foreground); padding-left: {compact ? '76px' : '92px'}; padding-bottom: {grouped ? '1px' : compact ? '2px' : '4px'}; padding-top: {grouped ? '0' : '1px'};"
+    style="color: var(--foreground); padding-left: {isTouch ? '36px' : compact ? '76px' : '92px'}; padding-bottom: {grouped ? '1px' : compact ? '2px' : '4px'}; padding-top: {grouped ? '0' : '1px'};"
   >
     <!-- Content -->
     {#if editing}

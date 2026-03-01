@@ -71,7 +71,7 @@
     {@const grouped = !showDate && isGrouped(msg, prev)}
 
     {#if showDate}
-      <div class="flex items-center gap-2 px-5" style="margin-top: {compact ? '8px' : '12px'}; margin-bottom: {compact ? '8px' : '12px'}">
+      <div class="flex items-center gap-2 px-4" style="margin-top: {compact ? '8px' : '12px'}; margin-bottom: {compact ? '8px' : '12px'}">
         <div class="flex-1 border-t" style="border-color: var(--border);"></div>
         <span
           class="text-[10px] uppercase tracking-[0.1em] shrink-0 select-none"

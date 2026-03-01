@@ -108,7 +108,7 @@
     <!-- Channel header -->
     <div
       id="channel-header"
-      class="channel-header flex items-center gap-3 px-5 py-3 border-b shrink-0"
+      class="channel-header flex items-center gap-3 px-4 py-3 border-b shrink-0"
       style="border-color: var(--border);"
     >
       <span id="channel-header-text" class="text-[13px] font-bold" style="color: var(--foreground);">

@@ -232,7 +232,7 @@
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
   class="message relative"
-  style="padding-left: {isTouch ? '12px' : compact ? '12px' : '20px'}; padding-right: {isTouch ? '12px' : compact ? '12px' : '20px'}; margin-top: {grouped ? '1px' : compact ? '8px' : isTouch ? '8px' : '16px'}; background: {hovered ? 'var(--rc-message-hover)' : 'transparent'}; {!isTouch && onOpenThread ? 'cursor: pointer;' : ''}"
+  style="padding-left: {isTouch ? '12px' : compact ? '12px' : '16px'}; padding-right: {isTouch ? '12px' : compact ? '12px' : '16px'}; margin-top: {grouped ? '1px' : compact ? '8px' : isTouch ? '8px' : '16px'}; background: {hovered ? 'var(--rc-message-hover)' : 'transparent'}; {!isTouch && onOpenThread ? 'cursor: pointer;' : ''}"
   onmouseenter={() => (hovered = true)}
   onmouseleave={() => { hovered = false; showMoreMenu = false; }}
   onclick={handleClick}
@@ -241,16 +241,10 @@
   ontouchmove={handleTouchMove}
 >
   {#if !grouped}
-    <!-- Header: avatar + timestamp + author -->
+    <!-- Header: avatar + author + timestamp (Slack-style) -->
     <div class="flex items-center gap-2 pt-1">
-      {#if !isTouch}
-        <span
-          class="text-[11px] tabular-nums shrink-0 select-none w-9 self-baseline"
-          style="color: var(--rc-timestamp);"
-        >{formatTime(message.createdAt)}</span>
-      {/if}
       <!-- svelte-ignore a11y_no_static_element_interactions -->
-      <span class="cursor-pointer" onclick={handleProfileClick}>
+      <span class="cursor-pointer shrink-0" onclick={handleProfileClick}>
         <Avatar url={message.avatarUrl} displayName={message.displayName} username={message.username} size={isTouch ? 28 : compact ? 28 : 36} />
       </span>
       <div class="flex items-baseline gap-1.5 min-w-0">
@@ -259,9 +253,7 @@
               onclick={handleProfileClick}>
           {message.displayName}
         </span>
-        {#if isTouch}
-          <span class="text-[11px] tabular-nums shrink-0 select-none" style="color: var(--rc-timestamp);">{formatTime(message.createdAt)}</span>
-        {/if}
+        <span class="text-[11px] tabular-nums shrink-0 select-none" style="color: var(--rc-timestamp);">{formatTime(message.createdAt)}</span>
         {#if message.isBot}
           <span class="text-[9px] font-bold uppercase tracking-wide px-1 py-[1px] shrink-0"
                 style="background: var(--rc-olive); color: var(--rc-channel-active-fg);">BOT</span>
@@ -276,7 +268,7 @@
   <!-- Desktop hover toolbar — floats top-right -->
   {#if !isTouch && showActions && (hovered || showPicker || showMoreMenu)}
     <div class="msg-actions absolute -top-3 flex items-center z-20 border"
-         style="right: {compact ? '12px' : '20px'}; background: var(--background); border-color: var(--border);">
+         style="right: {compact ? '12px' : '16px'}; background: var(--background); border-color: var(--border);">
       {#if onOpenThread}
         <button
           bind:this={reactBtnEl}
@@ -323,7 +315,7 @@
   <!-- Body — indented to align with author name -->
   <div
     class="text-[13px] leading-relaxed"
-    style="color: var(--foreground); padding-left: {isTouch ? '36px' : compact ? '76px' : '92px'}; padding-bottom: {grouped ? '1px' : compact ? '2px' : '4px'}; padding-top: {grouped ? '0' : '1px'};"
+    style="color: var(--foreground); padding-left: {isTouch ? '36px' : compact ? '36px' : '52px'}; padding-bottom: {grouped ? '1px' : compact ? '2px' : '4px'}; padding-top: {grouped ? '0' : '1px'};"
   >
     <!-- Content -->
     {#if editing}

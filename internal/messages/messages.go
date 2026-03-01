@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/ebrakke/relay-chat/internal/db"
@@ -33,8 +34,9 @@ type Message struct {
 	CreatedAt    string        `json:"createdAt"`
 	Username     string        `json:"username"`
 	DisplayName  string        `json:"displayName"`
-	ReplyCount   int           `json:"replyCount,omitempty"`
-	IsBot        bool          `json:"isBot,omitempty"`
+	ReplyCount        int                `json:"replyCount,omitempty"`
+	ReplyParticipants []ReplyParticipant `json:"replyParticipants,omitempty"`
+	IsBot             bool               `json:"isBot,omitempty"`
 	AvatarURL     string        `json:"avatarUrl,omitempty"`
 	Role          string        `json:"role,omitempty"`
 	UserCreatedAt string        `json:"userCreatedAt,omitempty"`
@@ -50,6 +52,13 @@ type LinkPreview struct {
 	Description string `json:"description,omitempty"`
 	Image       string `json:"image,omitempty"`
 	SiteName    string `json:"siteName,omitempty"`
+}
+
+type ReplyParticipant struct {
+	UserID      int64  `json:"userId"`
+	Username    string `json:"username"`
+	DisplayName string `json:"displayName"`
+	AvatarURL   string `json:"avatarUrl,omitempty"`
 }
 
 type Service struct {
@@ -345,7 +354,29 @@ func (s *Service) ListChannel(channelID int64, limit int, before int64) ([]Messa
 		}
 		msgs = append(msgs, m)
 	}
-	return msgs, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	// Fetch reply participants for messages that have replies
+	var parentIDs []int64
+	for i := range msgs {
+		if msgs[i].ReplyCount > 0 {
+			parentIDs = append(parentIDs, msgs[i].ID)
+		}
+	}
+	if len(parentIDs) > 0 {
+		participants, err := s.replyParticipants(parentIDs)
+		if err == nil {
+			for i := range msgs {
+				if p, ok := participants[msgs[i].ID]; ok {
+					msgs[i].ReplyParticipants = p
+				}
+			}
+		}
+	}
+
+	return msgs, nil
 }
 
 // ListThread returns replies for a parent message, ordered oldest-first.
@@ -421,6 +452,59 @@ func (s *Service) ListThread(parentID int64, limit int, before int64) ([]Message
 		msgs = append(msgs, m)
 	}
 	return msgs, rows.Err()
+}
+
+// replyParticipants returns up to 4 distinct users who replied to the given message IDs.
+// Returns a map from parent message ID to participant slice.
+func (s *Service) replyParticipants(parentIDs []int64) (map[int64][]ReplyParticipant, error) {
+	if len(parentIDs) == 0 {
+		return nil, nil
+	}
+
+	// Build placeholders
+	placeholders := make([]string, len(parentIDs))
+	args := make([]interface{}, len(parentIDs))
+	for i, id := range parentIDs {
+		placeholders[i] = "?"
+		args[i] = id
+	}
+
+	query := fmt.Sprintf(`
+		SELECT parent_id, user_id, username, display_name, profile_picture_id
+		FROM (
+			SELECT m.parent_id, u.id as user_id, u.username, u.display_name, u.profile_picture_id,
+			       ROW_NUMBER() OVER (PARTITION BY m.parent_id, u.id ORDER BY m.id ASC) as rn_user,
+			       MIN(m.id) OVER (PARTITION BY m.parent_id, u.id) as first_reply_id
+			FROM messages m
+			JOIN users u ON m.user_id = u.id
+			WHERE m.parent_id IN (%s) AND m.deleted_at IS NULL
+		) sub
+		WHERE rn_user = 1
+		ORDER BY parent_id, first_reply_id ASC
+	`, strings.Join(placeholders, ","))
+
+	rows, err := s.db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[int64][]ReplyParticipant)
+	for rows.Next() {
+		var parentID int64
+		var p ReplyParticipant
+		var avatarFileID sql.NullInt64
+		if err := rows.Scan(&parentID, &p.UserID, &p.Username, &p.DisplayName, &avatarFileID); err != nil {
+			return nil, err
+		}
+		if avatarFileID.Valid {
+			p.AvatarURL = fmt.Sprintf("/api/files/%d", avatarFileID.Int64)
+		}
+		if len(result[parentID]) < 4 {
+			result[parentID] = append(result[parentID], p)
+		}
+	}
+	return result, rows.Err()
 }
 
 // ThreadSummary is a lightweight representation of a thread for the "My Threads" view.

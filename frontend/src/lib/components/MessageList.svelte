@@ -6,10 +6,12 @@
   let {
     messages,
     onOpenThread,
+    onOpenProfile,
     compact = false
   }: {
     messages: MessageType[];
     onOpenThread?: (id: number) => void;
+    onOpenProfile?: (profile: { displayName: string; username?: string; avatarUrl?: string; role?: string; userCreatedAt?: string; isBot?: boolean }) => void;
     compact?: boolean;
   } = $props();
 
@@ -81,7 +83,7 @@
       </div>
     {/if}
 
-    <Message message={msg} {onOpenThread} {grouped} {compact} />
+    <Message message={msg} {onOpenThread} {onOpenProfile} {grouped} {compact} />
   {:else}
     <div class="flex items-center justify-center h-full text-[12px] font-mono" style="color: var(--rc-timestamp);">
       <p>no messages yet</p>

@@ -10,6 +10,7 @@
   import MessageList from '$lib/components/MessageList.svelte';
   import MessageInput from '$lib/components/MessageInput.svelte';
   import ThreadPanel from '$lib/components/ThreadPanel.svelte';
+  import ProfilePanel from '$lib/components/ProfilePanel.svelte';
 
   let channelId = $derived(Number($page.params.id));
   let channel = $derived(channelStore.channels.find((c) => c.id === channelId));
@@ -18,6 +19,21 @@
 
   let loaded = $state(false);
   let lastMarkedMsgId = $state(0);
+
+  interface ProfileData {
+    displayName: string;
+    username?: string;
+    avatarUrl?: string;
+    role?: string;
+    userCreatedAt?: string;
+    isBot?: boolean;
+  }
+
+  let profileOpen = $state<ProfileData | null>(null);
+
+  let rightPanel = $derived<'thread' | 'profile' | null>(
+    profileOpen ? 'profile' : threadOpen ? 'thread' : null
+  );
 
   async function loadMessages(id: number) {
     loaded = false;
@@ -100,11 +116,19 @@
   function closeThread() {
     goto(`/channels/${channelId}`);
   }
+
+  function openProfile(profile: ProfileData) {
+    profileOpen = profile;
+  }
+
+  function closeProfile() {
+    profileOpen = null;
+  }
 </script>
 
 <div class="channel-view flex h-full min-h-0">
   <!-- Messages area -->
-  <div class="main-panel flex flex-col flex-1 min-w-0 min-h-0 {threadOpen ? 'hidden md:flex' : 'flex'}">
+  <div class="main-panel flex flex-col flex-1 min-w-0 min-h-0 {rightPanel ? 'hidden md:flex' : 'flex'}">
     <!-- Channel header -->
     <div
       id="channel-header"
@@ -122,7 +146,7 @@
         <span class="text-[12px] font-mono" style="color: var(--rc-timestamp);">loading...</span>
       </div>
     {:else}
-      <MessageList {messages} onOpenThread={openThread} />
+      <MessageList {messages} onOpenThread={openThread} onOpenProfile={openProfile} />
     {/if}
 
     <!-- Input -->
@@ -133,7 +157,20 @@
   </div>
 
   <!-- Thread panel -->
-  {#if threadOpen}
+  {#if rightPanel === 'thread'}
     <ThreadPanel onClose={closeThread} />
+  {/if}
+
+  <!-- Profile panel -->
+  {#if rightPanel === 'profile' && profileOpen}
+    <ProfilePanel
+      displayName={profileOpen.displayName}
+      username={profileOpen.username}
+      avatarUrl={profileOpen.avatarUrl}
+      role={profileOpen.role}
+      userCreatedAt={profileOpen.userCreatedAt}
+      isBot={profileOpen.isBot}
+      onClose={closeProfile}
+    />
   {/if}
 </div>

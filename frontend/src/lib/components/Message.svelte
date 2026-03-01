@@ -9,18 +9,19 @@
   import LinkPreview from './LinkPreview.svelte';
   import FilePreview from './FilePreview.svelte';
   import Avatar from './Avatar.svelte';
-  import ProfileCard from './ProfileCard.svelte';
 
   let {
     message,
     onOpenThread,
     onReactionChange,
+    onOpenProfile,
     grouped = false,
     compact = false
   }: {
     message: Message;
     onOpenThread?: (id: number) => void;
     onReactionChange?: () => void;
+    onOpenProfile?: (profile: { displayName: string; username?: string; avatarUrl?: string; role?: string; userCreatedAt?: string; isBot?: boolean }) => void;
     grouped?: boolean;
     compact?: boolean;
   } = $props();
@@ -35,8 +36,6 @@
   let editing = $state(false);
   let editText = $state('');
   let touchTimer: ReturnType<typeof setTimeout> | undefined;
-  let showProfileCard = $state(false);
-  let profileCardAnchorRect: DOMRect | null = $state(null);
   let activeReactionTooltip = $state<string | null>(null);
 
   function formatReactorNames(names: string[]): string {
@@ -223,9 +222,14 @@
 
   function handleProfileClick(e: MouseEvent) {
     e.stopPropagation();
-    const target = e.currentTarget as HTMLElement;
-    profileCardAnchorRect = target.getBoundingClientRect();
-    showProfileCard = true;
+    onOpenProfile?.({
+      displayName: message.displayName,
+      username: message.username,
+      avatarUrl: message.avatarUrl,
+      role: message.role,
+      userCreatedAt: message.userCreatedAt,
+      isBot: message.isBot
+    });
   }
 </script>
 
@@ -436,20 +440,6 @@
     </div>
   {/if}
 </div>
-
-<!-- Profile Card -->
-{#if showProfileCard && profileCardAnchorRect}
-  <ProfileCard
-    displayName={message.displayName}
-    username={message.username}
-    avatarUrl={message.avatarUrl}
-    role={message.role}
-    userCreatedAt={message.userCreatedAt}
-    isBot={message.isBot}
-    anchorRect={profileCardAnchorRect}
-    onClose={() => (showProfileCard = false)}
-  />
-{/if}
 
 <!-- Mobile bottom sheet (rendered outside message div for proper fixed positioning) -->
 {#if showBottomSheet}

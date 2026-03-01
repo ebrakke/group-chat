@@ -122,7 +122,7 @@
 >
   <!-- Sidebar -->
   <div
-    class="fixed inset-y-0 left-0 z-30 w-52 transform transition-transform duration-200 ease-in-out md:relative md:translate-x-0 md:z-0 {sidebarOpen
+    class="fixed inset-y-0 left-0 z-40 w-52 transform transition-transform duration-200 ease-in-out md:relative md:translate-x-0 md:z-0 {sidebarOpen
       ? 'translate-x-0'
       : '-translate-x-full'}"
   >

@@ -15,6 +15,7 @@ import (
 
 	"github.com/ebrakke/relay-chat/internal/auth"
 	"github.com/ebrakke/relay-chat/internal/bots"
+	"github.com/ebrakke/relay-chat/internal/calendar"
 	"github.com/ebrakke/relay-chat/internal/channels"
 	"github.com/ebrakke/relay-chat/internal/files"
 	"github.com/ebrakke/relay-chat/internal/messages"
@@ -28,6 +29,7 @@ type Handler struct {
 	auth          *auth.Service
 	bots          *bots.Service
 	channels      *channels.Service
+	calendar      *calendar.Service
 	messages      *messages.Service
 	reactions     *reactions.Service
 	notifications *notifications.Service
@@ -38,11 +40,12 @@ type Handler struct {
 	mux           *http.ServeMux
 }
 
-func New(authSvc *auth.Service, botSvc *bots.Service, chanSvc *channels.Service, msgSvc *messages.Service, reactSvc *reactions.Service, notifySvc *notifications.Service, fileSvc *files.Service, searchSvc *search.Service, version string, hub *ws.Hub) *Handler {
+func New(authSvc *auth.Service, botSvc *bots.Service, chanSvc *channels.Service, calSvc *calendar.Service, msgSvc *messages.Service, reactSvc *reactions.Service, notifySvc *notifications.Service, fileSvc *files.Service, searchSvc *search.Service, version string, hub *ws.Hub) *Handler {
 	h := &Handler{
 		auth:          authSvc,
 		bots:          botSvc,
 		channels:      chanSvc,
+		calendar:      calSvc,
 		messages:      msgSvc,
 		reactions:     reactSvc,
 		notifications: notifySvc,
@@ -136,6 +139,13 @@ func (h *Handler) routes() {
 
 	// Search
 	h.mux.HandleFunc("GET /api/search", h.handleSearch)
+
+	// Calendar
+	h.mux.HandleFunc("GET /api/calendar", h.handleListCalendarEvents)
+	h.mux.HandleFunc("POST /api/calendar", h.handleCreateCalendarEvent)
+	h.mux.HandleFunc("GET /api/calendar/{id}", h.handleGetCalendarEvent)
+	h.mux.HandleFunc("PUT /api/calendar/{id}", h.handleUpdateCalendarEvent)
+	h.mux.HandleFunc("DELETE /api/calendar/{id}", h.handleDeleteCalendarEvent)
 
 	// Admin settings
 	h.mux.HandleFunc("GET /api/admin/settings", h.handleGetAdminSettings)
@@ -1722,6 +1732,146 @@ func (h *Handler) handleSearch(w http.ResponseWriter, r *http.Request) {
 		results = []search.Result{}
 	}
 	writeJSON(w, http.StatusOK, results)
+}
+
+// --- Calendar handlers ---
+
+func (h *Handler) handleListCalendarEvents(w http.ResponseWriter, r *http.Request) {
+	_, err := h.requireAuth(r)
+	if err != nil {
+		writeErr(w, http.StatusUnauthorized, err)
+		return
+	}
+	from := r.URL.Query().Get("from")
+	to := r.URL.Query().Get("to")
+	var events []calendar.CalendarEvent
+	if from != "" && to != "" {
+		events, err = h.calendar.ListRange(from, to)
+	} else {
+		events, err = h.calendar.List()
+	}
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
+	if events == nil {
+		events = []calendar.CalendarEvent{}
+	}
+	writeJSON(w, http.StatusOK, events)
+}
+
+func (h *Handler) handleCreateCalendarEvent(w http.ResponseWriter, r *http.Request) {
+	user, err := h.requireAuth(r)
+	if err != nil {
+		writeErr(w, http.StatusUnauthorized, err)
+		return
+	}
+	var req struct {
+		Title     string `json:"title"`
+		StartTime string `json:"startTime"`
+		EndTime   string `json:"endTime"`
+		Comments  string `json:"comments"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
+	ev, err := h.calendar.Create(user.ID, req.Title, req.StartTime, req.EndTime, req.Comments)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
+	h.hub.Broadcast(ws.Event{Type: "calendar_event_created", Payload: ev})
+	writeJSON(w, http.StatusCreated, ev)
+}
+
+func (h *Handler) handleGetCalendarEvent(w http.ResponseWriter, r *http.Request) {
+	_, err := h.requireAuth(r)
+	if err != nil {
+		writeErr(w, http.StatusUnauthorized, err)
+		return
+	}
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, errors.New("invalid calendar event id"))
+		return
+	}
+	ev, err := h.calendar.GetByID(id)
+	if err != nil {
+		if errors.Is(err, calendar.ErrNotFound) {
+			writeErr(w, http.StatusNotFound, err)
+			return
+		}
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, ev)
+}
+
+func (h *Handler) handleUpdateCalendarEvent(w http.ResponseWriter, r *http.Request) {
+	user, err := h.requireAuth(r)
+	if err != nil {
+		writeErr(w, http.StatusUnauthorized, err)
+		return
+	}
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, errors.New("invalid calendar event id"))
+		return
+	}
+	var req struct {
+		Title     string `json:"title"`
+		StartTime string `json:"startTime"`
+		EndTime   string `json:"endTime"`
+		Comments  string `json:"comments"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
+	ev, err := h.calendar.Update(id, user.ID, req.Title, req.StartTime, req.EndTime, req.Comments)
+	if err != nil {
+		if errors.Is(err, calendar.ErrNotFound) {
+			writeErr(w, http.StatusNotFound, err)
+			return
+		}
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
+	h.hub.Broadcast(ws.Event{Type: "calendar_event_updated", Payload: ev})
+	writeJSON(w, http.StatusOK, ev)
+}
+
+func (h *Handler) handleDeleteCalendarEvent(w http.ResponseWriter, r *http.Request) {
+	user, err := h.requireAuth(r)
+	if err != nil {
+		writeErr(w, http.StatusUnauthorized, err)
+		return
+	}
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, errors.New("invalid calendar event id"))
+		return
+	}
+	ev, err := h.calendar.GetByID(id)
+	if err != nil {
+		if errors.Is(err, calendar.ErrNotFound) {
+			writeErr(w, http.StatusNotFound, err)
+			return
+		}
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	if ev.CreatedBy != user.ID && user.Role != "admin" {
+		writeErr(w, http.StatusForbidden, errors.New("only the event creator or an admin can delete this event"))
+		return
+	}
+	if err := h.calendar.Delete(id); err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	h.hub.Broadcast(ws.Event{Type: "calendar_event_deleted", Payload: map[string]int64{"id": id}})
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // --- Helpers ---

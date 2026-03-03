@@ -130,6 +130,11 @@
       style="color: var(--rc-timestamp);"
     >search</button>
     <button
+      onclick={() => { goto('/calendar'); onCloseSidebar?.(); }}
+      class="text-left text-[12px] hover:underline underline-offset-2 py-1"
+      style="color: var(--rc-timestamp);"
+    >calendar</button>
+    <button
       onclick={() => { goto('/threads'); onCloseSidebar?.(); }}
       class="text-left text-[12px] hover:underline underline-offset-2 py-1"
       style="color: var(--rc-timestamp);"

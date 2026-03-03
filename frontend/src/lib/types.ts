@@ -126,3 +126,17 @@ export interface SearchResult {
   createdAt: string;
   parentId?: number;
 }
+
+export interface CalendarEvent {
+  id: number;
+  title: string;
+  startTime: string;
+  endTime: string;
+  comments: string;
+  createdBy: number;
+  createdByName?: string;
+  updatedBy?: number;
+  updatedByName?: string;
+  createdAt: string;
+  updatedAt: string;
+}

@@ -35,6 +35,7 @@ internal/                 # Go service layer
   api/                    # HTTP route handlers (REST JSON)
   auth/                   # User auth: bootstrap, login, signup, sessions (argon2id)
   bots/                   # Bot identity, token auth, channel bindings, scope checks
+  calendar/               # Group calendar events (CRUD, range list, validation)
   channels/               # Channel CRUD + membership
   db/                     # SQLite connection + migrations (WAL mode)
   messages/               # Messages + threads (reply == thread), Nostr event signing, @mention extraction
@@ -339,6 +340,13 @@ NIP-29 relay roles:
 - `GET /api/bots/{id}/bindings` - List channel bindings
 - `POST /api/bots/{id}/bindings` - Bind to channel `{channelId, canRead?, canWrite?}`
 - `DELETE /api/bots/{id}/bindings/{channelId}` - Unbind from channel
+
+**Calendar (group-wide, any authenticated user can view/create/edit; delete = creator or admin):**
+- `GET /api/calendar?from=ISO&to=ISO` - List events (optional range filter). Returns `CalendarEvent[]`.
+- `POST /api/calendar` - Create event `{title, startTime, endTime, comments?}` (RFC 3339). Broadcasts `calendar_event_created`.
+- `GET /api/calendar/{id}` - Get single event.
+- `PUT /api/calendar/{id}` - Update event (same body as create). Broadcasts `calendar_event_updated`.
+- `DELETE /api/calendar/{id}` - Delete (403 if not creator or admin). Broadcasts `calendar_event_deleted` with `{id}`.
 
 **Health:**
 - `GET /api/health` - `{"status":"ok"}`

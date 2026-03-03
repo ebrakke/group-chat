@@ -2,6 +2,7 @@ import { getWsUrl, isNative } from './utils/platform';
 import { getSessionToken } from './api';
 import { messageStore } from './stores/messages';
 import { channelStore } from './stores/channels';
+import { calendarStore } from './stores/calendar.svelte';
 import { threadStore } from './stores/threads';
 import { authStore } from './stores/auth.svelte';
 import { showNativeNotification } from './utils/native';
@@ -128,6 +129,15 @@ class WebSocketManager {
         if (payload) {
           channelStore.addChannel({ id: payload.id, name: payload.name });
         }
+        break;
+      case 'calendar_event_created':
+        if (payload) calendarStore.addEvent(payload);
+        break;
+      case 'calendar_event_updated':
+        if (payload) calendarStore.updateEvent(payload);
+        break;
+      case 'calendar_event_deleted':
+        if (payload) calendarStore.removeEvent(payload.id);
         break;
     }
   }

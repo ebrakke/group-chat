@@ -13,6 +13,7 @@ import (
 	"github.com/ebrakke/relay-chat/internal/api"
 	"github.com/ebrakke/relay-chat/internal/auth"
 	"github.com/ebrakke/relay-chat/internal/bots"
+	"github.com/ebrakke/relay-chat/internal/calendar"
 	"github.com/ebrakke/relay-chat/internal/channels"
 	"github.com/ebrakke/relay-chat/internal/db"
 	"github.com/ebrakke/relay-chat/internal/files"
@@ -66,6 +67,7 @@ func main() {
 
 	botSvc := bots.NewService(database)
 	chanSvc := channels.NewService(database)
+	calSvc := calendar.NewService(database)
 
 	// Dev mode: auto-bootstrap admin/admin user if no users exist
 	if os.Getenv("DEV_MODE") == "true" {
@@ -138,7 +140,7 @@ func main() {
 	}
 
 	// API handler
-	apiHandler := api.New(authSvc, botSvc, chanSvc, msgSvc, reactSvc, notifySvc, fileSvc, searchSvc, version, hub)
+	apiHandler := api.New(authSvc, botSvc, chanSvc, calSvc, msgSvc, reactSvc, notifySvc, fileSvc, searchSvc, version, hub)
 
 	// Build mux
 	mux := http.NewServeMux()

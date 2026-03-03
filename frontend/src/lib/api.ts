@@ -34,8 +34,14 @@ export async function api<T = unknown>(method: string, path: string, body?: unkn
 
   const base = getApiBase();
   const res = await fetch(`${base}${path}`, opts);
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || 'Request failed');
+  let data: { error?: string } = {};
+  try {
+    const text = await res.text();
+    if (text) data = JSON.parse(text) as { error?: string };
+  } catch {
+    // non-JSON response (e.g. 502 HTML)
+  }
+  if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
   return data as T;
 }
 

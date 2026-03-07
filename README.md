@@ -33,6 +33,16 @@ make dev
 
 Visit http://localhost:8080 — an admin account (`admin`/`admin`) is created automatically in dev mode.
 
+### Windows (PowerShell)
+
+If `make` is not available, use the included script:
+
+```powershell
+.\dev.ps1
+```
+
+Ensure [Go](https://go.dev/dl/) and [Bun](https://bun.sh) are installed and on your PATH (or the script will add default install locations). The app listens on `http://localhost:8080`; if the browser cannot connect, check that no firewall is blocking port 8080.
+
 For production, build a single binary:
 
 ```bash
@@ -70,10 +80,10 @@ Single Go Binary
 │   ├── /relay     NIP-29 Nostr relay
 │   └── /*         Embedded SPA (SvelteKit)
 ├── SQLite         App database (users, channels, messages)
-└── SQLite         Relay database (Nostr events)
+└── Badger         Relay store (Nostr events; pure Go, no cgo)
 ```
 
-**Backend:** Go, SQLite (modernc.org/sqlite — pure Go, no cgo required for the app), NIP-29 relay via khatru29
+**Backend:** Go, SQLite (modernc.org/sqlite — pure Go, no cgo) for the app; Badger for the embedded NIP-29 relay (pure Go); khatru29 for relay logic
 
 **Frontend:** SvelteKit 5 (runes), Tailwind CSS v4, TypeScript, built with Bun, embedded in the Go binary via `//go:embed`
 

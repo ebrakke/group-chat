@@ -8,9 +8,10 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 
-	"github.com/fiatjaf/eventstore/sqlite3"
+	"github.com/fiatjaf/eventstore/badger"
 	"github.com/fiatjaf/relay29"
 	"github.com/fiatjaf/relay29/khatru29"
 	"github.com/nbd-wtf/go-nostr"
@@ -38,14 +39,23 @@ func New(cfg Config) (http.Handler, error) {
 
 	dbPath := cfg.DatabasePath
 	if dbPath == "" {
-		dbPath = os.Getenv("DATABASE_PATH")
+		dbPath = os.Getenv("RELAY_DATABASE_PATH")
 	}
 	if dbPath == "" {
-		dbPath = "/data/relay.db"
+		dataDir := os.Getenv("DATA_DIR")
+		if dataDir == "" {
+			dataDir = "/data"
+		}
+		dbPath = filepath.Join(dataDir, "relay.db")
+	}
+	// Badger uses a directory; use dir of the config path + "relay" (e.g. ./tmp/relay)
+	relayDir := filepath.Join(filepath.Dir(dbPath), "relay")
+	if err := os.MkdirAll(relayDir, 0755); err != nil {
+		return nil, fmt.Errorf("relay data dir: %w", err)
 	}
 
-	db := &sqlite3.SQLite3Backend{
-		DatabaseURL: dbPath,
+	db := &badger.BadgerBackend{
+		Path: relayDir,
 	}
 	if err := db.Init(); err != nil {
 		return nil, fmt.Errorf("relay db init: %w", err)
@@ -99,6 +109,6 @@ func New(cfg Config) (http.Handler, error) {
 		}
 	}
 
-	log.Printf("NIP-29 relay initialized (domain=%s, db=%s)", domain, dbPath)
+	log.Printf("NIP-29 relay initialized (domain=%s, db=%s)", domain, relayDir)
 	return r, nil
 }

@@ -18,9 +18,10 @@
   // Form state (for create/edit)
   let formTitle = $state('');
   let formStartDate = $state('');
-  let formStartTime = $state('09:00');
+  let formStartTime = $state('00:00');
   let formEndDate = $state('');
-  let formEndTime = $state('09:30');
+  let formEndTime = $state('23:59');
+  let formAllDay = $state(true);
   let formComments = $state('');
 
   function monthYearLabel(d: Date) {
@@ -74,13 +75,19 @@
     return rows;
   }
 
+  /** True if event overlaps the given calendar day (any time during that day). */
+  function eventOverlapsDay(ev: CalendarEvent, y: number, m: number, day: number): boolean {
+    const dayStart = new Date(y, m, day, 0, 0, 0);
+    const dayEnd = new Date(y, m, day, 23, 59, 59, 999);
+    const start = new Date(ev.startTime);
+    const end = new Date(ev.endTime);
+    return start <= dayEnd && end >= dayStart;
+  }
+
   function eventsForDay(day: number): CalendarEvent[] {
     const y = currentMonth.getFullYear();
     const m = currentMonth.getMonth();
-    return calendarStore.events.filter((e) => {
-      const start = new Date(e.startTime);
-      return start.getFullYear() === y && start.getMonth() === m && start.getDate() === day;
-    });
+    return calendarStore.events.filter((e) => eventOverlapsDay(e, y, m, day));
   }
 
   function isSelectedDay(day: number | null): boolean {
@@ -102,10 +109,7 @@
       const y = selectedDate.getFullYear();
       const m = selectedDate.getMonth();
       const d = selectedDate.getDate();
-      return calendarStore.events.filter((ev) => {
-        const start = new Date(ev.startTime);
-        return start.getFullYear() === y && start.getMonth() === m && start.getDate() === d;
-      });
+      return calendarStore.events.filter((ev) => eventOverlapsDay(ev, y, m, d));
     }
     return calendarStore.events;
   }
@@ -116,8 +120,26 @@
     formStartDate = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
     formEndDate = formStartDate;
     formTitle = '';
-    formStartTime = '09:00';
-    formEndTime = '09:30';
+    formStartTime = '00:00';
+    formEndTime = '23:59';
+    formAllDay = true;
+    formComments = '';
+    formError = '';
+    showCreateModal = true;
+    editingEvent = null;
+  }
+
+  function openCreateModalWithDate(day: number) {
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const y = currentMonth.getFullYear();
+    const m = currentMonth.getMonth();
+    const dateStr = `${y}-${pad(m + 1)}-${pad(day)}`;
+    formStartDate = dateStr;
+    formEndDate = dateStr;
+    formTitle = '';
+    formStartTime = '00:00';
+    formEndTime = '23:59';
+    formAllDay = true;
     formComments = '';
     formError = '';
     showCreateModal = true;
@@ -135,6 +157,11 @@
     formStartTime = `${pad(s.getHours())}:${pad(s.getMinutes())}`;
     formEndDate = `${e.getFullYear()}-${pad(e.getMonth() + 1)}-${pad(e.getDate())}`;
     formEndTime = `${pad(e.getHours())}:${pad(e.getMinutes())}`;
+    formAllDay =
+      s.getHours() === 0 &&
+      s.getMinutes() === 0 &&
+      e.getHours() === 23 &&
+      e.getMinutes() === 59;
     formComments = ev.comments || '';
     formError = '';
     showCreateModal = true;
@@ -158,8 +185,10 @@
       formError = 'Title is required';
       return;
     }
-    const startTime = toISO(formStartDate, formStartTime);
-    const endTime = toISO(formEndDate, formEndTime);
+    const startTimeStr = formAllDay ? '00:00' : formStartTime;
+    const endTimeStr = formAllDay ? '23:59' : formEndTime;
+    const startTime = toISO(formStartDate, startTimeStr);
+    const endTime = toISO(formEndDate, endTimeStr);
     if (new Date(endTime) <= new Date(startTime)) {
       formError = 'End must be after start';
       return;
@@ -284,7 +313,10 @@
                   : 'transparent'}; color: {day === null
                   ? 'var(--rc-timestamp)'
                   : 'var(--foreground)'};"
-                onclick={() => selectDay(day)}
+                onclick={() => {
+                  selectDay(day);
+                  if (day !== null) openCreateModalWithDate(day);
+                }}
                 disabled={day === null}
               >
                 {#if day !== null}
@@ -434,6 +466,10 @@
           placeholder="Event name"
         />
       </label>
+      <label class="flex items-center gap-2 cursor-pointer">
+        <input type="checkbox" bind:checked={formAllDay} class="rounded" />
+        <span class="text-[12px]" style="color: var(--foreground);">All day</span>
+      </label>
       <div class="grid grid-cols-2 gap-2">
         <label class="block">
           <span class="text-[11px] block mb-1" style="color: var(--rc-timestamp);">Start date</span>
@@ -444,15 +480,17 @@
             style="background: var(--rc-input-bg); border-color: var(--border); color: var(--foreground);"
           />
         </label>
-        <label class="block">
-          <span class="text-[11px] block mb-1" style="color: var(--rc-timestamp);">Start time</span>
-          <input
-            type="time"
-            bind:value={formStartTime}
-            class="w-full px-2 py-1.5 text-[13px] border outline-none"
-            style="background: var(--rc-input-bg); border-color: var(--border); color: var(--foreground);"
-          />
-        </label>
+        {#if !formAllDay}
+          <label class="block">
+            <span class="text-[11px] block mb-1" style="color: var(--rc-timestamp);">Start time</span>
+            <input
+              type="time"
+              bind:value={formStartTime}
+              class="w-full px-2 py-1.5 text-[13px] border outline-none"
+              style="background: var(--rc-input-bg); border-color: var(--border); color: var(--foreground);"
+            />
+          </label>
+        {/if}
       </div>
       <div class="grid grid-cols-2 gap-2">
         <label class="block">
@@ -464,15 +502,17 @@
             style="background: var(--rc-input-bg); border-color: var(--border); color: var(--foreground);"
           />
         </label>
-        <label class="block">
-          <span class="text-[11px] block mb-1" style="color: var(--rc-timestamp);">End time</span>
-          <input
-            type="time"
-            bind:value={formEndTime}
-            class="w-full px-2 py-1.5 text-[13px] border outline-none"
-            style="background: var(--rc-input-bg); border-color: var(--border); color: var(--foreground);"
-          />
-        </label>
+        {#if !formAllDay}
+          <label class="block">
+            <span class="text-[11px] block mb-1" style="color: var(--rc-timestamp);">End time</span>
+            <input
+              type="time"
+              bind:value={formEndTime}
+              class="w-full px-2 py-1.5 text-[13px] border outline-none"
+              style="background: var(--rc-input-bg); border-color: var(--border); color: var(--foreground);"
+            />
+          </label>
+        {/if}
       </div>
       <label class="block">
         <span class="text-[11px] block mb-1" style="color: var(--rc-timestamp);">Comments (optional)</span>

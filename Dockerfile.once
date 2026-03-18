@@ -1,0 +1,52 @@
+# ONCE-compatible build for Relay Chat
+# Requirements: port 80, /up health check, /storage persistence
+
+# --- frontend build (bun) ---
+FROM oven/bun:1.3.9-alpine AS web
+WORKDIR /src
+COPY frontend/ ./frontend/
+WORKDIR /src/frontend
+RUN bun install --frozen-lockfile
+RUN bun run build
+
+# --- go build ---
+FROM golang:1.24-alpine AS build
+WORKDIR /src
+RUN apk add --no-cache ca-certificates build-base git
+
+ARG VERSION=dev
+
+# go deps
+COPY go.mod go.sum ./
+RUN go mod download
+
+# app source
+COPY .git/ ./.git/
+COPY cmd/ ./cmd/
+COPY internal/ ./internal/
+COPY relay/ ./relay/
+
+# embed built SPA assets
+COPY --from=web /src/frontend/dist/ ./cmd/app/static/
+
+# build binary (cgo enabled for go-sqlite3)
+ENV CGO_ENABLED=1
+RUN COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo unknown) && \
+    BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ) && \
+    go build -ldflags "-X main.version=${VERSION} -X main.commit=${COMMIT} -X main.buildTime=${BUILD_TIME}" \
+    -o /out/relay-chat ./cmd/app
+
+# --- ONCE runtime ---
+FROM alpine:3.20
+RUN apk add --no-cache ca-certificates && update-ca-certificates
+WORKDIR /app
+COPY --from=build /out/relay-chat ./relay-chat
+
+# ONCE backup/restore hooks
+COPY deploy/once/hooks /hooks
+
+ENV PORT=80
+ENV DATA_DIR=/storage
+EXPOSE 80
+
+CMD ["/app/relay-chat"]

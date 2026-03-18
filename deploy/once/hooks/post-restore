@@ -1,0 +1,3 @@
+#!/bin/sh
+rm -f /storage/app.db-wal /storage/app.db-shm
+rm -f /storage/relay/LOCK

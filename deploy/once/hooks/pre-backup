@@ -1,0 +1,2 @@
+#!/bin/sh
+wget -qO /dev/null http://localhost:80/-/pre-backup || exit 1

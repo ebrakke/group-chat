@@ -25,8 +25,26 @@ type Config struct {
 	AllowedPubkeys []string
 }
 
+// Relay wraps the NIP-29 relay handler and its underlying Badger store.
+type Relay struct {
+	handler http.Handler
+	db      *badger.BadgerBackend
+}
+
+func (r *Relay) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	r.handler.ServeHTTP(w, req)
+}
+
+func (r *Relay) Sync() error {
+	return r.db.Sync()
+}
+
+func (r *Relay) Close() {
+	r.db.Close()
+}
+
 // New creates and returns a configured relay http.Handler.
-func New(cfg Config) (http.Handler, error) {
+func New(cfg Config) (*Relay, error) {
 	privkey := cfg.PrivateKey
 	if privkey == "" {
 		privkey = os.Getenv("RELAY_PRIVKEY")
@@ -110,5 +128,5 @@ func New(cfg Config) (http.Handler, error) {
 	}
 
 	log.Printf("NIP-29 relay initialized (domain=%s, db=%s)", domain, relayDir)
-	return r, nil
+	return &Relay{handler: r, db: db}, nil
 }

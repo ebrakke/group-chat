@@ -118,6 +118,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to initialize relay: %v", err)
 	}
+	defer relayHandler.Close()
 
 	// WebSocket hub
 	hub := ws.NewHub()

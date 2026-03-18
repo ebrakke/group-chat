@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/fs"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -148,6 +149,32 @@ func main() {
 
 	// /api/* -> JSON API
 	mux.Handle("/api/", apiHandler)
+
+	// /up -> ONCE health check
+	mux.HandleFunc("GET /up", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	// /-/pre-backup -> flush stores for ONCE backup (localhost only)
+	mux.HandleFunc("GET /-/pre-backup", func(w http.ResponseWriter, r *http.Request) {
+		host, _, _ := net.SplitHostPort(r.RemoteAddr)
+		if host != "127.0.0.1" && host != "::1" {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+		if _, err := database.Exec("PRAGMA wal_checkpoint(TRUNCATE)"); err != nil {
+			log.Printf("pre-backup: WAL checkpoint failed: %v", err)
+			http.Error(w, "checkpoint failed", http.StatusInternalServerError)
+			return
+		}
+		if err := relayHandler.Sync(); err != nil {
+			log.Printf("pre-backup: Badger sync failed: %v", err)
+			http.Error(w, "sync failed", http.StatusInternalServerError)
+			return
+		}
+		log.Printf("pre-backup: stores flushed successfully")
+		w.WriteHeader(http.StatusOK)
+	})
 
 	// /ws -> websocket hub
 	mux.Handle("/ws", hub.Handler())

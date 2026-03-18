@@ -35,8 +35,9 @@ Note: `RELAY_DATABASE_PATH` must not be overridden, as it controls where the Bad
 Modify `relay.New()` to return a `Relay` struct instead of just `http.Handler`. The struct exposes:
 - `ServeHTTP()` — the existing relay handler (satisfies `http.Handler`)
 - `Sync()` — flushes the Badger memtables to disk for backup safety
+- `Close()` — cleanly shuts down the Badger store
 
-This is needed because the Badger backend is currently encapsulated inside `New()` and not accessible to `main.go`.
+This is needed because the Badger backend is currently encapsulated inside `New()` and not accessible to `main.go`. The `Close()` method ensures clean Badger shutdown, which is important for ONCE where containers are stopped/restarted frequently.
 
 ### Go Code (`cmd/app/main.go`)
 
@@ -47,7 +48,7 @@ This is needed because the Badger backend is currently encapsulated inside `New(
    })
    ```
 
-2. **Add `GET /hooks/pre-backup` endpoint** — localhost-only, performs backup preparation internally:
+2. **Add `GET /-/pre-backup` endpoint** — localhost-only, performs backup preparation internally:
    - Rejects requests not from `127.0.0.1` / `::1` (prevents public access to operational endpoint)
    - Calls `PRAGMA wal_checkpoint(TRUNCATE)` on `app.db` via the existing DB connection
    - Calls `Sync()` on the relay's Badger store
@@ -64,7 +65,7 @@ New Dockerfile with three stages:
   - `ENV DATA_DIR=/storage` (instead of /data)
   - No `mkdir /data` — ONCE mounts `/storage` automatically
   - Copies `/hooks/pre-backup` and `/hooks/post-restore` from `deploy/once/hooks/`
-  - Installs `curl` for hook scripts to call internal endpoints
+  - Uses `wget` (built into Alpine via busybox) for hook scripts — no extra packages needed
   - Exposes port 80
 
 ### Backup Hooks (`deploy/once/hooks/`)
@@ -72,7 +73,7 @@ New Dockerfile with three stages:
 **`pre-backup`** — Calls the app's internal backup endpoint to flush all stores:
 ```sh
 #!/bin/sh
-curl -sf http://localhost:80/hooks/pre-backup || exit 1
+wget -qO /dev/null http://localhost:80/-/pre-backup || exit 1
 ```
 
 **`post-restore`** — Removes stale WAL/SHM and Badger lock files after restore. Badger's built-in recovery runs on `Init()` at next startup to handle any MANIFEST inconsistencies:

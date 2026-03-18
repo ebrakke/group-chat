@@ -26,20 +26,31 @@ ONCE mounts a persistent volume at `/storage`. Relay Chat stores three types of 
 
 All three are covered by ONCE's file-level backup of `/storage`.
 
+Note: `RELAY_DATABASE_PATH` must not be overridden, as it controls where the Badger directory is created (derived from `$DATA_DIR/relay.db` → `$DATA_DIR/relay/`).
+
 ## Changes
+
+### Relay Package (`internal/relay/relay.go`)
+
+Modify `relay.New()` to return a `Relay` struct instead of just `http.Handler`. The struct exposes:
+- `ServeHTTP()` — the existing relay handler (satisfies `http.Handler`)
+- `Sync()` — flushes the Badger memtables to disk for backup safety
+
+This is needed because the Badger backend is currently encapsulated inside `New()` and not accessible to `main.go`.
 
 ### Go Code (`cmd/app/main.go`)
 
-1. **Add `/up` health endpoint** — simple inline handler on the top-level mux:
+1. **Add `GET /up` health endpoint** — simple inline handler on the top-level mux:
    ```go
    mux.HandleFunc("GET /up", func(w http.ResponseWriter, r *http.Request) {
        w.WriteHeader(http.StatusOK)
    })
    ```
 
-2. **Add `GET /hooks/pre-backup` endpoint** — performs backup preparation internally using the app's own database connections, avoiding external `sqlite3` CLI dependency:
+2. **Add `GET /hooks/pre-backup` endpoint** — localhost-only, performs backup preparation internally:
+   - Rejects requests not from `127.0.0.1` / `::1` (prevents public access to operational endpoint)
    - Calls `PRAGMA wal_checkpoint(TRUNCATE)` on `app.db` via the existing DB connection
-   - Calls `db.Sync()` on the Badger store to flush memtables to disk
+   - Calls `Sync()` on the relay's Badger store
    - Returns 200 on success, 500 on failure
 
 ### `Dockerfile.once`
@@ -64,7 +75,7 @@ New Dockerfile with three stages:
 curl -sf http://localhost:80/hooks/pre-backup || exit 1
 ```
 
-**`post-restore`** — Removes stale WAL/SHM and Badger lock files after restore:
+**`post-restore`** — Removes stale WAL/SHM and Badger lock files after restore. Badger's built-in recovery runs on `Init()` at next startup to handle any MANIFEST inconsistencies:
 ```sh
 #!/bin/sh
 rm -f /storage/app.db-wal /storage/app.db-shm
@@ -83,6 +94,7 @@ deploy/once/hooks/post-restore
 Modified files:
 ```
 cmd/app/main.go
+internal/relay/relay.go
 ```
 
 ## Out of Scope

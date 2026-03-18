@@ -152,7 +152,9 @@ func main() {
 
 	// /up -> ONCE health check
 	mux.HandleFunc("GET /up", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
 		w.WriteHeader(http.StatusOK)
+		fmt.Fprint(w, "<!DOCTYPE html><html><body>OK</body></html>")
 	})
 
 	// /-/pre-backup -> flush stores for ONCE backup (localhost only)

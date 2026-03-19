@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	badgerdb "github.com/dgraph-io/badger/v4"
 	"github.com/fiatjaf/eventstore/badger"
 	"github.com/fiatjaf/relay29"
 	"github.com/fiatjaf/relay29/khatru29"
@@ -74,6 +75,9 @@ func New(cfg Config) (*Relay, error) {
 
 	db := &badger.BadgerBackend{
 		Path: relayDir,
+		BadgerOptionsModifier: func(opts badgerdb.Options) badgerdb.Options {
+			return opts.WithBypassLockGuard(true)
+		},
 	}
 	if err := db.Init(); err != nil {
 		return nil, fmt.Errorf("relay db init: %w", err)

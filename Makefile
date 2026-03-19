@@ -3,7 +3,7 @@ COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 BUILD_TIME := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 LDFLAGS := -ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.buildTime=$(BUILD_TIME)"
 
-.PHONY: build run dev test test-e2e frontend clean help mobile-sync mobile-build mobile-open release
+.PHONY: build run dev test test-e2e frontend clean help release
 
 help:
 	@echo "Relay Chat"
@@ -14,9 +14,6 @@ help:
 	@echo "  make test       - Run Go unit tests"
 	@echo "  make test-e2e   - Run Playwright E2E tests"
 	@echo "  make frontend   - Build frontend only"
-	@echo "  make mobile-build URL=https://... - Build Android APK (debug)"
-	@echo "  make mobile-sync  - Sync frontend to Android project"
-	@echo "  make mobile-open  - Open Android project in Android Studio"
 	@echo "  make release VERSION=0.1.0 - Build release binaries (linux/darwin × amd64/arm64)"
 	@echo "  make clean      - Remove build artifacts"
 
@@ -47,24 +44,6 @@ test:
 
 test-e2e:
 	./scripts/run-e2e.sh
-
-mobile-sync: frontend
-	cd mobile && npx cap sync android
-
-mobile-build:
-ifndef URL
-	$(error URL is required. Usage: make mobile-build URL=https://chat.example.com)
-endif
-	echo "$(URL)" > mobile/server-url.txt
-	cd frontend && bun install && bun run build
-	cd mobile && npx cap sync android
-	cd mobile/android && ./gradlew assembleDebug
-	@echo "APK built: mobile/android/app/build/outputs/apk/debug/app-debug.apk"
-	@echo "Server URL: $(URL)"
-	rm -f mobile/server-url.txt
-
-mobile-open: mobile-sync
-	cd mobile && npx cap open android
 
 clean:
 	rm -f relay-chat

@@ -122,9 +122,11 @@ func (h *Handler) routes() {
 	h.mux.HandleFunc("POST /api/bots/{id}/bindings", h.handleBindBotChannel)
 	h.mux.HandleFunc("DELETE /api/bots/{id}/bindings/{channelId}", h.handleUnbindBotChannel)
 
+	// Channel notification settings
+	h.mux.HandleFunc("GET /api/channels/{id}/notifications", h.handleGetChannelNotifications)
+	h.mux.HandleFunc("PUT /api/channels/{id}/notifications", h.handleSetChannelNotifications)
+
 	// Notifications
-	h.mux.HandleFunc("GET /api/notifications/settings", h.handleGetNotificationSettings)
-	h.mux.HandleFunc("POST /api/notifications/settings", h.handleUpdateNotificationSettings)
 	h.mux.HandleFunc("POST /api/threads/{id}/mute", h.handleMuteThread)
 	h.mux.HandleFunc("DELETE /api/threads/{id}/mute", h.handleUnmuteThread)
 	h.mux.HandleFunc("GET /api/threads/{id}/mute", h.handleGetThreadMute)
@@ -1351,6 +1353,52 @@ func (h *Handler) handleUnbindBotChannel(w http.ResponseWriter, r *http.Request)
 }
 
 // --- Notification handlers ---
+
+func (h *Handler) handleGetChannelNotifications(w http.ResponseWriter, r *http.Request) {
+	user, err := h.requireAuth(r)
+	if err != nil {
+		writeErr(w, http.StatusUnauthorized, err)
+		return
+	}
+
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, errors.New("invalid channel id"))
+		return
+	}
+
+	level := h.notifications.GetChannelNotificationLevel(user.ID, id)
+	writeJSON(w, http.StatusOK, map[string]string{"level": level})
+}
+
+func (h *Handler) handleSetChannelNotifications(w http.ResponseWriter, r *http.Request) {
+	user, err := h.requireAuth(r)
+	if err != nil {
+		writeErr(w, http.StatusUnauthorized, err)
+		return
+	}
+
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, errors.New("invalid channel id"))
+		return
+	}
+
+	var req struct {
+		Level string `json:"level"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeErr(w, http.StatusBadRequest, errors.New("invalid request"))
+		return
+	}
+
+	if err := h.notifications.SetChannelNotificationLevel(user.ID, id, req.Level); err != nil {
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{"level": req.Level})
+}
 
 func (h *Handler) handleGetNotificationSettings(w http.ResponseWriter, r *http.Request) {
 	user, err := h.requireAuth(r)

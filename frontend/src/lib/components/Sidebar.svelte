@@ -2,7 +2,7 @@
   import { goto } from '$app/navigation';
   import { authStore } from '$lib/stores/auth';
   import { channelStore } from '$lib/stores/channels';
-  import { stopNativeNotifications } from '$lib/utils/native';
+  import { unsubscribePush } from '$lib/push';
 
   let { onCloseSidebar }: { onCloseSidebar?: () => void } = $props();
 
@@ -168,7 +168,7 @@
       <button
         id="logout"
         onclick={async () => {
-          await stopNativeNotifications();
+          await unsubscribePush();
           authStore.logout();
           goto('/login');
         }}

@@ -1,12 +1,11 @@
 <script lang="ts">
   import type { FileAttachment } from '$lib/types';
-  import { getApiBase } from '$lib/utils/platform';
   import ImageLightbox from './ImageLightbox.svelte';
 
   let { file }: { file: FileAttachment } = $props();
 
   const isImage = $derived(file.mimeType.startsWith('image/'));
-  const fileUrl = $derived(`${getApiBase()}/api/files/${file.id}`);
+  const fileUrl = $derived(`/api/files/${file.id}`);
   const sizeLabel = $derived(formatSize(file.sizeBytes));
 
   let lightboxOpen = $state(false);

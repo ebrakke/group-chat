@@ -68,7 +68,7 @@
   // --- Admin settings ---
   async function loadAdminSettings() {
     try {
-      const settings = await api<{ baseUrl?: string; ntfyServerUrl?: string }>(
+      const settings = await api<{ baseUrl?: string }>(
         'GET',
         '/api/admin/settings'
       );

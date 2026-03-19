@@ -1,4 +1,4 @@
-import { api, setSessionToken, getSessionToken, uploadAvatar, deleteAvatar } from '$lib/api';
+import { api, uploadAvatar, deleteAvatar } from '$lib/api';
 import type { User } from '$lib/types';
 
 class AuthStore {
@@ -17,8 +17,6 @@ class AuthStore {
   async checkAuth() {
     this.loading = true;
     try {
-      const token = getSessionToken();
-      if (token) setSessionToken(token);
       this.user = await api<User>('GET', '/api/auth/me');
     } catch {
       this.user = null;
@@ -42,7 +40,6 @@ class AuthStore {
       password
     });
     this.user = res.user;
-    setSessionToken(res.token);
   }
 
   async bootstrap(username: string, password: string, displayName: string) {
@@ -53,7 +50,6 @@ class AuthStore {
     });
     this.user = res.user;
     this.hasUsers = true;
-    setSessionToken(res.token);
   }
 
   async signup(username: string, password: string, displayName: string, inviteCode: string) {
@@ -64,7 +60,6 @@ class AuthStore {
       inviteCode
     });
     this.user = res.user;
-    setSessionToken(res.token);
   }
 
   async logout() {
@@ -74,7 +69,6 @@ class AuthStore {
       // ignore logout errors
     }
     this.user = null;
-    setSessionToken(null);
   }
 
   async updateAvatar(file: File) {

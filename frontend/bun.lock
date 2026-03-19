@@ -5,10 +5,6 @@
     "": {
       "name": "relay-chat-frontend",
       "dependencies": {
-        "@capacitor/app": "^8.0.1",
-        "@capacitor/core": "^8.1.0",
-        "@capacitor/local-notifications": "^6.0.0",
-        "@capawesome-team/capacitor-android-foreground-service": "^6.0.0",
         "marked": "^17.0.2",
       },
       "devDependencies": {
@@ -25,14 +21,6 @@
     },
   },
   "packages": {
-    "@capacitor/app": ["@capacitor/app@8.0.1", "", { "peerDependencies": { "@capacitor/core": ">=8.0.0" } }, "sha512-yeG3yyA0ETKqvgqexwHMBlmVOF13A1hRXzv/km0Ptv5TrNIZvZJK4MTI3uiqvnbHrzoJGP5DwWAjEXEfi90v3Q=="],
-
-    "@capacitor/core": ["@capacitor/core@8.1.0", "", { "dependencies": { "tslib": "^2.1.0" } }, "sha512-UfMBMWc1v7J+14AhH03QmeNwV3HZx3qnOWhpwnHfzALEwAwlV/itQOQqcasMQYhOHWL0tiymc5ByaLTn7KKQxw=="],
-
-    "@capacitor/local-notifications": ["@capacitor/local-notifications@6.1.3", "", { "peerDependencies": { "@capacitor/core": "^6.0.0" } }, "sha512-AsVVPmuYoSzHX4kbLBwjdrV7q3KBagpJtngNyz6FFwNk9C5osyQATWxKWXwqJgMcMm0CqZ5yvpm+beHKBYsHYw=="],
-
-    "@capawesome-team/capacitor-android-foreground-service": ["@capawesome-team/capacitor-android-foreground-service@6.2.0", "", { "peerDependencies": { "@capacitor/core": "^6.0.0" } }, "sha512-8ALBTViR9QYRZ0UK7hd9HZgdDaq7rHmuZTwJ7iIykbvpHb/+ri7dRIBmwCnhp3I8tYbkY3wjzRTKv7PSIGLt5A=="],
-
     "@esbuild/aix-ppc64": ["@esbuild/aix-ppc64@0.25.12", "", { "os": "aix", "cpu": "ppc64" }, "sha512-Hhmwd6CInZ3dwpuGTF8fJG6yoWmsToE+vYgD4nytZVxcu1ulHpUQRAB1UJ8+N1Am3Mz4+xOByoQoSZf4D+CpkA=="],
 
     "@esbuild/android-arm": ["@esbuild/android-arm@0.25.12", "", { "os": "android", "cpu": "arm" }, "sha512-VJ+sKvNA/GE7Ccacc9Cha7bpS8nyzVv0jdVgwNDaR4gDMC/2TTRc33Ip8qrNYUcpkOHUT5OZ0bUcNNVZQ9RLlg=="],
@@ -298,8 +286,6 @@
     "tinyglobby": ["tinyglobby@0.2.15", "", { "dependencies": { "fdir": "^6.5.0", "picomatch": "^4.0.3" } }, "sha512-j2Zq4NyQYG5XMST4cbs02Ak8iJUdxRM0XI5QyxXuZOzKOINmWurp3smXu3y5wDcJrptwpSjgXHzIQxR0omXljQ=="],
 
     "totalist": ["totalist@3.0.1", "", {}, "sha512-sf4i37nQ2LBx4m3wB74y+ubopq6W/dIzXg0FDGjsYnZHVa1Da8FH853wlL2gtUhg+xJXjfk3kUZS3BRoQeoQBQ=="],
-
-    "tslib": ["tslib@2.8.1", "", {}, "sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w=="],
 
     "typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
 

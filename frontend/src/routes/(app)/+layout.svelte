@@ -5,8 +5,8 @@
   import { channelStore } from '$lib/stores/channels';
   import { authStore } from '$lib/stores/auth';
   import { wsManager } from '$lib/ws';
-  import { isNative, isMobile } from '$lib/utils/platform';
-  import { initNativeNotifications, setupBackButton } from '$lib/utils/native';
+  import { isMobile } from '$lib/utils/platform';
+  import { initPush } from '$lib/push';
   import Sidebar from '$lib/components/Sidebar.svelte';
   import Toast from '$lib/components/Toast.svelte';
 
@@ -33,47 +33,10 @@
   onMount(async () => {
     channelStore.load();
     wsManager.connect();
-
     window.addEventListener('keydown', handleKeydown);
 
-    // Start foreground service + local notifications on native
-    if (isNative()) {
-      initNativeNotifications();
-    }
-
-    // Set up Android back button
-    setupBackButton({
-      closeThread: () => {
-        // Threads and search are URL-driven — history.back() handles them
-        const pathname = $page.url.pathname;
-        const hasThread = $page.url.searchParams.has('thread');
-        if (pathname === '/search' || hasThread) {
-          history.back();
-          return true;
-        }
-        return false;
-      },
-      closeSidebar: () => {
-        if (sidebarOpen && isMobile()) {
-          sidebarOpen = false;
-          return true;
-        }
-        return false;
-      },
-      goBack: () => {
-        const pathname = $page.url.pathname;
-        if (pathname.startsWith('/settings') || pathname.startsWith('/threads')) {
-          goto('/channels');
-          return true;
-        }
-        // On a channel page — open sidebar instead of closing app
-        if (pathname.startsWith('/channels/') && !sidebarOpen) {
-          sidebarOpen = true;
-          return true;
-        }
-        return false;
-      }
-    });
+    // Initialize web push notifications
+    initPush();
   });
 
   onDestroy(async () => {

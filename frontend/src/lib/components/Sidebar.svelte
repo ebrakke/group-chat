@@ -152,6 +152,12 @@
         class="text-left text-[12px] hover:underline underline-offset-2 py-1"
         style="color: var(--rc-timestamp);"
       >admin</button>
+      <button
+        id="open-invites"
+        onclick={() => { goto('/settings'); onCloseSidebar?.(); }}
+        class="text-left text-[12px] hover:underline underline-offset-2 py-1"
+        style="color: var(--rc-timestamp);"
+      >+ invite</button>
     {/if}
 
     <!-- User info -->

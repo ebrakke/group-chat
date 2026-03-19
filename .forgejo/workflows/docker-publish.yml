@@ -17,22 +17,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
       - name: Login to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ebrakke
-          password: ${{ secrets.GHCR_TOKEN }}
+        run: echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ebrakke --password-stdin
 
       - name: Build and push
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: Dockerfile.once
-          push: true
-          tags: |
-            ghcr.io/ebrakke/group-chat:latest
-            ghcr.io/ebrakke/group-chat:${{ github.sha }}
+        run: |
+          TAG_SHA="ghcr.io/ebrakke/group-chat:${{ github.sha }}"
+          TAG_LATEST="ghcr.io/ebrakke/group-chat:latest"
+          docker build -f Dockerfile.once -t "$TAG_SHA" -t "$TAG_LATEST" .
+          docker push "$TAG_SHA"
+          docker push "$TAG_LATEST"

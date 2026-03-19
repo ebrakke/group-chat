@@ -1400,50 +1400,6 @@ func (h *Handler) handleSetChannelNotifications(w http.ResponseWriter, r *http.R
 	writeJSON(w, http.StatusOK, map[string]string{"level": req.Level})
 }
 
-func (h *Handler) handleGetNotificationSettings(w http.ResponseWriter, r *http.Request) {
-	user, err := h.requireAuth(r)
-	if err != nil {
-		writeErr(w, http.StatusUnauthorized, err)
-		return
-	}
-
-	settings, err := h.notifications.GetSettings(user.ID)
-	if errors.Is(err, notifications.ErrSettingsNotFound) {
-		writeJSON(w, http.StatusOK, map[string]interface{}{
-			"configured": false,
-		})
-		return
-	}
-	if err != nil {
-		writeErr(w, http.StatusInternalServerError, errors.New("Failed to get settings"))
-		return
-	}
-
-	writeJSON(w, http.StatusOK, settings)
-}
-
-func (h *Handler) handleUpdateNotificationSettings(w http.ResponseWriter, r *http.Request) {
-	user, err := h.requireAuth(r)
-	if err != nil {
-		writeErr(w, http.StatusUnauthorized, err)
-		return
-	}
-
-	var req notifications.Settings
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeErr(w, http.StatusBadRequest, errors.New("Invalid request"))
-		return
-	}
-
-	req.UserID = user.ID
-	if err := h.notifications.UpdateSettings(user.ID, &req); err != nil {
-		writeErr(w, http.StatusInternalServerError, errors.New("Failed to update settings"))
-		return
-	}
-
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
-}
-
 func (h *Handler) handleMuteThread(w http.ResponseWriter, r *http.Request) {
 	user, err := h.requireAuth(r)
 	if err != nil {

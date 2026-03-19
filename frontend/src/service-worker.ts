@@ -52,3 +52,36 @@ sw.addEventListener('fetch', (event) => {
 		caches.match(event.request).then((cached) => cached || fetch(event.request)) as Promise<Response>
 	);
 });
+
+// --- Web Push Notifications ---
+
+sw.addEventListener('push', (event) => {
+	if (!event.data) return;
+
+	const handlePush = async () => {
+		const data = event.data!.json();
+		// Skip notification if user is actively looking at the app
+		const clients = await sw.clients.matchAll({ type: 'window', includeUncontrolled: true });
+		if (clients.some((c) => c.focused)) return;
+
+		await sw.registration.showNotification(data.title, data.options);
+	};
+
+	event.waitUntil(handlePush());
+});
+
+sw.addEventListener('notificationclick', (event) => {
+	event.notification.close();
+	const path = event.notification.data?.path;
+	if (!path) return;
+
+	const url = new URL(path, sw.location.origin).href;
+
+	event.waitUntil(
+		sw.clients.matchAll({ type: 'window' }).then((clients) => {
+			const focused = clients.find((c) => c.focused);
+			if (focused) return focused.navigate(url);
+			return sw.clients.openWindow(url);
+		})
+	);
+});

@@ -106,6 +106,9 @@ func (h *Handler) routes() {
 	h.mux.HandleFunc("POST /api/messages/{id}/reactions", h.handleAddReaction)
 	h.mux.HandleFunc("DELETE /api/messages/{id}/reactions/{emoji}", h.handleRemoveReaction)
 
+	// Members (any authenticated user)
+	h.mux.HandleFunc("GET /api/members", h.handleListMembers)
+
 	// Users
 	h.mux.HandleFunc("GET /api/users", h.handleListUsers)
 	h.mux.HandleFunc("GET /api/users/search", h.handleSearchUsers)
@@ -1005,6 +1008,26 @@ func (h *Handler) handleRemoveReaction(w http.ResponseWriter, r *http.Request) {
 	}, ChannelID: msg.ChannelID})
 
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// --- Member handlers ---
+
+func (h *Handler) handleListMembers(w http.ResponseWriter, r *http.Request) {
+	_, err := h.requireAuth(r)
+	if err != nil {
+		writeErr(w, http.StatusUnauthorized, err)
+		return
+	}
+
+	users, err := h.auth.ListMembers()
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	if users == nil {
+		users = []auth.User{}
+	}
+	writeJSON(w, http.StatusOK, users)
 }
 
 // --- User handlers ---

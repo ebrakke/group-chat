@@ -318,6 +318,30 @@ func (s *Service) SearchUsers(query string) ([]User, error) {
 	return users, rows.Err()
 }
 
+// ListMembers returns all non-bot users ordered by display name.
+func (s *Service) ListMembers() ([]User, error) {
+	rows, err := s.db.Query("SELECT id, username, display_name, role, created_at, profile_picture_id FROM users WHERE role != 'bot' ORDER BY display_name")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var users []User
+	for rows.Next() {
+		var u User
+		var avatarFileID sql.NullInt64
+		if err := rows.Scan(&u.ID, &u.Username, &u.DisplayName, &u.Role, &u.CreatedAt, &avatarFileID); err != nil {
+			return nil, err
+		}
+		u.IsBot = u.Role == "bot"
+		if avatarFileID.Valid {
+			u.AvatarURL = fmt.Sprintf("/api/files/%d", avatarFileID.Int64)
+		}
+		users = append(users, u)
+	}
+	return users, rows.Err()
+}
+
 // ListUsers returns all users.
 func (s *Service) ListUsers() ([]User, error) {
 	rows, err := s.db.Query("SELECT id, username, display_name, role, created_at, profile_picture_id FROM users ORDER BY created_at")

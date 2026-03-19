@@ -11,6 +11,7 @@
   import MessageInput from '$lib/components/MessageInput.svelte';
   import ThreadPanel from '$lib/components/ThreadPanel.svelte';
   import ProfilePanel from '$lib/components/ProfilePanel.svelte';
+  import MembersPanel from '$lib/components/MembersPanel.svelte';
   import NotificationBell from '$lib/components/NotificationBell.svelte';
 
   let channelSlug = $derived($page.params.id);
@@ -32,9 +33,10 @@
   }
 
   let profileOpen = $state<ProfileData | null>(null);
+  let membersOpen = $state(false);
 
-  let rightPanel = $derived<'thread' | 'profile' | null>(
-    profileOpen ? 'profile' : threadOpen ? 'thread' : null
+  let rightPanel = $derived<'thread' | 'profile' | 'members' | null>(
+    profileOpen ? 'profile' : membersOpen ? 'members' : threadOpen ? 'thread' : null
   );
 
   async function loadMessages(id: number) {
@@ -64,6 +66,13 @@
     if (channelId) {
       channelStore.setActive(channelId);
       loadMessages(channelId);
+    }
+  });
+
+  // Remember last visited channel
+  $effect(() => {
+    if (channelSlug && channel) {
+      localStorage.setItem('last-channel', channelSlug);
     }
   });
 
@@ -133,10 +142,20 @@
 
   function openProfile(profile: ProfileData) {
     profileOpen = profile;
+    membersOpen = false;
   }
 
   function closeProfile() {
     profileOpen = null;
+  }
+
+  function toggleMembers() {
+    membersOpen = !membersOpen;
+    if (membersOpen) profileOpen = null;
+  }
+
+  function closeMembersPanel() {
+    membersOpen = false;
   }
 </script>
 
@@ -152,10 +171,21 @@
       <span id="channel-header-text" class="text-[13px] font-bold" style="color: var(--foreground);">
         # {channel?.name ?? 'Loading...'}
       </span>
-      <div class="ml-auto">
+      <div class="ml-auto flex items-center gap-1">
         {#if channelId}
           <NotificationBell {channelId} />
         {/if}
+        <button
+          onclick={toggleMembers}
+          class="p-1.5 rounded hover:opacity-70 transition-opacity"
+          style="color: {membersOpen ? 'var(--foreground)' : 'var(--rc-timestamp)'};"
+          aria-label="Toggle members"
+          title="Members"
+        >
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+          </svg>
+        </button>
       </div>
     </div>
 
@@ -191,5 +221,10 @@
       isBot={profileOpen.isBot}
       onClose={closeProfile}
     />
+  {/if}
+
+  <!-- Members panel -->
+  {#if rightPanel === 'members'}
+    <MembersPanel onClose={closeMembersPanel} onOpenProfile={openProfile} />
   {/if}
 </div>

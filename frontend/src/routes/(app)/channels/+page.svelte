@@ -2,10 +2,14 @@
   import { goto } from '$app/navigation';
   import { channelStore } from '$lib/stores/channels';
 
-  // Auto-redirect to the first channel when channels are loaded
+  // Auto-redirect to last visited channel, or first channel as fallback
   $effect(() => {
     if (channelStore.channels.length > 0) {
-      goto(`/channels/${channelStore.channels[0].name}`, { replaceState: true });
+      const lastChannel = localStorage.getItem('last-channel');
+      const target = lastChannel && channelStore.getByName(lastChannel)
+        ? lastChannel
+        : channelStore.channels[0].name;
+      goto(`/channels/${target}`, { replaceState: true });
     }
   });
 </script>

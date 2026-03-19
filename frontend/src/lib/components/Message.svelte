@@ -239,7 +239,7 @@
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
   class="message relative"
-  style="padding-left: {isTouch ? '12px' : compact ? '12px' : '16px'}; padding-right: {isTouch ? '12px' : compact ? '12px' : '16px'}; margin-top: {grouped ? '1px' : compact ? '8px' : isTouch ? '8px' : '16px'}; background: {hovered ? 'var(--rc-message-hover)' : 'transparent'}; {isTouch ? '-webkit-user-select: none; user-select: none; -webkit-touch-callout: none;' : ''}"
+  style="padding-left: {isTouch ? '12px' : compact ? '12px' : '20px'}; padding-right: {isTouch ? '12px' : compact ? '12px' : '20px'}; margin-top: {grouped ? '1px' : compact ? '8px' : isTouch ? '8px' : '20px'}; background: {hovered ? 'var(--rc-message-hover)' : 'transparent'}; {isTouch ? '-webkit-user-select: none; user-select: none; -webkit-touch-callout: none;' : ''}"
   onmouseenter={() => (hovered = true)}
   onmouseleave={() => { hovered = false; showMoreMenu = false; }}
   ontouchstart={handleTouchStart}
@@ -275,7 +275,7 @@
   <!-- Desktop hover toolbar — floats top-right -->
   {#if !isTouch && showActions && (hovered || showPicker || showMoreMenu)}
     <div class="msg-actions absolute -top-3 flex items-center z-20 border"
-         style="right: {compact ? '12px' : '16px'}; background: var(--background); border-color: var(--border);">
+         style="right: {compact ? '12px' : '20px'}; background: var(--background); border-color: var(--border);">
       {#if onOpenThread}
         <button
           bind:this={reactBtnEl}
@@ -322,7 +322,7 @@
   <!-- Body — indented to align with author name -->
   <div
     class="text-[13px] leading-relaxed min-w-0 overflow-hidden"
-    style="color: var(--foreground); padding-left: {isTouch ? '36px' : compact ? '36px' : '52px'}; padding-bottom: {grouped ? '1px' : compact ? '2px' : '4px'}; padding-top: {grouped ? '0' : '1px'};"
+    style="color: var(--foreground); padding-left: {isTouch ? '36px' : compact ? '36px' : '44px'}; padding-bottom: {grouped ? '1px' : compact ? '2px' : '6px'}; padding-top: {grouped ? '0' : '2px'};"
   >
     <!-- Content -->
     {#if editing}

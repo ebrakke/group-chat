@@ -14,7 +14,7 @@
     submitting = true;
     try {
       await authStore.bootstrap(username, password, displayName);
-      goto('/channels');
+      goto('/welcome');
     } catch (err: any) {
       error = err.message || 'Bootstrap failed';
     } finally {

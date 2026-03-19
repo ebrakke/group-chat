@@ -5,6 +5,7 @@ class AuthStore {
   user = $state<User | null>(null);
   loading = $state(true);
   hasUsers = $state(true);
+  bootstrapInviteCode = $state('');
 
   get isLoggedIn() {
     return this.user !== null;
@@ -43,13 +44,14 @@ class AuthStore {
   }
 
   async bootstrap(username: string, password: string, displayName: string) {
-    const res = await api<{ user: User; token: string }>('POST', '/api/auth/bootstrap', {
+    const res = await api<{ user: User; token: string; inviteCode: string }>('POST', '/api/auth/bootstrap', {
       username,
       password,
       displayName
     });
     this.user = res.user;
     this.hasUsers = true;
+    this.bootstrapInviteCode = res.inviteCode || '';
   }
 
   async signup(username: string, password: string, displayName: string, inviteCode: string) {

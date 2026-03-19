@@ -8,7 +8,7 @@
 
   let { children } = $props();
 
-  const publicRoutes = ['/login', '/bootstrap', '/signup', '/invite'];
+  const publicRoutes = ['/login', '/bootstrap', '/signup', '/invite', '/welcome'];
 
   function isPublicRoute(pathname: string): boolean {
     return publicRoutes.some((route) => pathname === route || pathname.startsWith(route + '/'));

@@ -17,11 +17,21 @@
       return;
     }
 
-    window.addEventListener('beforeinstallprompt', (e: Event) => {
-      e.preventDefault();
-      deferredPrompt = e;
-    });
+    // The event may have already fired before this component mounted.
+    // Check if we captured it on the window.
+    if ((window as any).__pwaInstallPrompt) {
+      deferredPrompt = (window as any).__pwaInstallPrompt;
+    }
+
+    // Also listen for future events
+    window.addEventListener('beforeinstallprompt', handlePrompt);
+    return () => window.removeEventListener('beforeinstallprompt', handlePrompt);
   });
+
+  function handlePrompt(e: Event) {
+    e.preventDefault();
+    deferredPrompt = e;
+  }
 
   async function install() {
     if (!deferredPrompt) return;

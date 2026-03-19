@@ -11,6 +11,7 @@
     %sveltekit.head%
   </head>
   <body>
+    <script>window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();window.__pwaInstallPrompt=e;});</script>
     <div id="app">%sveltekit.body%</div>
   </body>
 </html>

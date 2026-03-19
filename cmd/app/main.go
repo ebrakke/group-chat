@@ -93,11 +93,9 @@ func main() {
 	// Register webhook provider (always available)
 	notifySvc.RegisterProvider("webhook", notifications.NewWebhookProvider())
 
-	// Register ntfy provider if configured
-	ntfyURL, err := notifySvc.GetAppSetting("ntfy_server_url")
-	if err == nil && ntfyURL != "" {
-		notifySvc.RegisterProvider("ntfy", notifications.NewNtfyProvider(ntfyURL))
-		log.Printf("Ntfy provider enabled: %s", ntfyURL)
+	// Ensure VAPID keys exist for web push
+	if _, _, err := notifySvc.EnsureVAPIDKeys(); err != nil {
+		log.Printf("Warning: VAPID key setup failed: %v", err)
 	}
 
 	// Set notification callback on message service

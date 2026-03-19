@@ -51,24 +51,6 @@ func (s *Service) UnregisterProvider(name string) {
 	delete(s.providers, name)
 }
 
-// ReloadNtfyProvider reloads the ntfy provider with current config from database
-func (s *Service) ReloadNtfyProvider() error {
-	serverURL, err := s.GetAppSetting("ntfy_server_url")
-	if err != nil {
-		s.UnregisterProvider("ntfy")
-		return nil
-	}
-
-	if serverURL == "" {
-		s.UnregisterProvider("ntfy")
-		return nil
-	}
-
-	s.RegisterProvider("ntfy", NewNtfyProvider(serverURL))
-	log.Printf("Ntfy provider reloaded with URL: %s", serverURL)
-	return nil
-}
-
 // GetAvailableProviders returns list of properly configured providers
 func (s *Service) GetAvailableProviders() []string {
 	var available []string
@@ -283,19 +265,10 @@ func (s *Service) sendToUser(userID int64, msg *messages.Message, channelName st
 	// Build payload
 	payload := s.buildPayload(msg, channelName)
 
-	// Try push subscriptions first (ntfy)
-	topics, _ := s.GetPushTopics(userID)
-	if len(topics) > 0 {
-		if ntfyProvider, ok := s.providers["ntfy"]; ok {
-			for _, topic := range topics {
-				recipient := Recipient{UserID: userID, ProviderKey: topic}
-				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-				if err := ntfyProvider.Send(ctx, recipient, payload); err != nil {
-					log.Printf("Ntfy send error (user %d, topic %s): %v", userID, topic, err)
-				}
-				cancel()
-			}
-		}
+	// Try web push subscriptions first
+	subs, _ := s.GetWebPushSubscriptions(userID)
+	if len(subs) > 0 {
+		s.SendWebPush(subs, payload)
 		return
 	}
 
@@ -379,47 +352,4 @@ func (s *Service) userParticipatedInThread(userID, parentID int64) (bool, error)
 		return false, err
 	}
 	return count > 0, nil
-}
-
-
-
-// SubscribePush registers a push subscription for a user.
-func (s *Service) SubscribePush(userID int64, ntfyTopic, platform string) error {
-	now := time.Now().UTC().Format(time.RFC3339)
-	_, err := s.db.Exec(`
-		INSERT OR REPLACE INTO push_subscriptions (user_id, ntfy_topic, platform, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?)
-	`, userID, ntfyTopic, platform, now, now)
-	if err != nil {
-		return fmt.Errorf("subscribe push: %w", err)
-	}
-	return nil
-}
-
-// UnsubscribePush removes a push subscription by topic.
-func (s *Service) UnsubscribePush(ntfyTopic string) error {
-	_, err := s.db.Exec(`DELETE FROM push_subscriptions WHERE ntfy_topic = ?`, ntfyTopic)
-	if err != nil {
-		return fmt.Errorf("unsubscribe push: %w", err)
-	}
-	return nil
-}
-
-// GetPushTopics returns all ntfy topics for a user.
-func (s *Service) GetPushTopics(userID int64) ([]string, error) {
-	rows, err := s.db.Query(`SELECT ntfy_topic FROM push_subscriptions WHERE user_id = ?`, userID)
-	if err != nil {
-		return nil, fmt.Errorf("get push topics: %w", err)
-	}
-	defer rows.Close()
-
-	var topics []string
-	for rows.Next() {
-		var topic string
-		if err := rows.Scan(&topic); err != nil {
-			return nil, err
-		}
-		topics = append(topics, topic)
-	}
-	return topics, rows.Err()
 }

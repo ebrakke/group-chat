@@ -128,10 +128,6 @@ func (h *Handler) routes() {
 	h.mux.HandleFunc("GET /api/threads/{id}/mute", h.handleGetThreadMute)
 	h.mux.HandleFunc("GET /api/notifications/providers", h.handleGetProviders)
 
-	// Push subscriptions
-	h.mux.HandleFunc("POST /api/push/subscribe", h.handlePushSubscribe)
-	h.mux.HandleFunc("DELETE /api/push/subscribe", h.handlePushUnsubscribe)
-
 	// Files
 	h.mux.HandleFunc("POST /api/upload", h.handleUploadFile)
 	h.mux.HandleFunc("GET /api/files/{id}", h.handleGetFile)
@@ -1455,65 +1451,6 @@ func (h *Handler) handleGetProviders(w http.ResponseWriter, r *http.Request) {
 }
 
 
-func (h *Handler) handlePushSubscribe(w http.ResponseWriter, r *http.Request) {
-	user, err := h.requireAuth(r)
-	if err != nil {
-		writeErr(w, http.StatusUnauthorized, err)
-		return
-	}
-
-	var req struct {
-		NtfyTopic string `json:"ntfyTopic"`
-		Platform  string `json:"platform"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeErr(w, http.StatusBadRequest, errors.New("Invalid request"))
-		return
-	}
-
-	if req.NtfyTopic == "" {
-		writeErr(w, http.StatusBadRequest, errors.New("ntfyTopic is required"))
-		return
-	}
-	if req.Platform == "" {
-		req.Platform = "android"
-	}
-
-	if err := h.notifications.SubscribePush(user.ID, req.NtfyTopic, req.Platform); err != nil {
-		writeErr(w, http.StatusInternalServerError, errors.New("Failed to subscribe"))
-		return
-	}
-
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
-}
-
-func (h *Handler) handlePushUnsubscribe(w http.ResponseWriter, r *http.Request) {
-	_, err := h.requireAuth(r)
-	if err != nil {
-		writeErr(w, http.StatusUnauthorized, err)
-		return
-	}
-
-	var req struct {
-		NtfyTopic string `json:"ntfyTopic"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeErr(w, http.StatusBadRequest, errors.New("Invalid request"))
-		return
-	}
-
-	if req.NtfyTopic == "" {
-		writeErr(w, http.StatusBadRequest, errors.New("ntfyTopic is required"))
-		return
-	}
-
-	if err := h.notifications.UnsubscribePush(req.NtfyTopic); err != nil {
-		writeErr(w, http.StatusInternalServerError, errors.New("Failed to unsubscribe"))
-		return
-	}
-
-	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
-}
 // --- Admin Settings handlers ---
 
 func (h *Handler) handleGetAdminSettings(w http.ResponseWriter, r *http.Request) {
@@ -1569,12 +1506,6 @@ func (h *Handler) handleUpdateAdminSettings(w http.ResponseWriter, r *http.Reque
 	if err := h.notifications.UpdateAppSettings(req); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
-	}
-	// Reload ntfy provider if URL was updated
-	if _, hasNtfyURL := req["ntfy_server_url"]; hasNtfyURL {
-		if err := h.notifications.ReloadNtfyProvider(); err != nil {
-			log.Printf("Warning: failed to reload ntfy provider: %v", err)
-		}
 	}
 
 	w.WriteHeader(http.StatusOK)

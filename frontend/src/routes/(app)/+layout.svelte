@@ -6,6 +6,7 @@
   import { initPush } from '$lib/push';
   import Sidebar from '$lib/components/Sidebar.svelte';
   import Toast from '$lib/components/Toast.svelte';
+  import InstallBanner from '$lib/components/InstallBanner.svelte';
 
   let { children } = $props();
   let sidebarOpen = $state(false);
@@ -80,11 +81,13 @@
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
-  class="flex h-screen w-screen overflow-hidden font-mono"
+  class="flex flex-col h-screen w-screen overflow-hidden font-mono"
   style="background: var(--background); color: var(--foreground);"
   ontouchstart={handleTouchStart}
   ontouchend={handleTouchEnd}
 >
+  <InstallBanner />
+  <div class="flex flex-1 min-h-0 overflow-hidden">
   <!-- Sidebar -->
   <div
     class="fixed inset-y-0 left-0 z-40 w-52 transform transition-transform duration-200 ease-in-out md:relative md:translate-x-0 md:z-0 {sidebarOpen
@@ -161,6 +164,7 @@
       Connection lost — reconnecting...
     </div>
   {/if}
+  </div>
 </div>
 
 <Toast />

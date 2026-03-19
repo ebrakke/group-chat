@@ -268,9 +268,11 @@ func (s *Service) sendToUser(userID int64, msg *messages.Message, channelName st
 	// Try web push subscriptions first
 	subs, _ := s.GetWebPushSubscriptions(userID)
 	if len(subs) > 0 {
+		log.Printf("Sending web push to user %d (%d subscriptions)", userID, len(subs))
 		s.SendWebPush(subs, payload)
 		return
 	}
+	log.Printf("No web push subscriptions for user %d, skipping push", userID)
 
 	// Fall back to configured provider (webhook, etc.)
 	if settings.Provider == "" {

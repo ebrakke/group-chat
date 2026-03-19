@@ -24,6 +24,14 @@ export async function initPush(): Promise<void> {
 			return;
 		}
 
+		// Request permission if not yet decided
+		if (permissionState === 'default') {
+			const result = await Notification.requestPermission();
+			permissionState = result;
+			if (result !== 'granted') return;
+		}
+
+		// Subscribe if permission granted
 		if (permissionState === 'granted') {
 			await subscribe(reg);
 		}

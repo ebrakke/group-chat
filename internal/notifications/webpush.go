@@ -126,6 +126,7 @@ func (s *Service) SendWebPush(subs []WebPushSubscription, payload Payload) {
 	vapidPub, pubErr := s.GetAppSetting("vapid_public_key")
 	vapidPriv, privErr := s.GetAppSetting("vapid_private_key")
 	if pubErr != nil || privErr != nil || vapidPub == "" || vapidPriv == "" {
+		log.Printf("web push: VAPID keys not available (pub err: %v, priv err: %v)", pubErr, privErr)
 		return
 	}
 

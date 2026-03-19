@@ -17,17 +17,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Check environment
+      - name: Install Docker CLI
         run: |
-          echo "=== OS ==="
-          cat /etc/os-release 2>/dev/null || echo "no os-release"
-          echo "=== Docker socket ==="
-          ls -la /var/run/docker.sock 2>/dev/null || echo "no docker socket"
-          echo "=== Commands available ==="
-          which docker 2>/dev/null || echo "no docker"
-          which buildah 2>/dev/null || echo "no buildah"
-          which podman 2>/dev/null || echo "no podman"
-          echo "=== Kernel ==="
-          uname -a
-          echo "=== User ==="
-          id
+          apt-get update && apt-get install -y ca-certificates curl
+          install -m 0755 -d /etc/apt/keyrings
+          curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc
+          echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian bookworm stable" > /etc/apt/sources.list.d/docker.list
+          apt-get update && apt-get install -y docker-ce-cli
+
+      - name: Login to GHCR
+        run: echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ebrakke --password-stdin
+
+      - name: Build and push
+        run: |
+          docker build -f Dockerfile.once \
+            -t ghcr.io/ebrakke/group-chat:latest \
+            -t ghcr.io/ebrakke/group-chat:${{ github.sha }} \
+            .
+          docker push ghcr.io/ebrakke/group-chat:latest
+          docker push ghcr.io/ebrakke/group-chat:${{ github.sha }}

@@ -243,26 +243,42 @@ func (s *Service) Send(msg *messages.Message, channelName string) error {
 	return nil
 }
 
+// GetChannelNotificationLevel returns the notification level for a user+channel.
+// Returns "mentions" (the default) if no explicit setting exists.
+func (s *Service) GetChannelNotificationLevel(userID, channelID int64) string {
+	var level string
+	err := s.db.QueryRow(
+		"SELECT level FROM channel_notification_settings WHERE user_id = ? AND channel_id = ?",
+		userID, channelID,
+	).Scan(&level)
+	if err != nil {
+		return "mentions" // default
+	}
+	return level
+}
+
+// SetChannelNotificationLevel sets the notification level for a user+channel.
+func (s *Service) SetChannelNotificationLevel(userID, channelID int64, level string) error {
+	switch level {
+	case "everything", "mentions", "threads", "nothing":
+		// valid
+	default:
+		return fmt.Errorf("invalid notification level: %s", level)
+	}
+	_, err := s.db.Exec(
+		`INSERT INTO channel_notification_settings (user_id, channel_id, level) VALUES (?, ?, ?)
+		 ON CONFLICT(user_id, channel_id) DO UPDATE SET level = excluded.level`,
+		userID, channelID, level,
+	)
+	return err
+}
+
 // sendToUser sends a notification to a specific user.
 func (s *Service) sendToUser(userID int64, msg *messages.Message, channelName string) {
-	// Get user's notification settings
-	settings, err := s.GetSettings(userID)
-	if err != nil || settings == nil {
-		// Even without settings, check for push subscriptions with default rules
-		// (default: notify on mentions and thread replies)
-		settings = &Settings{
-			UserID:              userID,
-			NotifyMentions:      true,
-			NotifyThreadReplies: true,
-		}
-	}
-
-	// Check notification rules
-	if !s.shouldNotify(userID, msg, settings) {
+	if !s.shouldNotify(userID, msg) {
 		return
 	}
 
-	// Build payload
 	payload := s.buildPayload(msg, channelName)
 
 	// Try web push subscriptions first
@@ -274,8 +290,9 @@ func (s *Service) sendToUser(userID int64, msg *messages.Message, channelName st
 	}
 	log.Printf("No web push subscriptions for user %d, skipping push", userID)
 
-	// Fall back to configured provider (webhook, etc.)
-	if settings.Provider == "" {
+	// Fall back to configured provider (webhook)
+	settings, err := s.GetSettings(userID)
+	if err != nil || settings == nil || settings.Provider == "" {
 		return
 	}
 	provider, ok := s.providers[settings.Provider]
@@ -300,35 +317,32 @@ func (s *Service) sendToUser(userID int64, msg *messages.Message, channelName st
 }
 
 // shouldNotify checks if a user should receive a notification for a message.
-func (s *Service) shouldNotify(userID int64, msg *messages.Message, settings *Settings) bool {
-	// Get username for mention check
+func (s *Service) shouldNotify(userID int64, msg *messages.Message) bool {
+	level := s.GetChannelNotificationLevel(userID, msg.ChannelID)
+
 	var username string
 	s.db.QueryRow("SELECT username FROM users WHERE id = ?", userID).Scan(&username)
 
-	// Check for mention
-	if settings.NotifyMentions && s.isMentioned(username, msg.Mentions) {
+	switch level {
+	case "everything":
 		return true
-	}
-
-	// Check for thread reply
-	if settings.NotifyThreadReplies && msg.ParentID != nil {
-		// Check if user participated in this thread
-		participated, err := s.userParticipatedInThread(userID, *msg.ParentID)
-		if err == nil && participated {
-			// Check if thread is muted
-			muted, err := s.IsThreadMuted(userID, *msg.ParentID)
-			if err == nil && !muted {
-				return true
-			}
+	case "mentions":
+		return s.isMentioned(username, msg.Mentions)
+	case "threads":
+		if msg.ParentID == nil {
+			return false
 		}
+		participated, err := s.userParticipatedInThread(userID, *msg.ParentID)
+		if err != nil || !participated {
+			return false
+		}
+		muted, err := s.IsThreadMuted(userID, *msg.ParentID)
+		return err == nil && !muted
+	case "nothing":
+		return false
+	default:
+		return false
 	}
-
-	// Check for all messages
-	if settings.NotifyAllMessages {
-		return true
-	}
-
-	return false
 }
 
 // isMentioned checks if username is in the mentions list (case-insensitive).

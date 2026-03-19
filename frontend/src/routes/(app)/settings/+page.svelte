@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { goto } from '$app/navigation';
   import { api } from '$lib/api';
   import { toastStore } from '$lib/stores/toast.svelte';
@@ -8,6 +8,7 @@
   import { channelStore } from '$lib/stores/channels';
   import type { Bot, BotToken, ChannelBinding, Invite, Channel, User } from '$lib/types';
   import Avatar from '$lib/components/Avatar.svelte';
+  import QRCode from 'qrcode';
 
   // --- Change Password ---
   let currentPassword = $state('');
@@ -60,6 +61,51 @@
   // --- Delete Bot Confirm ---
   let confirmDeleteBot = $state<Bot | null>(null);
   let deletingBot = $state(false);
+
+  // QR login
+  let qrDataUrl = $state('');
+  let qrLoading = $state(false);
+  let qrError = $state('');
+  let qrRefreshTimer: ReturnType<typeof setInterval> | null = null;
+
+  async function generateQR() {
+    qrLoading = true;
+    qrError = '';
+    try {
+      const { token } = await api<{ token: string }>('POST', '/api/auth/transfer-token');
+      const url = `${window.location.origin}/auth/transfer/${token}`;
+      qrDataUrl = await QRCode.toDataURL(url, {
+        width: 200,
+        margin: 2,
+        color: { dark: '#000000', light: '#ffffff' },
+      });
+    } catch (e: any) {
+      qrError = 'Failed to generate QR code';
+    } finally {
+      qrLoading = false;
+    }
+  }
+
+  function startQRRefresh() {
+    generateQR();
+    qrRefreshTimer = setInterval(generateQR, 4 * 60 * 1000);
+    document.addEventListener('visibilitychange', handleQRVisibility);
+  }
+
+  function stopQRRefresh() {
+    if (qrRefreshTimer) clearInterval(qrRefreshTimer);
+    document.removeEventListener('visibilitychange', handleQRVisibility);
+  }
+
+  function handleQRVisibility() {
+    if (document.hidden) {
+      if (qrRefreshTimer) clearInterval(qrRefreshTimer);
+      qrRefreshTimer = null;
+    } else {
+      generateQR();
+      qrRefreshTimer = setInterval(generateQR, 4 * 60 * 1000);
+    }
+  }
 
   function autoHide(setter: (v: string) => void, delay = 3000) {
     setTimeout(() => setter(''), delay);
@@ -352,7 +398,10 @@
       loadUsers();
       loadBots();
     }
+    startQRRefresh();
   });
+
+  onDestroy(() => { stopQRRefresh(); });
 </script>
 
 <div id="admin-page" class="flex flex-col h-full">
@@ -444,6 +493,27 @@
                   class="mt-2 px-3 py-1.5 text-[11px] border font-mono disabled:opacity-40"
                   style="background: var(--rc-channel-active-bg); color: var(--rc-channel-active-fg); border-color: var(--rc-channel-active-bg);">
             {changingPassword ? 'saving...' : 'change password'}</button>
+        </div>
+      </div>
+
+      <!-- QR Login -->
+      <div class="border p-4" style="border-color: var(--border);">
+        <div class="border-t pt-4 mt-4" style="border-color: var(--border);">
+          <h3 class="text-[13px] font-bold mb-1">log in on another device</h3>
+          <p class="text-[11px] mb-3" style="color: var(--rc-timestamp);">scan this QR code with your phone to log in instantly</p>
+          {#if qrLoading && !qrDataUrl}
+            <div class="w-[200px] h-[200px] border flex items-center justify-center"
+                 style="border-color: var(--border);">
+              <span class="text-[11px]" style="color: var(--rc-timestamp);">generating...</span>
+            </div>
+          {:else if qrError}
+            <p class="text-[11px]" style="color: var(--rc-mention-badge);">{qrError}</p>
+          {:else if qrDataUrl}
+            <img src={qrDataUrl} alt="QR code for mobile login" class="w-[200px] h-[200px]" />
+            {#if qrLoading}
+              <p class="text-[10px] mt-1" style="color: var(--rc-timestamp);">refreshing...</p>
+            {/if}
+          {/if}
         </div>
       </div>
 

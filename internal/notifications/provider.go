@@ -3,7 +3,7 @@ package notifications
 
 import "context"
 
-// Provider delivers notifications via a specific channel (ntfy, webhook, etc.)
+// Provider delivers notifications via a specific channel (webhook, web push, etc.)
 type Provider interface {
 	// Send delivers a notification for a message
 	Send(ctx context.Context, recipient Recipient, payload Payload) error
@@ -15,7 +15,7 @@ type Provider interface {
 // Recipient identifies who receives the notification
 type Recipient struct {
 	UserID      int64
-	ProviderKey string // ntfy topic, webhook URL, etc.
+	ProviderKey string // webhook URL, etc.
 }
 
 // Payload contains notification content

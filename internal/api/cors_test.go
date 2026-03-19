@@ -19,13 +19,6 @@ func TestCORSMiddleware(t *testing.T) {
 		wantStatusCode int
 	}{
 		{
-			name:           "capacitor origin allowed",
-			origin:         "capacitor://localhost",
-			method:         "GET",
-			wantAllowed:    true,
-			wantStatusCode: http.StatusOK,
-		},
-		{
 			name:           "http localhost allowed",
 			origin:         "http://localhost",
 			method:         "GET",
@@ -34,7 +27,7 @@ func TestCORSMiddleware(t *testing.T) {
 		},
 		{
 			name:           "preflight returns 204",
-			origin:         "capacitor://localhost",
+			origin:         "http://localhost",
 			method:         "OPTIONS",
 			wantAllowed:    true,
 			wantStatusCode: http.StatusNoContent,

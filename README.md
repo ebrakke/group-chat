@@ -16,8 +16,8 @@ Built on [Nostr](https://nostr.com) infrastructure (NIP-29) with a modern Svelte
 - **@Mentions** — Tag users with autocomplete, get notified
 - **Themes** — 5 built-in themes: Parchment, Terminal, Midnight, Dracula, Solarized
 - **Bots** — Create bot users with scoped channel permissions and API tokens
-- **Notifications** — Push via webhook, ntfy, or native Android notifications
-- **Mobile App** — Android app via Capacitor with background service and local notifications
+- **Notifications** — Push via Web Push (PWA) or webhook
+- **PWA** — installable Progressive Web App with push notifications
 - **Profile Sidebar** — Click any avatar to see user details in a resizable side panel
 - **Invite System** — Admin-controlled invites with optional expiry and usage limits
 - **Nostr Relay** — Embedded NIP-29 relay at `/relay` for protocol compatibility

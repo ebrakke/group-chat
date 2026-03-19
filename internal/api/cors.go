@@ -6,9 +6,8 @@ import (
 )
 
 var allowedOrigins = map[string]bool{
-	"capacitor://localhost": true,
-	"http://localhost":      true,
-	"https://localhost":     true,
+	"http://localhost":  true,
+	"https://localhost": true,
 }
 
 func corsMiddleware(next http.Handler) http.Handler {

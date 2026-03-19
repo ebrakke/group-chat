@@ -1483,7 +1483,11 @@ func (h *Handler) handlePushSubscribe(w http.ResponseWriter, r *http.Request) {
 		UserAgent: r.UserAgent(),
 	}
 	if err := h.notifications.SaveWebPushSubscription(user.ID, sub); err != nil {
-		writeErr(w, http.StatusConflict, errors.New(err.Error()))
+		if strings.Contains(err.Error(), "maximum of") {
+			writeErr(w, http.StatusConflict, err)
+			return
+		}
+		writeErr(w, http.StatusInternalServerError, err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})

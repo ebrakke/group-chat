@@ -1,11 +1,8 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { goto } from '$app/navigation';
-  import { page } from '$app/stores';
   import { channelStore } from '$lib/stores/channels';
-  import { authStore } from '$lib/stores/auth';
   import { wsManager } from '$lib/ws';
-  import { isMobile } from '$lib/utils/platform';
   import { initPush } from '$lib/push';
   import Sidebar from '$lib/components/Sidebar.svelte';
   import Toast from '$lib/components/Toast.svelte';

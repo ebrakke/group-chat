@@ -196,7 +196,19 @@ func (h *Handler) handleBootstrap(w http.ResponseWriter, r *http.Request) {
 	}
 
 	setSessionCookie(w, token)
-	writeJSON(w, http.StatusCreated, map[string]interface{}{"user": user, "token": token})
+
+	// Auto-create an invite for the new admin to share
+	invite, err := h.auth.CreateInvite(user.ID, nil, nil)
+	var inviteCode string
+	if err == nil && invite != nil {
+		inviteCode = invite.Code
+	}
+
+	writeJSON(w, http.StatusCreated, map[string]interface{}{
+		"user":       user,
+		"token":      token,
+		"inviteCode": inviteCode,
+	})
 }
 
 func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {

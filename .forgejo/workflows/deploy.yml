@@ -9,6 +9,9 @@ on:
       - '**.md'
       - 'docs/**'
       - 'LICENSE'
+      - 'Dockerfile.once'
+      - 'deploy/once/**'
+      - '.forgejo/workflows/docker-publish.yml'
 
 jobs:
   deploy:

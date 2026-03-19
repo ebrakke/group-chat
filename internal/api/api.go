@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -74,6 +75,7 @@ func (h *Handler) routes() {
 	h.mux.HandleFunc("POST /api/auth/logout", h.handleLogout)
 	h.mux.HandleFunc("POST /api/auth/signup", authRL.middleware(h.handleSignup))
 	h.mux.HandleFunc("GET /api/auth/me", h.handleMe)
+	h.mux.HandleFunc("POST /api/auth/transfer-token", h.handleCreateTransferToken)
 
 	// Account
 	h.mux.HandleFunc("POST /api/account/password", h.handleChangePassword)
@@ -1889,6 +1891,46 @@ func (h *Handler) handleDeleteCalendarEvent(w http.ResponseWriter, r *http.Reque
 	w.WriteHeader(http.StatusNoContent)
 }
 
+func (h *Handler) handleCreateTransferToken(w http.ResponseWriter, r *http.Request) {
+	user, err := h.requireAuth(r)
+	if err != nil {
+		writeErr(w, http.StatusUnauthorized, err)
+		return
+	}
+
+	token, err := h.auth.CreateTransferToken(user.ID)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, errors.New("failed to create transfer token"))
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{"token": token})
+}
+
+func (h *Handler) HandleTransfer(w http.ResponseWriter, r *http.Request) {
+	token := r.PathValue("token")
+	if token == "" {
+		http.Error(w, "Gone", http.StatusGone)
+		return
+	}
+
+	userID, err := h.auth.ValidateTransferToken(token)
+	if err != nil {
+		http.Error(w, "Gone", http.StatusGone)
+		return
+	}
+
+	sessionToken, err := h.auth.CreateSessionForUser(userID)
+	if err != nil {
+		http.Error(w, "Gone", http.StatusGone)
+		return
+	}
+
+	w.Header().Set("Cache-Control", "no-store")
+	setSessionCookie(w, sessionToken)
+	http.Redirect(w, r, "/channels", http.StatusFound)
+}
+
 // --- Helpers ---
 
 func (h *Handler) requireAuth(r *http.Request) (*auth.User, error) {
@@ -1931,6 +1973,7 @@ func setSessionCookie(w http.ResponseWriter, token string) {
 		MaxAge:   30 * 24 * 3600,
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
+		Secure:   os.Getenv("DEV_MODE") != "true",
 	})
 }
 

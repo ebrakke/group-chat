@@ -183,6 +183,9 @@ func main() {
 	mux.Handle("/relay", relayHandler)
 	mux.Handle("/relay/", relayHandler)
 
+	// /auth/transfer/{token} -> QR code session transfer
+	mux.HandleFunc("GET /auth/transfer/{token}", apiHandler.HandleTransfer)
+
 	// / -> SPA static assets
 	staticSub, err := fs.Sub(staticFS, "static")
 	if err != nil {

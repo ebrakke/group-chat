@@ -126,7 +126,10 @@ func (h *Handler) routes() {
 	h.mux.HandleFunc("POST /api/threads/{id}/mute", h.handleMuteThread)
 	h.mux.HandleFunc("DELETE /api/threads/{id}/mute", h.handleUnmuteThread)
 	h.mux.HandleFunc("GET /api/threads/{id}/mute", h.handleGetThreadMute)
-	h.mux.HandleFunc("GET /api/notifications/providers", h.handleGetProviders)
+	h.mux.HandleFunc("GET /api/push/vapid-key", h.handleGetVAPIDKey)
+	h.mux.HandleFunc("POST /api/push/subscribe", h.handlePushSubscribe)
+	h.mux.HandleFunc("DELETE /api/push/subscribe", h.handlePushUnsubscribe)
+	h.mux.HandleFunc("GET /api/push/subscriptions", h.handleGetPushSubscriptions)
 
 	// Files
 	h.mux.HandleFunc("POST /api/upload", h.handleUploadFile)
@@ -1443,11 +1446,90 @@ func (h *Handler) handleGetThreadMute(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]bool{"muted": muted})
 }
 
-func (h *Handler) handleGetProviders(w http.ResponseWriter, r *http.Request) {
-	providers := h.notifications.GetAvailableProviders()
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"providers": providers,
-	})
+func (h *Handler) handleGetVAPIDKey(w http.ResponseWriter, r *http.Request) {
+	key, err := h.notifications.GetVAPIDPublicKey()
+	if err != nil || key == "" {
+		writeErr(w, http.StatusServiceUnavailable, errors.New("VAPID keys not configured"))
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"publicKey": key})
+}
+
+func (h *Handler) handlePushSubscribe(w http.ResponseWriter, r *http.Request) {
+	user, err := h.requireAuth(r)
+	if err != nil {
+		writeErr(w, http.StatusUnauthorized, err)
+		return
+	}
+
+	var req struct {
+		Endpoint string `json:"endpoint"`
+		P256dh   string `json:"p256dh"`
+		Auth     string `json:"auth"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeErr(w, http.StatusBadRequest, errors.New("invalid request"))
+		return
+	}
+	if req.Endpoint == "" || req.P256dh == "" || req.Auth == "" {
+		writeErr(w, http.StatusBadRequest, errors.New("endpoint, p256dh, and auth are required"))
+		return
+	}
+
+	sub := notifications.WebPushSubscription{
+		Endpoint:  req.Endpoint,
+		P256dh:    req.P256dh,
+		Auth:      req.Auth,
+		UserAgent: r.UserAgent(),
+	}
+	if err := h.notifications.SaveWebPushSubscription(user.ID, sub); err != nil {
+		writeErr(w, http.StatusConflict, errors.New(err.Error()))
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func (h *Handler) handlePushUnsubscribe(w http.ResponseWriter, r *http.Request) {
+	_, err := h.requireAuth(r)
+	if err != nil {
+		writeErr(w, http.StatusUnauthorized, err)
+		return
+	}
+
+	var req struct {
+		Endpoint string `json:"endpoint"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeErr(w, http.StatusBadRequest, errors.New("invalid request"))
+		return
+	}
+	if req.Endpoint == "" {
+		writeErr(w, http.StatusBadRequest, errors.New("endpoint is required"))
+		return
+	}
+
+	if err := h.notifications.DeleteWebPushSubscription(req.Endpoint); err != nil {
+		writeErr(w, http.StatusInternalServerError, errors.New("failed to unsubscribe"))
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+func (h *Handler) handleGetPushSubscriptions(w http.ResponseWriter, r *http.Request) {
+	user, err := h.requireAuth(r)
+	if err != nil {
+		writeErr(w, http.StatusUnauthorized, err)
+		return
+	}
+	subs, err := h.notifications.GetWebPushSubscriptions(user.ID)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, errors.New("failed to get subscriptions"))
+		return
+	}
+	if subs == nil {
+		subs = []notifications.WebPushSubscription{}
+	}
+	writeJSON(w, http.StatusOK, subs)
 }
 
 
@@ -1474,8 +1556,6 @@ func (h *Handler) handleGetAdminSettings(w http.ResponseWriter, r *http.Request)
 	response := make(map[string]string)
 	for k, v := range settings {
 		switch k {
-		case "ntfy_server_url":
-			response["ntfyServerUrl"] = v
 		case "base_url":
 			response["baseUrl"] = v
 		default:

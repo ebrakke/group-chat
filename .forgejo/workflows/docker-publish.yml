@@ -17,13 +17,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Login to GHCR
-        run: echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ebrakke --password-stdin
+      - name: Install buildah
+        run: apk add --no-cache buildah
 
-      - name: Build and push
+      - name: Build image
         run: |
-          TAG_SHA="ghcr.io/ebrakke/group-chat:${{ github.sha }}"
-          TAG_LATEST="ghcr.io/ebrakke/group-chat:latest"
-          docker build -f Dockerfile.once -t "$TAG_SHA" -t "$TAG_LATEST" .
-          docker push "$TAG_SHA"
-          docker push "$TAG_LATEST"
+          buildah build -f Dockerfile.once -t ghcr.io/ebrakke/group-chat:latest -t ghcr.io/ebrakke/group-chat:${{ github.sha }} .
+
+      - name: Push to GHCR
+        env:
+          GHCR_TOKEN: ${{ secrets.GHCR_TOKEN }}
+        run: |
+          buildah login -u ebrakke -p "$GHCR_TOKEN" ghcr.io
+          buildah push ghcr.io/ebrakke/group-chat:latest
+          buildah push ghcr.io/ebrakke/group-chat:${{ github.sha }}

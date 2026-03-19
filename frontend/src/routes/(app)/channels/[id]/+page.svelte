@@ -11,6 +11,7 @@
   import MessageInput from '$lib/components/MessageInput.svelte';
   import ThreadPanel from '$lib/components/ThreadPanel.svelte';
   import ProfilePanel from '$lib/components/ProfilePanel.svelte';
+  import NotificationBell from '$lib/components/NotificationBell.svelte';
 
   let channelSlug = $derived($page.params.id);
   let channel = $derived(channelStore.getByName(channelSlug));
@@ -151,6 +152,11 @@
       <span id="channel-header-text" class="text-[13px] font-bold" style="color: var(--foreground);">
         # {channel?.name ?? 'Loading...'}
       </span>
+      <div class="ml-auto">
+        {#if channelId}
+          <NotificationBell {channelId} />
+        {/if}
+      </div>
     </div>
 
     <!-- Messages -->

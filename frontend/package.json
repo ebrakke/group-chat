@@ -20,6 +20,7 @@
     "vite": "^6.0.0"
   },
   "dependencies": {
+    "lucide-svelte": "^0.577.0",
     "marked": "^17.0.2",
     "qrcode": "^1.5.4"
   }

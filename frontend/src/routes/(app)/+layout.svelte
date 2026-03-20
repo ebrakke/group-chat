@@ -82,7 +82,7 @@
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
   class="flex flex-col h-screen w-screen overflow-hidden font-mono"
-  style="background: var(--background); color: var(--foreground);"
+  style="background: var(--background); color: var(--foreground); padding-bottom: env(safe-area-inset-bottom, 0px);"
   ontouchstart={handleTouchStart}
   ontouchend={handleTouchEnd}
 >

@@ -20,8 +20,8 @@ Self-hosted private group chat built on Nostr (NIP-29). Ships as a single Go bin
 | Frontend    | Vanilla JS SPA, Bun bundler (no framework)    |
 | Relay       | `fiatjaf/relay29` v0.5.1 + `khatru`           |
 | Nostr       | `go-nostr` v0.52.3                            |
-| Deploy      | Fly.io, Alpine container, persistent volume   |
-| CI/CD       | Forgejo Actions (deploy, PR preview, cleanup) |
+| Deploy      | ONCE (Docker), Alpine container, persistent volume |
+| CI/CD       | Forgejo Actions (Docker publish)              |
 | E2E Tests   | Playwright 1.52.0 via Bun                     |
 
 ## Project Structure
@@ -72,13 +72,10 @@ scripts/
   run-e2e.sh              # Builds everything, starts server on :8090, runs Playwright
 
 .forgejo/workflows/       # CI/CD pipelines
-  deploy.yml              # Production deploy on push to master
-  preview.yml             # PR preview: ephemeral Fly app + smoke tests
-  preview-cleanup.yml     # Destroy preview app on PR close
+  docker-publish.yml      # Build + publish Docker image to GHCR on push to master
 
 Makefile                  # build, run, test, test-e2e, frontend, clean
-Dockerfile.fly            # Multi-stage: Bun build -> Go build (CGO) -> Alpine
-fly.toml                  # Fly.io config (IAD region, 512MB, persistent /data volume)
+Dockerfile.once           # Multi-stage: Bun build -> Go build (CGO) -> Alpine (ONCE deployment)
 ```
 
 ## Development
@@ -387,30 +384,18 @@ Connects via WebSocket, listens for `new_message`/`new_reply` events with matchi
 
 ### CI/CD Pipelines
 
-**Production Deploy** (`.forgejo/workflows/deploy.yml`):
+**Docker Publish** (`.forgejo/workflows/docker-publish.yml`):
 - Trigger: push to `master`/`main`
-- Deploys to Fly.io via `flyctl deploy --remote-only`
-
-**PR Preview** (`.forgejo/workflows/preview.yml`):
-- Trigger: PR opened/updated
-- Creates ephemeral Fly app `relay-chat-pr-{N}` (destroys old one first for clean state)
-- Wipes volumes for deterministic E2E testing
-- Runs `prod-smoke.spec.ts` against deployed preview
-- Posts failure summary + Fly logs as PR comment on failure
-
-**Preview Cleanup** (`.forgejo/workflows/preview-cleanup.yml`):
-- Trigger: PR closed
-- Destroys the ephemeral preview app
+- Builds `Dockerfile.once` and publishes to GHCR (`ghcr.io/ebrakke/group-chat:latest`)
 
 ### Deployment
 
-Fly.io config (`fly.toml`):
-- Region: `iad`, VM: `shared-cpu-1x`, Memory: `512MB`
-- Persistent volume mounted at `/data` for SQLite databases
-- Health check: `GET /api/health` every 15s
-- HTTPS enforced, min 1 machine running
+Deployed via ONCE (Basecamp) using `Dockerfile.once`:
+- Port 80, persistent storage at `/storage`
+- Health check: `GET /up`
+- Backup hooks in `deploy/once/hooks/` (pre-backup flushes WAL, post-restore cleans locks)
 
-Docker build (`Dockerfile.fly`):
+Docker build (`Dockerfile.once`):
 - Stage 1: Bun 1.3.9 Alpine → frontend build
 - Stage 2: Go 1.24 Alpine → binary build (CGO_ENABLED=1 for sqlite)
 - Stage 3: Alpine 3.20 → minimal runtime image

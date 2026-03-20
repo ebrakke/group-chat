@@ -55,8 +55,8 @@ First visitor creates the admin account. Invite others from Settings.
 ## Docker
 
 ```bash
-docker build -f Dockerfile.fly -t relay-chat .
-docker run -p 8080:8080 -v relay-data:/data relay-chat
+docker build -f Dockerfile.once -t relay-chat .
+docker run -p 80:80 -v relay-data:/storage relay-chat
 ```
 
 ## Android App

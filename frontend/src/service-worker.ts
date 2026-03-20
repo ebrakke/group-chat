@@ -27,6 +27,8 @@ sw.addEventListener('activate', (event) => {
 	);
 });
 
+const DYNAMIC_BRANDING = ['/manifest.json', '/icon-192.png', '/icon-512.png'];
+
 sw.addEventListener('fetch', (event) => {
 	const url = new URL(event.request.url);
 
@@ -36,6 +38,14 @@ sw.addEventListener('fetch', (event) => {
 		url.pathname.startsWith('/ws') ||
 		url.pathname.startsWith('/relay')
 	) {
+		return;
+	}
+
+	// Network-first for dynamic branding assets (name + icons change at runtime)
+	if (DYNAMIC_BRANDING.some((p) => url.pathname === p)) {
+		event.respondWith(
+			fetch(event.request).catch(() => caches.match(event.request) as Promise<Response>)
+		);
 		return;
 	}
 

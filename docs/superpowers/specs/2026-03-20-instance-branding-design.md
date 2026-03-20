@@ -77,9 +77,9 @@ All new routes are registered on the mux **before** the SPA catch-all handler.
 - Max upload size: 10 MB.
 
 #### `GET /api/admin/settings` and `POST /api/admin/settings` (modified)
-- Include `appName` in the GET response payload.
-- Accept `appName` in the POST payload. The write handler must translate `appName` → `app_name` (camelCase to snake_case) before writing to the DB. The existing handler writes keys verbatim, so an explicit translation step is required — the same pattern used on the read path for `baseUrl` ↔ `base_url`.
-- The POST handler must **ignore** `icon192` / `icon512` / `iconXxx` keys. Only `POST /api/admin/settings/icon` is permitted to write icon blobs.
+- Include `appName` in the GET response payload (read path translates `app_name` → `appName`).
+- The POST handler receives `app_name` (snake_case) from the frontend — matching the existing `base_url` convention used by `saveBaseUrl`. No server-side key translation is needed on the write path; the value is stored verbatim as `app_name`.
+- The POST handler must **ignore** `icon_192` / `icon_512` keys. Only `POST /api/admin/settings/icon` is permitted to write icon blobs.
 
 ### Service Worker
 

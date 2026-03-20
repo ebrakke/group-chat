@@ -35,6 +35,18 @@
   let baseUrlError = $state('');
   let savingBaseUrl = $state(false);
 
+  // --- Branding ---
+  let appName = $state('');
+  let savingAppName = $state(false);
+  let appNameMessage = $state('');
+  let appNameError = $state('');
+  let iconPreviewUrl = $state('');
+  let iconFile = $state<File | null>(null);
+  let uploadingIcon = $state(false);
+  let iconMessage = $state('');
+  let iconError = $state('');
+  let iconCacheBuster = $state(Date.now());
+
   // --- Invites ---
   let invites = $state<Invite[]>([]);
   let inviteResult = $state('');
@@ -114,11 +126,12 @@
   // --- Admin settings ---
   async function loadAdminSettings() {
     try {
-      const settings = await api<{ baseUrl?: string }>(
+      const settings = await api<{ baseUrl?: string; appName?: string }>(
         'GET',
         '/api/admin/settings'
       );
       baseUrl = settings.baseUrl || '';
+      appName = settings.appName || '';
     } catch {
       toastStore.error('Failed to load settings');
     }
@@ -137,6 +150,62 @@
       autoHide((v) => (baseUrlError = v));
     } finally {
       savingBaseUrl = false;
+    }
+  }
+
+  async function saveAppName() {
+    savingAppName = true;
+    appNameError = '';
+    appNameMessage = '';
+    try {
+      // Send snake_case key — matches the existing convention used by saveBaseUrl ({ base_url: ... })
+      await api('POST', '/api/admin/settings', { app_name: appName });
+      appNameMessage = 'App name saved';
+      autoHide((v) => (appNameMessage = v));
+    } catch (err: unknown) {
+      appNameError = err instanceof Error ? err.message : 'Failed to save';
+      autoHide((v) => (appNameError = v));
+    } finally {
+      savingAppName = false;
+    }
+  }
+
+  function handleIconSelect(e: Event) {
+    const input = e.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    iconFile = file;
+    iconPreviewUrl = URL.createObjectURL(file);
+  }
+
+  async function uploadIcon() {
+    if (!iconFile) return;
+    uploadingIcon = true;
+    iconError = '';
+    iconMessage = '';
+    try {
+      // Use fetch directly (not api()) — api() always sets Content-Type: application/json
+      // and JSON-serializes the body, which breaks multipart uploads.
+      // This matches the pattern used by uploadFile() and uploadAvatar() in api.ts.
+      const form = new FormData();
+      form.append('icon', iconFile);
+      const res = await fetch('/api/admin/settings/icon', {
+        method: 'POST',
+        body: form,
+        credentials: 'include',
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((data as { error?: string }).error || `Upload failed (${res.status})`);
+      iconMessage = 'Icon updated';
+      iconCacheBuster = Date.now();
+      iconFile = null;
+      iconPreviewUrl = '';
+      autoHide((v) => (iconMessage = v));
+    } catch (err: unknown) {
+      iconError = err instanceof Error ? err.message : 'Failed to upload';
+      autoHide((v) => (iconError = v));
+    } finally {
+      uploadingIcon = false;
     }
   }
 
@@ -518,6 +587,53 @@
       </div>
 
       {#if authStore.isAdmin}
+
+        <!-- Branding -->
+        <div class="border p-4" style="border-color: var(--border);">
+          <h3 class="text-[13px] font-bold mb-3" style="color: var(--foreground);">branding</h3>
+
+          <!-- App Name -->
+          <label class="block mb-3">
+            <span class="text-[12px] mb-1 block" style="color: var(--rc-timestamp);">app name</span>
+            <input type="text" bind:value={appName} placeholder="Relay Chat"
+                   class="w-full border px-3 py-2 text-[12px] font-mono outline-none"
+                   style="background: var(--rc-input-bg); border-color: var(--border); color: var(--foreground);" />
+          </label>
+          {#if appNameMessage}<p class="text-[11px] mb-2" style="color: var(--rc-olive);">{appNameMessage}</p>{/if}
+          {#if appNameError}<p class="text-[11px] mb-2" style="color: var(--rc-mention-badge);">{appNameError}</p>{/if}
+          <button onclick={saveAppName} disabled={savingAppName}
+                  class="px-3 py-1.5 text-[11px] border font-mono disabled:opacity-40 mb-5"
+                  style="background: var(--rc-channel-active-bg); color: var(--rc-channel-active-fg); border-color: var(--rc-channel-active-bg);">
+            {savingAppName ? 'saving...' : 'save name'}</button>
+
+          <!-- App Icon -->
+          <div>
+            <span class="text-[12px] mb-2 block" style="color: var(--rc-timestamp);">app icon</span>
+            <div class="flex items-start gap-4">
+              <img src="/icon-192.png?v={iconCacheBuster}" alt="current app icon"
+                   class="w-12 h-12 border" style="border-color: var(--border);" />
+              {#if iconPreviewUrl}
+                <div class="flex flex-col gap-1">
+                  <span class="text-[11px]" style="color: var(--rc-timestamp);">preview:</span>
+                  <img src={iconPreviewUrl} alt="icon preview" class="w-12 h-12 border" style="border-color: var(--border);" />
+                </div>
+              {/if}
+            </div>
+            <label class="mt-2 block">
+              <span class="text-[11px] mb-1 block" style="color: var(--rc-timestamp);">upload PNG, JPG, or WebP</span>
+              <input type="file" accept="image/png,image/jpeg,image/webp" onchange={handleIconSelect}
+                     class="text-[11px]" style="color: var(--foreground);" />
+            </label>
+            {#if iconMessage}<p class="text-[11px] mt-2" style="color: var(--rc-olive);">{iconMessage}</p>{/if}
+            {#if iconError}<p class="text-[11px] mt-2" style="color: var(--rc-mention-badge);">{iconError}</p>{/if}
+            {#if iconFile}
+              <button onclick={uploadIcon} disabled={uploadingIcon}
+                      class="mt-2 px-3 py-1.5 text-[11px] border font-mono disabled:opacity-40"
+                      style="background: var(--rc-channel-active-bg); color: var(--rc-channel-active-fg); border-color: var(--rc-channel-active-bg);">
+                {uploadingIcon ? 'uploading...' : 'upload icon'}</button>
+            {/if}
+          </div>
+        </div>
 
         <!-- General Settings -->
         <div class="border p-4" style="border-color: var(--border);">

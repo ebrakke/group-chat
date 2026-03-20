@@ -19,9 +19,18 @@ Install `lucide-svelte` and swap the 4 inline SVGs in `NotificationBell.svelte`:
 
 Using `AtSign` for mentions makes the mode instantly recognizable. Four visually distinct icons eliminate ambiguity.
 
-### 2. Add hover tooltip showing current state
+### 2. Improve hover tooltip
 
-CSS-only tooltip (positioned `<span>`, visible on hover) displaying the current level in plain English. Styled with existing theme variables (`--foreground`, `--background`, `--border`). No tooltip library.
+The component already has a native `title` attribute ("Notifications: mentions"). Update the `title` text and `aria-label` to use clearer labels:
+
+| Level | Label |
+|-------|-------|
+| `everything` | "All messages" |
+| `mentions` | "Mentions only" |
+| `threads` | "Thread replies" |
+| `nothing` | "Muted" |
+
+Keep using the native `title` attribute — no custom CSS tooltip needed. The existing approach works and is accessible. Just make the label text more descriptive.
 
 ## Scope
 

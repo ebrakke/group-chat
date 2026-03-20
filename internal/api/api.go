@@ -16,6 +16,7 @@ import (
 
 	"github.com/ebrakke/relay-chat/internal/auth"
 	"github.com/ebrakke/relay-chat/internal/bots"
+	"github.com/ebrakke/relay-chat/internal/branding"
 	"github.com/ebrakke/relay-chat/internal/calendar"
 	"github.com/ebrakke/relay-chat/internal/channels"
 	"github.com/ebrakke/relay-chat/internal/files"
@@ -156,6 +157,7 @@ func (h *Handler) routes() {
 	// Admin settings
 	h.mux.HandleFunc("GET /api/admin/settings", h.handleGetAdminSettings)
 	h.mux.HandleFunc("POST /api/admin/settings", h.handleUpdateAdminSettings)
+	h.mux.HandleFunc("POST /api/admin/settings/icon", h.handleUploadIcon)
 }
 
 // --- Auth handlers ---
@@ -1603,6 +1605,8 @@ func (h *Handler) handleGetAdminSettings(w http.ResponseWriter, r *http.Request)
 		switch k {
 		case "base_url":
 			response["baseUrl"] = v
+		case "app_name":
+			response["appName"] = v
 		default:
 			response[k] = v
 		}
@@ -1628,8 +1632,75 @@ func (h *Handler) handleUpdateAdminSettings(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	if err := h.notifications.UpdateAppSettings(req); err != nil {
+	// icon_192 and icon_512 are only writable via POST /api/admin/settings/icon
+	protected := map[string]bool{"icon_192": true, "icon_512": true}
+	filtered := make(map[string]string, len(req))
+	for k, v := range req {
+		if !protected[k] {
+			filtered[k] = v
+		}
+	}
+
+	if err := h.notifications.UpdateAppSettings(filtered); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]bool{"success": true})
+}
+
+func (h *Handler) handleUploadIcon(w http.ResponseWriter, r *http.Request) {
+	user, err := h.requireAuth(r)
+	if err != nil {
+		writeErr(w, http.StatusUnauthorized, err)
+		return
+	}
+	if user.Role != "admin" {
+		http.Error(w, "admin only", http.StatusForbidden)
+		return
+	}
+
+	if err := r.ParseMultipartForm(10 << 20); err != nil {
+		http.Error(w, "file too large (max 10MB)", http.StatusRequestEntityTooLarge)
+		return
+	}
+
+	file, header, err := r.FormFile("icon")
+	if err != nil {
+		http.Error(w, "missing 'icon' field", http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+
+	ct := header.Header.Get("Content-Type")
+	if ct != "image/png" && ct != "image/jpeg" && ct != "image/webp" {
+		http.Error(w, "unsupported format: use PNG, JPG, or WebP", http.StatusUnsupportedMediaType)
+		return
+	}
+
+	src, err := io.ReadAll(file)
+	if err != nil {
+		http.Error(w, "failed to read upload", http.StatusInternalServerError)
+		return
+	}
+
+	icon192, err := branding.ProcessIcon(src, 192)
+	if err != nil {
+		http.Error(w, "failed to process image: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+	icon512, err := branding.ProcessIcon(src, 512)
+	if err != nil {
+		http.Error(w, "failed to process image: "+err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if err := h.notifications.UpdateAppSettings(map[string]string{
+		"icon_192": icon192,
+		"icon_512": icon512,
+	}); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 

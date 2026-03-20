@@ -24,7 +24,7 @@ All Relay Chat instances share the same hardcoded name ("Relay Chat") and icons.
 
 ## Data Model
 
-No schema changes. The existing `app_settings` key/value table gains three new keys:
+No changes to the table structure. A new migration seeds three default rows into the existing `app_settings` key/value table:
 
 | Key | Type | Default |
 |-----|------|---------|
@@ -32,15 +32,19 @@ No schema changes. The existing `app_settings` key/value table gains three new k
 | `icon_192` | TEXT (base64 PNG) | _(empty — falls back to embedded)_ |
 | `icon_512` | TEXT (base64 PNG) | _(empty — falls back to embedded)_ |
 
-A new migration seeds `app_name = "Relay Chat"` so existing installs have an explicit value.
+`icon_192` and `icon_512` are **write-only through `POST /api/admin/settings/icon`**. The general `POST /api/admin/settings` endpoint must ignore (or reject) these keys — they bypass the resize pipeline if written directly.
 
 ---
 
 ## Backend
 
+### Static File Changes
+
+`manifest.json`, `icon-192.png`, and `icon-512.png` must be **deleted from `frontend/static/`**. The embedded FS in the built binary must not contain these files. If they remain embedded, the `spaHandler`'s FS lookup will serve the static versions before the explicit routes are ever reached, because the `spaHandler` is registered as a catch-all `/` handler and it serves files directly from the embedded FS before falling through to index.html.
+
 ### New / Modified HTTP Routes
 
-All new routes are registered **before** the SPA catch-all handler so they take precedence over embedded static files.
+All new routes are registered on the mux **before** the SPA catch-all handler.
 
 #### `GET /manifest.json` (new explicit route)
 - Reads `app_name` from `app_settings`.
@@ -50,13 +54,14 @@ All new routes are registered **before** the SPA catch-all handler so they take 
 
 #### `GET /icon-192.png` and `GET /icon-512.png` (new explicit routes)
 - Read the corresponding base64 blob from `app_settings`.
-- If the key is absent or empty, serve the embedded default PNG.
+- If the key is absent or empty, serve the embedded default PNG (kept separately in Go source as a byte literal or loaded via `go:embed` from a non-static path, since the files are removed from `frontend/static/`).
 - Decode base64, write as `image/png`.
 - Response header: `Cache-Control: max-age=300` (5-minute cache; short enough to reflect changes without hammering the DB).
 
 #### `GET /` → `index.html` (modified SPA handler)
 - The existing handler already has special no-cache logic for `index.html`.
-- Extend it to read `app_name` from DB and replace `<title>Relay Chat</title>` with `<title>{app_name}</title>` before writing the response.
+- Extend it to read `app_name` from DB, HTML-escape the value (`html.EscapeString`), and replace `<title>Relay Chat</title>` with `<title>{escaped_app_name}</title>` before writing the response.
+- HTML escaping is required: an app name containing `<`, `>`, `&`, or `"` must not produce malformed HTML.
 - DB read is per-request but cheap; can be memoised with a short TTL if needed later.
 
 #### `POST /api/admin/settings/icon` (new)
@@ -72,13 +77,24 @@ All new routes are registered **before** the SPA catch-all handler so they take 
 - Max upload size: 10 MB.
 
 #### `GET /api/admin/settings` and `POST /api/admin/settings` (modified)
-- Include `appName` in the response payload.
-- Accept `appName` in the update payload, writing it to `app_settings` as `app_name`.
+- Include `appName` in the GET response payload.
+- Accept `appName` in the POST payload. The write handler must translate `appName` → `app_name` (camelCase to snake_case) before writing to the DB. The existing handler writes keys verbatim, so an explicit translation step is required — the same pattern used on the read path for `baseUrl` ↔ `base_url`.
+- The POST handler must **ignore** `icon192` / `icon512` / `iconXxx` keys. Only `POST /api/admin/settings/icon` is permitted to write icon blobs.
+
+### Service Worker
+
+The current service worker (`service-worker.js`) precaches `manifest.json`, `icon-192.png`, and `icon-512.png` using a cache-first strategy. Without changes, admin updates to the name or icon will not be seen by browsers that have the SW active until a new build (and new SW hash) is deployed.
+
+The service worker source must be updated to:
+1. Remove `manifest.json`, `icon-192.png`, and `icon-512.png` from the precache list.
+2. Add a network-first fetch handler for those three paths (fetch from network; on failure, fall back to cache).
+
+This ensures icon/name changes are picked up on the next page load without waiting for a new deployment.
 
 ### Dependencies
 
-- `golang.org/x/image` — already a transitive dependency in many Go projects; adds WebP decode.
-- `github.com/disintegration/imaging` — small, well-maintained image resize library.
+- `golang.org/x/image` — add as a direct dependency if not already present; provides WebP decode (`golang.org/x/image/webp`).
+- `github.com/disintegration/imaging` — add as a direct dependency; provides image resizing.
 
 ---
 
@@ -98,7 +114,7 @@ A new **Branding** section is added at the top of the existing admin settings bl
 - File input below, labelled "Upload icon (PNG, JPG, or WebP)".
 - On file select: show a local `URL.createObjectURL` preview before committing.
 - Confirm button `POST`s to `/api/admin/settings/icon` as multipart.
-- On success: refresh the displayed icon (bump cache-buster param); show a brief note that PWA home screen icons may take a few minutes to update due to browser caching.
+- On success: refresh the displayed icon (bump cache-buster param).
 - On error: display the server error message.
 
 ---
@@ -112,13 +128,16 @@ A new **Branding** section is added at the top of the existing admin settings bl
 | DB read fails during manifest/icon serve | Fall back to embedded defaults; log error server-side. |
 | DB read fails during index.html serve | Serve page with original hardcoded title; log error. |
 | `app_name` not set in DB | Default to `"Relay Chat"` in all serving code. |
+| `icon_192`/`icon_512` sent to general settings endpoint | Ignore the keys silently (or return 400). |
 
 ---
 
 ## Testing
 
-- Unit test: image resize pipeline produces correct output dimensions and PNG format.
+- Unit test: image resize pipeline produces correct output dimensions and PNG format for each accepted input type.
 - Integration test: upload icon → fetch `/icon-192.png` returns custom image.
 - Integration test: update `appName` → fetch `/manifest.json` reflects new name.
-- Integration test: update `appName` → fetch `/` contains new `<title>`.
+- Integration test: update `appName` → fetch `/` contains properly HTML-escaped `<title>`.
+- Integration test: sending `icon_192` to `POST /api/admin/settings` does not overwrite the icon blob.
+- Manual: verify SW does not serve stale manifest/icons after a name or icon change.
 - Manual: install PWA before and after icon/name change; verify home screen updates.

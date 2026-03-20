@@ -1,8 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"embed"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
+	"html"
 	"io/fs"
 	"log"
 	"net"
@@ -14,6 +18,7 @@ import (
 	"github.com/ebrakke/relay-chat/internal/api"
 	"github.com/ebrakke/relay-chat/internal/auth"
 	"github.com/ebrakke/relay-chat/internal/bots"
+	"github.com/ebrakke/relay-chat/internal/branding"
 	"github.com/ebrakke/relay-chat/internal/calendar"
 	"github.com/ebrakke/relay-chat/internal/channels"
 	"github.com/ebrakke/relay-chat/internal/db"
@@ -89,6 +94,17 @@ func main() {
 	fileSvc := files.NewService(database, uploadDir, maxUploadSize)
 	searchSvc := search.NewService(database)
 	notifySvc := notifications.NewService(database, baseURL)
+
+	getAppName := func() string {
+		settings, err := notifySvc.GetAppSettings()
+		if err != nil {
+			return "Relay Chat"
+		}
+		if name, ok := settings["app_name"]; ok && name != "" {
+			return name
+		}
+		return "Relay Chat"
+	}
 
 	// Register webhook provider (always available)
 	notifySvc.RegisterProvider("webhook", notifications.NewWebhookProvider())
@@ -191,7 +207,50 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to create static sub FS: %v", err)
 	}
-	mux.Handle("/", spaHandler(staticSub))
+	// Dynamic branding: manifest served from DB
+	mux.HandleFunc("GET /manifest.json", func(w http.ResponseWriter, r *http.Request) {
+		appName := getAppName()
+		manifest := map[string]interface{}{
+			"name":             appName,
+			"short_name":       appName,
+			"description":      "Private group chat",
+			"start_url":        "/",
+			"display":          "standalone",
+			"background_color": "#0d1117",
+			"theme_color":      "#0d1117",
+			"orientation":      "portrait",
+			"icons": []map[string]string{
+				{"src": "/icon-192.png", "sizes": "192x192", "type": "image/png"},
+				{"src": "/icon-512.png", "sizes": "512x512", "type": "image/png"},
+				{"src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"},
+			},
+		}
+		w.Header().Set("Content-Type", "application/manifest+json")
+		w.Header().Set("Cache-Control", "no-cache")
+		json.NewEncoder(w).Encode(manifest)
+	})
+
+	// Dynamic branding: icons served from DB, fallback to embedded defaults
+	iconHandler := func(key string, defaultIcon []byte) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
+			iconData := defaultIcon
+			settings, err := notifySvc.GetAppSettings()
+			if err == nil {
+				if b64, ok := settings[key]; ok && b64 != "" {
+					if decoded, err := base64.StdEncoding.DecodeString(b64); err == nil {
+						iconData = decoded
+					}
+				}
+			}
+			w.Header().Set("Content-Type", "image/png")
+			w.Header().Set("Cache-Control", "public, max-age=300")
+			w.Write(iconData)
+		}
+	}
+	mux.HandleFunc("GET /icon-192.png", iconHandler("icon_192", branding.DefaultIcon192))
+	mux.HandleFunc("GET /icon-512.png", iconHandler("icon_512", branding.DefaultIcon512))
+
+	mux.Handle("/", spaHandler(staticSub, getAppName))
 
 	addr := "0.0.0.0:" + port
 	log.Printf("Relay Chat starting on %s", addr)
@@ -202,8 +261,9 @@ func main() {
 
 // spaHandler serves static files, falling back to index.html for SPA routing.
 // Hashed assets (app.XXXX.js, style.XXXX.css) get long-lived cache headers.
-// index.html and sw.js are never cached so updates propagate immediately.
-func spaHandler(fsys fs.FS) http.Handler {
+// index.html is served with the app name injected into the <title> tag.
+// sw.js is never cached so updates propagate immediately.
+func spaHandler(fsys fs.FS, getAppName func() string) http.Handler {
 	fileServer := http.FileServer(http.FS(fsys))
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := strings.TrimPrefix(r.URL.Path, "/")
@@ -211,22 +271,41 @@ func spaHandler(fsys fs.FS) http.Handler {
 			path = "index.html"
 		}
 
+		// index.html: inject app name into <title>
+		serveIndex := func() {
+			content, err := fs.ReadFile(fsys, "index.html")
+			if err != nil {
+				http.Error(w, "index.html not found", http.StatusInternalServerError)
+				return
+			}
+			appName := html.EscapeString(getAppName())
+			content = bytes.ReplaceAll(content,
+				[]byte("<title>Relay Chat</title>"),
+				[]byte("<title>"+appName+"</title>"),
+			)
+			w.Header().Set("Cache-Control", "no-cache")
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.Write(content)
+		}
+
 		// Try to open the file
 		f, err := fsys.Open(path)
 		if err != nil {
 			// File not found -> serve index.html for SPA routing
-			w.Header().Set("Cache-Control", "no-cache")
-			r.URL.Path = "/"
-			fileServer.ServeHTTP(w, r)
+			serveIndex()
 			return
 		}
 		f.Close()
 
+		if path == "index.html" {
+			serveIndex()
+			return
+		}
+
 		// Cache-Control based on file type
-		if path == "index.html" || path == "sw.js" {
+		if path == "sw.js" {
 			w.Header().Set("Cache-Control", "no-cache")
 		} else if strings.Contains(path, ".") && (strings.HasSuffix(path, ".js") || strings.HasSuffix(path, ".css")) {
-			// Hashed assets are immutable
 			w.Header().Set("Cache-Control", "public, max-age=31536000, immutable")
 		}
 

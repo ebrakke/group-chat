@@ -11,6 +11,7 @@ Remove all Nostr (NIP-29) and relay infrastructure from Relay Chat. The app alre
 - NIP-29 conformance constrains future features (e.g., server-side group encryption)
 - The relay's Badger database is a separate data store that adds operational complexity
 - `SetRelayKey()` is never called in production — events are signed with throwaway keys, confirming the feature is vestigial
+- Removing `eventstore` also removes the transitive `mattn/go-sqlite3` (cgo) dependency, keeping the build pure-Go
 
 ## Scope
 
@@ -25,6 +26,7 @@ Remove all Nostr (NIP-29) and relay infrastructure from Relay Chat. The app alre
 **File:** `internal/messages/messages.go`
 
 - Delete `createEvent()` function (lines ~588-623)
+- Delete `randomHex()` helper if it has no remaining callers after `createEvent()` removal
 - Delete `SetRelayKey()` method and `relayPriv` field from `Service` struct
 - Remove `createEvent()` calls from `Create()` and `CreateReply()`
 - Remove `event_id` from all SQL INSERT/SELECT statements in this file
@@ -37,7 +39,7 @@ Remove all Nostr (NIP-29) and relay infrastructure from Relay Chat. The app alre
 
 - Delete `createEvent()` function (lines ~275-310)
 - Delete `SetRelayKey()` method and `relayPriv` field from `Service` struct
-- Remove `createEvent()` call from `Toggle()`
+- Remove `createEvent()` calls from `Add()` and `Toggle()`
 - Remove `event_id` from all SQL INSERT/SELECT statements in this file
 - Remove `EventID` field from the `Reaction` struct
 - Remove `go-nostr` import
@@ -52,7 +54,7 @@ Remove all Nostr (NIP-29) and relay infrastructure from Relay Chat. The app alre
 
 **Directory:** `relay/`
 
-- Delete entire directory including `relay/go.mod` and `relay/go.sum`. This is an alternative deployment mode using SQLite-backed eventstore that is unused.
+- Delete entire directory including `relay/go.mod`, `relay/go.sum`, `relay/Dockerfile`, and `relay/main.go`. This is an alternative deployment mode using SQLite-backed eventstore that is unused.
 
 ### 5. Remove relay wiring from main
 
@@ -62,17 +64,21 @@ Remove all Nostr (NIP-29) and relay infrastructure from Relay Chat. The app alre
 - Remove relay initialization block (`internalrelay.New(...)`, `defer relayHandler.Close()`)
 - Remove `/relay` and `/relay/` mux routes
 - Remove relay sync from backup handler
-- Remove `groupID` parameter passing where it only existed for Nostr event tagging (trace through API handlers to confirm if `groupID` is used elsewhere)
+- Remove `RELAY_DATABASE_PATH` env var lookup and `relayDBPath` variable
 
 ### 6. Database migration
 
 **File:** `internal/db/migrations/023_drop_event_ids.sql`
 
-- Drop `event_id` column from `messages` table
-- Drop `event_id` column from `reactions` table
-- Drop `idx_messages_event_id` index
+The index must be dropped before the column. Migration SQL:
 
-SQLite doesn't support `ALTER TABLE DROP COLUMN` before 3.35.0, but modernc.org/sqlite supports it. The migration should use `ALTER TABLE messages DROP COLUMN event_id` directly.
+```sql
+DROP INDEX IF EXISTS idx_messages_event_id;
+ALTER TABLE messages DROP COLUMN event_id;
+ALTER TABLE reactions DROP COLUMN event_id;
+```
+
+modernc.org/sqlite implements SQLite 3.46+, which supports `DROP COLUMN` (available since 3.35.0).
 
 ### 7. Clean up Go dependencies
 
@@ -88,11 +94,17 @@ SQLite doesn't support `ALTER TABLE DROP COLUMN` before 3.35.0, but modernc.org/
 
 ### 8. Remove `groupID` parameter plumbing
 
-The `groupID` parameter is passed from API handlers into `messages.Create()` and `reactions.Toggle()` solely for Nostr event tagging. After removing `createEvent()`:
+The `groupID` parameter is passed from API handlers into message and reaction service methods solely for Nostr event tagging. After removing `createEvent()`:
 
 - Remove `groupID` parameter from `messages.Create()` and `messages.CreateReply()` signatures
-- Remove `groupID` parameter from `reactions.Toggle()` signature
+- Remove `groupID` parameter from `reactions.Add()` and `reactions.Toggle()` signatures
 - Update all call sites in API handlers
+
+### 9. Update test files
+
+- `internal/messages/messages_test.go` — delete `TestNostrEventTags` test, remove `EventID` assertions, remove `groupID` arguments from `Create()`/`CreateReply()` calls
+- `internal/reactions/reactions_test.go` — delete `TestNostrEventKind7` test, remove `groupID` arguments from `Add()`/`Toggle()` calls
+- `internal/files/files_test.go` — remove `event_id` from test fixture INSERT statements
 
 ## What stays unchanged
 
@@ -105,7 +117,6 @@ The `groupID` parameter is passed from API handlers into `messages.Create()` and
 - Branding, themes
 - Bot system
 - Frontend code (zero changes)
-- E2E and unit tests (unless they reference event_id)
 
 ## Verification
 
@@ -115,3 +126,7 @@ The `groupID` parameter is passed from API handlers into `messages.Create()` and
 - App starts, messages and reactions work without event_id
 - `/relay` endpoint no longer served
 - Badger data directory no longer created
+
+## Deployment note
+
+Existing deployments will have a `/data/relay/` Badger directory that is no longer used. It can be safely deleted after upgrading.

@@ -4,6 +4,7 @@
   import { channelStore } from '$lib/stores/channels';
   import { wsManager } from '$lib/ws';
   import { unsubscribePush } from '$lib/push';
+  import LogOut from 'lucide-svelte/icons/log-out';
 
   let { onCloseSidebar }: { onCloseSidebar?: () => void } = $props();
 
@@ -190,9 +191,7 @@
         style="color: var(--rc-timestamp);"
         title="Log out"
       >
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-        </svg>
+        <LogOut size={16} />
       </button>
     </div>
   </div>

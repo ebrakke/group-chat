@@ -8,6 +8,7 @@
   import { channelStore } from '$lib/stores/channels';
   import type { Bot, BotToken, ChannelBinding, Invite, Channel, User } from '$lib/types';
   import Avatar from '$lib/components/Avatar.svelte';
+  import ChevronLeft from 'lucide-svelte/icons/chevron-left';
   import QRCode from 'qrcode';
 
   // --- Change Password ---
@@ -477,9 +478,7 @@
   <!-- Header -->
   <div class="flex items-center px-5 py-3 border-b shrink-0" style="border-color: var(--border);">
     <button id="close-admin" onclick={() => goto('/channels')} class="mr-3 hover:opacity-70" style="color: var(--rc-timestamp);" aria-label="Back">
-      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
-      </svg>
+      <ChevronLeft size={16} />
     </button>
     <span class="text-[13px] font-bold" style="color: var(--foreground);">settings</span>
   </div>

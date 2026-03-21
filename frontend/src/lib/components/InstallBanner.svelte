@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import X from 'lucide-svelte/icons/x';
 
   let deferredPrompt: any = $state(null);
   let dismissed = $state(false);
@@ -66,9 +67,7 @@
         class="hover:opacity-60 p-0.5"
         aria-label="Dismiss"
       >
-        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-        </svg>
+        <X size={14} />
       </button>
     </div>
   </div>

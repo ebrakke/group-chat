@@ -1,5 +1,7 @@
 <script lang="ts">
   import MentionAutocomplete from './MentionAutocomplete.svelte';
+  import ArrowRight from 'lucide-svelte/icons/arrow-right';
+  import Plus from 'lucide-svelte/icons/plus';
 
   let {
     onSend,
@@ -141,9 +143,7 @@
         style="background: var(--rc-channel-active-bg); color: var(--rc-channel-active-fg);"
         title="Send"
       >
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M12 5l7 7-7 7" />
-        </svg>
+        <ArrowRight size={16} strokeWidth={2.5} />
       </button>
     </div>
     <div class="md:hidden flex items-center gap-1 px-3 pb-2">
@@ -151,9 +151,7 @@
         style="color: var(--rc-timestamp);"
         title="Attach file"
       >
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4" />
-        </svg>
+        <Plus size={20} />
       </button>
     </div>
   </div>

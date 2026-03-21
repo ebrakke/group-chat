@@ -13,6 +13,7 @@
   import ProfilePanel from '$lib/components/ProfilePanel.svelte';
   import MembersPanel from '$lib/components/MembersPanel.svelte';
   import NotificationBell from '$lib/components/NotificationBell.svelte';
+  import Users from 'lucide-svelte/icons/users';
 
   let channelSlug = $derived($page.params.id);
   let channel = $derived(channelStore.getByName(channelSlug));
@@ -182,9 +183,7 @@
           aria-label="Toggle members"
           title="Members"
         >
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
-          </svg>
+          <Users size={16} />
         </button>
       </div>
     </div>

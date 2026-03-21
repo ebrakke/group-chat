@@ -2,6 +2,7 @@
   import { goto } from '$app/navigation';
   import { authStore } from '$lib/stores/auth';
   import { channelStore } from '$lib/stores/channels';
+  import { wsManager } from '$lib/ws';
   import { unsubscribePush } from '$lib/push';
 
   let { onCloseSidebar }: { onCloseSidebar?: () => void } = $props();
@@ -74,8 +75,15 @@
   style="background: var(--rc-sidebar-bg); border-color: var(--border);"
 >
   <!-- Wordmark -->
-  <div class="px-4 py-3 border-b" style="border-color: var(--border);">
+  <div class="px-4 py-3 border-b flex items-center gap-2" style="border-color: var(--border);">
     <span class="text-[14px] font-bold tracking-tight" style="color: var(--foreground);">relay</span><span class="text-[14px]" style="color: var(--rc-timestamp);">.chat</span>
+    {#if !wsManager.displayConnected}
+      <span
+        class="w-2 h-2 rounded-full ml-auto shrink-0 animate-pulse"
+        style="background: var(--rc-mention-badge);"
+        title="Reconnecting..."
+      ></span>
+    {/if}
   </div>
 
   <!-- Nav -->

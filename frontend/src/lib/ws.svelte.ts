@@ -8,7 +8,9 @@ class WebSocketManager {
   private ws: WebSocket | null = null;
   private reconnectAttempt = 0;
   private maxReconnectDelay = 30000;
+  private debounceTimer: ReturnType<typeof setTimeout> | null = null;
   connected = $state(false);
+  displayConnected = $state(false);
 
   connect() {
     const url = getWsUrl();
@@ -22,12 +24,27 @@ class WebSocketManager {
 
     this.ws.onopen = () => {
       this.connected = true;
+      // Clear any pending debounce and immediately show as connected
+      if (this.debounceTimer) {
+        clearTimeout(this.debounceTimer);
+        this.debounceTimer = null;
+      }
+      this.displayConnected = true;
       this.reconnectAttempt = 0;
     };
 
     this.ws.onclose = () => {
       this.connected = false;
       this.ws = null;
+      // Debounce the display state — wait 5s before showing disconnected
+      if (!this.debounceTimer) {
+        this.debounceTimer = setTimeout(() => {
+          this.debounceTimer = null;
+          if (!this.connected) {
+            this.displayConnected = false;
+          }
+        }, 5000);
+      }
       this.scheduleReconnect();
     };
 
@@ -114,12 +131,17 @@ class WebSocketManager {
   }
 
   disconnect() {
+    if (this.debounceTimer) {
+      clearTimeout(this.debounceTimer);
+      this.debounceTimer = null;
+    }
     if (this.ws) {
       this.ws.onclose = null;
       this.ws.close();
       this.ws = null;
     }
     this.connected = false;
+    this.displayConnected = false;
   }
 }
 

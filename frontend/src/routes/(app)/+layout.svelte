@@ -115,7 +115,7 @@
       <button
         id="sidebar-toggle"
         onclick={toggleSidebar}
-        class="p-2"
+        class="p-2 relative"
         style="color: var(--rc-timestamp);"
         aria-label="Toggle sidebar"
       >
@@ -126,6 +126,13 @@
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
           {/if}
         </svg>
+        {#if !wsManager.displayConnected}
+          <span
+            class="absolute top-1 right-1 w-2 h-2 rounded-full animate-pulse"
+            style="background: var(--rc-mention-badge);"
+            title="Reconnecting..."
+          ></span>
+        {/if}
       </button>
       <div class="flex-1"></div>
       <button
@@ -158,12 +165,6 @@
     </main>
   </div>
 
-  {#if !wsManager.connected}
-    <div class="fixed top-0 left-0 right-0 z-50 px-3 py-1.5 text-[12px] font-mono text-center border-b"
-         style="background: var(--rc-mention-badge); color: oklch(0.97 0 0); border-color: var(--rc-mention-badge);">
-      Connection lost — reconnecting...
-    </div>
-  {/if}
   </div>
 </div>
 

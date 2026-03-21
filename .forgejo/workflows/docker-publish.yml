@@ -5,6 +5,8 @@ on:
     branches:
       - master
       - main
+    tags:
+      - 'v*'
     paths-ignore:
       - '**.md'
       - 'docs/**'
@@ -30,9 +32,23 @@ jobs:
 
       - name: Build and push
         run: |
-          docker build -f Dockerfile.once \
-            -t ghcr.io/ebrakke/group-chat:latest \
-            -t ghcr.io/ebrakke/group-chat:${{ github.sha }} \
-            .
-          docker push ghcr.io/ebrakke/group-chat:latest
-          docker push ghcr.io/ebrakke/group-chat:${{ github.sha }}
+          IMAGE=ghcr.io/ebrakke/group-chat
+          REF="${{ github.ref }}"
+
+          if [[ "$REF" == refs/tags/v* ]]; then
+            # Tagged release: extract version, push :latest and :v1.2.3
+            VERSION="${REF#refs/tags/}"
+            docker build -f Dockerfile.once \
+              --build-arg VERSION="$VERSION" \
+              -t "$IMAGE:latest" \
+              -t "$IMAGE:$VERSION" \
+              .
+            docker push "$IMAGE:latest"
+            docker push "$IMAGE:$VERSION"
+          else
+            # Branch push: push :dev
+            docker build -f Dockerfile.once \
+              -t "$IMAGE:dev" \
+              .
+            docker push "$IMAGE:dev"
+          fi

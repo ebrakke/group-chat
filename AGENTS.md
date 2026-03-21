@@ -4,25 +4,23 @@
 
 ## What This Is
 
-Self-hosted private group chat built on Nostr (NIP-29). Ships as a single Go binary that embeds:
-- NIP-29 relay at `/relay`
+Self-hosted private group chat. Ships as a single Go binary that embeds:
 - JSON REST API at `/api/*`
 - WebSocket hub at `/ws` for real-time messaging
-- PWA-capable SPA frontend (vanilla JS, built with Bun, embedded via `go:embed`)
+- PWA-capable SPA frontend (SvelteKit 5, built with Bun, embedded via `go:embed`)
 
 ## Tech Stack
 
 | Layer       | Tech                                          |
 |-------------|-----------------------------------------------|
-| Backend     | Go 1.24.4, stdlib `net/http`                  |
-| Database    | SQLite (pure-Go via `modernc.org/sqlite`)     |
+| Backend     | Go 1.25, stdlib `net/http`                    |
+| Database    | SQLite (pure-Go via `modernc.org/sqlite`, no cgo) |
 | Auth        | Argon2id passwords, 30-day session tokens     |
-| Frontend    | Vanilla JS SPA, Bun bundler (no framework)    |
-| Relay       | `fiatjaf/relay29` v0.5.1 + `khatru`           |
-| Nostr       | `go-nostr` v0.52.3                            |
+| Frontend    | SvelteKit 5 (runes), Tailwind CSS v4, TypeScript, Bun |
+| Icons       | `lucide-svelte`                               |
 | Deploy      | ONCE (Docker), Alpine container, persistent volume |
-| CI/CD       | Forgejo Actions (Docker publish)              |
-| E2E Tests   | Playwright 1.52.0 via Bun                     |
+| CI/CD       | Forgejo Actions (Docker publish to GHCR)      |
+| E2E Tests   | Playwright via Bun                            |
 
 ## Project Structure
 
@@ -35,19 +33,19 @@ internal/                 # Go service layer
   api/                    # HTTP route handlers (REST JSON)
   auth/                   # User auth: bootstrap, login, signup, sessions (argon2id)
   bots/                   # Bot identity, token auth, channel bindings, scope checks
+  branding/               # Instance branding (app name, icon resize)
   calendar/               # Group calendar events (CRUD, range list, validation)
   channels/               # Channel CRUD + membership
   db/                     # SQLite connection + migrations (WAL mode)
-  messages/               # Messages + threads (reply == thread), Nostr event signing, @mention extraction
-  reactions/              # Emoji reactions on messages, Nostr event signing
-  relay/                  # NIP-29 relay integration (khatru + relay29)
+  files/                  # File upload, attachment, serving
+  messages/               # Messages + threads (reply == thread), @mention extraction
+  notifications/          # Push notifications (web push via VAPID, webhooks)
+  reactions/              # Emoji reactions on messages
+  search/                 # Full-text message search (SQLite FTS5)
   ws/                     # WebSocket hub for real-time delivery (filtered broadcast for bots)
 
 examples/
   echo-bot/               # Example bot: connects via WS, echoes @mentions back
-
-relay/                    # Standalone NIP-29 relay binary (historical, for reference)
-  main.go                 # Independent relay server (port 3334)
 
 frontend/
   src/
@@ -72,10 +70,10 @@ scripts/
   run-e2e.sh              # Builds everything, starts server on :8090, runs Playwright
 
 .forgejo/workflows/       # CI/CD pipelines
-  docker-publish.yml      # Build + publish Docker image to GHCR on push to master
+  docker-publish.yml      # Build + publish Docker image to GHCR (master→:dev, v*→:latest)
 
 Makefile                  # build, run, test, test-e2e, frontend, clean
-Dockerfile.once           # Multi-stage: Bun build -> Go build (CGO) -> Alpine (ONCE deployment)
+Dockerfile.once           # Multi-stage: Bun build -> Go build (pure Go) -> Alpine (ONCE deployment)
 ```
 
 ## Development
@@ -117,12 +115,10 @@ make dev          # Rebuilds frontend+binary, kills old process, restarts
 | Variable              | Default         | Description                           |
 |-----------------------|-----------------|---------------------------------------|
 | `PORT`                | `8080`          | HTTP listen port                      |
-| `DATA_DIR`            | `.`             | Directory for SQLite databases        |
+| `DATA_DIR`            | `.`             | Directory for SQLite database + uploads |
 | `DATABASE_PATH`       | `DATA_DIR/app.db` | App database path                   |
-| `RELAY_DATABASE_PATH` | `DATA_DIR/relay.db`| Relay event store path              |
-| `RELAY_PRIVKEY`       | (auto-generated)| NIP-29 relay private key (hex)        |
-| `RELAY_DOMAIN`        | `localhost`     | Relay domain for NIP-29 events        |
-| `ALLOWED_PUBKEYS`     | (none)          | Comma-separated pubkeys for relay     |
+| `BASE_URL`            | `http://localhost:8080` | Public URL (used for push notifications) |
+| `DEV_MODE`            | (unset)         | Set to `true` to auto-create admin/admin user |
 
 ### Run E2E Tests
 
@@ -273,24 +269,12 @@ Migrations tracked in `schema_migrations` table, run automatically on startup.
 
 Files in `internal/db/migrations/`:
 - `001_init.sql` - Users (username unique, role: admin|member), sessions (30-day, token indexed), invites (code unique), channels (name unique), channel_members (composite PK)
-- `002_messages.sql` - Messages (self-referential parent_id for threads, event_id for Nostr), indexed on (channel_id, created_at) for top-level and (parent_id, created_at) for replies
+- `002_messages.sql` - Messages (self-referential parent_id for threads), indexed on (channel_id, created_at) for top-level and (parent_id, created_at) for replies
 - `003_reactions.sql` - Reactions (unique per message+user+emoji), indexed on message_id
 - `004_bots.sql` - Recreates users table with `'bot'` role, adds bot_tokens (revocable opaque tokens) and bot_channel_bindings (read/write scopes per channel)
 - `005_my_threads.sql` - Index on `messages(user_id, parent_id)` for My Threads query
 
 Note: Migration runner disables `PRAGMA foreign_keys` before each migration transaction to support table recreation (SQLite cannot alter CHECK constraints in-place).
-
-### Nostr Integration
-
-Messages and reactions are signed as Nostr events using the relay private key:
-- Messages → kind 1 events with `h` tag (group) and optional `e` tag (parent for replies)
-- Reactions → kind 7 events with `h` tag (group) and `e` tag (target message)
-- Event IDs stored in `messages.event_id` and `reactions.event_id`
-
-NIP-29 relay roles:
-- **Admin**: Full permissions (delete, moderate, edit metadata)
-- **Member**: Send messages only (no moderation)
-- **Non-member**: No access
 
 ### API Endpoints
 
@@ -385,19 +369,37 @@ Connects via WebSocket, listens for `new_message`/`new_reply` events with matchi
 ### CI/CD Pipelines
 
 **Docker Publish** (`.forgejo/workflows/docker-publish.yml`):
-- Trigger: push to `master`/`main`
-- Builds `Dockerfile.once` and publishes to GHCR (`ghcr.io/ebrakke/group-chat:latest`)
+- Push to `master` → builds and pushes `ghcr.io/ebrakke/group-chat:dev`
+- Push a version tag (`v*`) → builds and pushes `ghcr.io/ebrakke/group-chat:latest` + `ghcr.io/ebrakke/group-chat:v1.2.3`
+- Version tags pass `--build-arg VERSION=v1.2.3` so `relay-chat --version` shows the real version
+
+### Releasing to Production
+
+```bash
+# 1. Develop on master — each push builds :dev image
+git push origin master
+
+# 2. Test on dev Once instance (pulls :dev)
+
+# 3. When satisfied, tag a release:
+git tag v1.2.3
+git push --tags
+
+# This builds :latest + :v1.2.3 — prod Once instance picks up :latest
+```
 
 ### Deployment
 
 Deployed via ONCE (Basecamp) using `Dockerfile.once`:
+- **Dev instance**: pulls `ghcr.io/ebrakke/group-chat:dev` (every master push)
+- **Prod instance**: pulls `ghcr.io/ebrakke/group-chat:latest` (only version tags)
 - Port 80, persistent storage at `/storage`
 - Health check: `GET /up`
-- Backup hooks in `deploy/once/hooks/` (pre-backup flushes WAL, post-restore cleans locks)
+- Backup hooks in `deploy/once/hooks/` (pre-backup flushes WAL, post-restore cleans stale files)
 
 Docker build (`Dockerfile.once`):
 - Stage 1: Bun 1.3.9 Alpine → frontend build
-- Stage 2: Go 1.24 Alpine → binary build (CGO_ENABLED=1 for sqlite)
+- Stage 2: Go 1.25 Alpine → binary build (CGO_ENABLED=0, pure Go)
 - Stage 3: Alpine 3.20 → minimal runtime image
 
 ### Go Service Layer
@@ -408,10 +410,9 @@ Docker build (`Dockerfile.once`):
 | `auth`     | `HasUsers`, `Bootstrap`, `Signup`, `Login`, `Logout`, `ValidateSession`, `CreateInvite`, `ListInvites`, `ListUsers`, `SearchUsers`, `ResetPassword`, `GetUserByID` |
 | `bots`     | `Create`, `List`, `GetByID`, `Delete`, `GenerateToken`, `ValidateToken`, `ListTokens`, `RevokeToken`, `BindChannel`, `UnbindChannel`, `ListBindings`, `GetBoundChannelIDs`, `CanWrite` |
 | `channels` | `EnsureGeneral`, `Create`, `GetByID`, `GetByName`, `List`, `AddMember`, `ListMembers`, `IsMember` |
-| `messages` | `SetRelayKey`, `Create`, `CreateReply`, `GetByID`, `ListChannel`, `ListThread`, `ListUserThreads` |
-| `reactions` | `SetRelayKey`, `Toggle`, `Add`, `Remove`, `SummaryForMessages` |
+| `messages` | `Create`, `CreateReply`, `GetByID`, `Edit`, `Delete`, `ListChannel`, `ListThread`, `ListUserThreads` |
+| `reactions` | `Toggle`, `Add`, `Remove`, `SummaryForMessages`              |
 | `ws`       | `NewHub`, `Handler`, `Broadcast`, `AuthResult`                 |
-| `relay`    | `New(Config{PrivateKey, Domain, DatabasePath, AllowedPubkeys})`|
 | `db`       | `Open(path)` → runs migrations, returns `*DB`                 |
 
 Allowed reaction emoji (hardcoded): `👍 👎 ❤️ 😂 😮 😢 🔥 🎉 👀 🙏`

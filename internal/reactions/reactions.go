@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/ebrakke/relay-chat/internal/db"
-	"github.com/nbd-wtf/go-nostr"
 )
 
 // AllowedEmojis is the fixed set of allowed reaction emojis.
@@ -35,7 +34,6 @@ type Reaction struct {
 	MessageID   int64  `json:"messageId"`
 	UserID      int64  `json:"userId"`
 	Emoji       string `json:"emoji"`
-	EventID     string `json:"eventId,omitempty"`
 	CreatedAt   string `json:"createdAt"`
 	Username    string `json:"username"`
 	DisplayName string `json:"displayName"`
@@ -51,8 +49,7 @@ type ReactionSummary struct {
 
 // Service provides reaction operations.
 type Service struct {
-	db        *db.DB
-	relayPriv string
+	db *db.DB
 }
 
 // NewService creates a new reactions service.
@@ -60,14 +57,9 @@ func NewService(database *db.DB) *Service {
 	return &Service{db: database}
 }
 
-// SetRelayKey sets the private key used to sign nostr events.
-func (s *Service) SetRelayKey(privkey string) {
-	s.relayPriv = privkey
-}
-
 // Toggle adds a reaction if it doesn't exist, or removes it if it does.
 // Returns the reaction and true if added, nil and false if removed.
-func (s *Service) Toggle(messageID, userID int64, emoji, groupID string) (*Reaction, bool, error) {
+func (s *Service) Toggle(messageID, userID int64, emoji string) (*Reaction, bool, error) {
 	if !allowedSet[emoji] {
 		return nil, false, ErrInvalidEmoji
 	}
@@ -92,15 +84,10 @@ func (s *Service) Toggle(messageID, userID int64, emoji, groupID string) (*React
 	}
 
 	// Does not exist — add it
-	eventID, err := s.createEvent(emoji, groupID, messageID)
-	if err != nil {
-		return nil, false, fmt.Errorf("create event: %w", err)
-	}
-
 	now := time.Now().UTC().Format(time.RFC3339)
 	res, err := s.db.Exec(
-		"INSERT INTO reactions (message_id, user_id, emoji, event_id, created_at) VALUES (?, ?, ?, ?, ?)",
-		messageID, userID, emoji, eventID, now,
+		"INSERT INTO reactions (message_id, user_id, emoji, created_at) VALUES (?, ?, ?, ?)",
+		messageID, userID, emoji, now,
 	)
 	if err != nil {
 		return nil, false, fmt.Errorf("insert reaction: %w", err)
@@ -115,7 +102,7 @@ func (s *Service) Toggle(messageID, userID int64, emoji, groupID string) (*React
 }
 
 // Add adds a reaction (idempotent — no-op if already exists).
-func (s *Service) Add(messageID, userID int64, emoji, groupID string) (*Reaction, error) {
+func (s *Service) Add(messageID, userID int64, emoji string) (*Reaction, error) {
 	if !allowedSet[emoji] {
 		return nil, ErrInvalidEmoji
 	}
@@ -133,15 +120,10 @@ func (s *Service) Add(messageID, userID int64, emoji, groupID string) (*Reaction
 		return nil, fmt.Errorf("check existing: %w", err)
 	}
 
-	eventID, err := s.createEvent(emoji, groupID, messageID)
-	if err != nil {
-		return nil, fmt.Errorf("create event: %w", err)
-	}
-
 	now := time.Now().UTC().Format(time.RFC3339)
 	res, err := s.db.Exec(
-		"INSERT INTO reactions (message_id, user_id, emoji, event_id, created_at) VALUES (?, ?, ?, ?, ?)",
-		messageID, userID, emoji, eventID, now,
+		"INSERT INTO reactions (message_id, user_id, emoji, created_at) VALUES (?, ?, ?, ?)",
+		messageID, userID, emoji, now,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("insert reaction: %w", err)
@@ -251,14 +233,13 @@ func splitCSV(s string) []string {
 
 func (s *Service) getByID(id int64) (*Reaction, error) {
 	var r Reaction
-	var eventID sql.NullString
 	err := s.db.QueryRow(`
-		SELECT r.id, r.message_id, r.user_id, r.emoji, r.event_id, r.created_at,
+		SELECT r.id, r.message_id, r.user_id, r.emoji, r.created_at,
 		       u.username, u.display_name
 		FROM reactions r
 		JOIN users u ON r.user_id = u.id
 		WHERE r.id = ?
-	`, id).Scan(&r.ID, &r.MessageID, &r.UserID, &r.Emoji, &eventID, &r.CreatedAt,
+	`, id).Scan(&r.ID, &r.MessageID, &r.UserID, &r.Emoji, &r.CreatedAt,
 		&r.Username, &r.DisplayName)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, ErrNotFound
@@ -266,45 +247,6 @@ func (s *Service) getByID(id int64) (*Reaction, error) {
 	if err != nil {
 		return nil, err
 	}
-	if eventID.Valid {
-		r.EventID = eventID.String
-	}
 	return &r, nil
 }
 
-// createEvent builds a signed kind-7 nostr reaction event.
-func (s *Service) createEvent(emoji, groupID string, messageID int64) (string, error) {
-	privkey := s.relayPriv
-	if privkey == "" {
-		privkey = nostr.GeneratePrivateKey()
-	}
-
-	pubkey, err := nostr.GetPublicKey(privkey)
-	if err != nil {
-		return "", fmt.Errorf("get pubkey: %w", err)
-	}
-
-	// Look up the target message's event_id for the e tag
-	var targetEventID sql.NullString
-	s.db.QueryRow("SELECT event_id FROM messages WHERE id = ?", messageID).Scan(&targetEventID)
-
-	tags := nostr.Tags{
-		{"h", groupID},
-	}
-	if targetEventID.Valid && targetEventID.String != "" {
-		tags = append(tags, nostr.Tag{"e", targetEventID.String})
-	}
-
-	ev := nostr.Event{
-		PubKey:    pubkey,
-		CreatedAt: nostr.Timestamp(time.Now().Unix()),
-		Kind:      7,
-		Tags:      tags,
-		Content:   emoji,
-	}
-	if err := ev.Sign(privkey); err != nil {
-		return "", fmt.Errorf("sign event: %w", err)
-	}
-
-	return ev.ID, nil
-}

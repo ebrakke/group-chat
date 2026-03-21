@@ -27,7 +27,6 @@ import (
 	"github.com/ebrakke/relay-chat/internal/notifications"
 	"github.com/ebrakke/relay-chat/internal/reactions"
 	"github.com/ebrakke/relay-chat/internal/search"
-	internalrelay "github.com/ebrakke/relay-chat/internal/relay"
 	"github.com/ebrakke/relay-chat/internal/ws"
 )
 
@@ -56,7 +55,6 @@ func main() {
 	port := envOr("PORT", "8080")
 	baseURL := envOr("BASE_URL", "http://localhost:8080")
 	dbPath := envOr("DATABASE_PATH", filepath.Join(dataDir(), "app.db"))
-	relayDBPath := envOr("RELAY_DATABASE_PATH", filepath.Join(dataDir(), "relay.db"))
 
 	// Ensure data directory exists
 	os.MkdirAll(filepath.Dir(dbPath), 0755)
@@ -126,15 +124,6 @@ func main() {
 		log.Printf("Warning: could not ensure #general channel: %v", err)
 	}
 
-	// Create NIP-29 relay handler
-	relayHandler, err := internalrelay.New(internalrelay.Config{
-		DatabasePath: relayDBPath,
-	})
-	if err != nil {
-		log.Fatalf("Failed to initialize relay: %v", err)
-	}
-	defer relayHandler.Close()
-
 	// WebSocket hub
 	hub := ws.NewHub()
 	hub.AuthFunc = func(token string) (*ws.AuthResult, error) {
@@ -183,21 +172,12 @@ func main() {
 			http.Error(w, "checkpoint failed", http.StatusInternalServerError)
 			return
 		}
-		if err := relayHandler.Sync(); err != nil {
-			log.Printf("pre-backup: Badger sync failed: %v", err)
-			http.Error(w, "sync failed", http.StatusInternalServerError)
-			return
-		}
 		log.Printf("pre-backup: stores flushed successfully")
 		w.WriteHeader(http.StatusOK)
 	})
 
 	// /ws -> websocket hub
 	mux.Handle("/ws", hub.Handler())
-
-	// /relay -> NIP-29 relay (websocket)
-	mux.Handle("/relay", relayHandler)
-	mux.Handle("/relay/", relayHandler)
 
 	// /auth/transfer/{token} -> QR code session transfer
 	mux.HandleFunc("GET /auth/transfer/{token}", apiHandler.HandleTransfer)

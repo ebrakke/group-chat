@@ -665,8 +665,8 @@ func (h *Handler) handleCreateMessage(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Verify channel exists and get name for group ID
-	ch, err := h.channels.GetByID(channelID)
+	// Verify channel exists
+	_, err = h.channels.GetByID(channelID)
 	if err != nil {
 		writeErr(w, http.StatusNotFound, errors.New("channel not found"))
 		return
@@ -684,7 +684,7 @@ func (h *Handler) handleCreateMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	msg, err := h.messages.Create(channelID, user.ID, req.Content, ch.Name)
+	msg, err := h.messages.Create(channelID, user.ID, req.Content)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, err)
 		return
@@ -740,7 +740,6 @@ func (h *Handler) handleCreateReply(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Look up parent to get channel name for group ID
 	parent, err := h.messages.GetByID(parentID)
 	if err != nil {
 		writeErr(w, http.StatusNotFound, errors.New("parent message not found"))
@@ -756,12 +755,6 @@ func (h *Handler) handleCreateReply(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	ch, err := h.channels.GetByID(parent.ChannelID)
-	if err != nil {
-		writeErr(w, http.StatusInternalServerError, err)
-		return
-	}
-
 	var req struct {
 		Content string `json:"content"`
 	}
@@ -774,7 +767,7 @@ func (h *Handler) handleCreateReply(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	msg, err := h.messages.CreateReply(parentID, user.ID, req.Content, ch.Name)
+	msg, err := h.messages.CreateReply(parentID, user.ID, req.Content)
 	if err != nil {
 		writeErr(w, http.StatusInternalServerError, err)
 		return
@@ -937,13 +930,7 @@ func (h *Handler) handleAddReaction(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	ch, err := h.channels.GetByID(msg.ChannelID)
-	if err != nil {
-		writeErr(w, http.StatusInternalServerError, err)
-		return
-	}
-
-	reaction, err := h.reactions.Add(messageID, user.ID, req.Emoji, ch.Name)
+	reaction, err := h.reactions.Add(messageID, user.ID, req.Emoji)
 	if errors.Is(err, reactions.ErrInvalidEmoji) {
 		writeErr(w, http.StatusBadRequest, err)
 		return

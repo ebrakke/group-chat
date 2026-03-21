@@ -2,9 +2,7 @@
 package messages
 
 import (
-	"crypto/rand"
 	"database/sql"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,7 +11,6 @@ import (
 	"time"
 
 	"github.com/ebrakke/relay-chat/internal/db"
-	"github.com/nbd-wtf/go-nostr"
 )
 
 var mentionRe = regexp.MustCompile(`@([a-zA-Z0-9_-]+)`)
@@ -30,7 +27,6 @@ type Message struct {
 	UserID       int64         `json:"userId"`
 	ParentID     *int64        `json:"parentId,omitempty"`
 	Content      string        `json:"content"`
-	EventID      string        `json:"eventId,omitempty"`
 	CreatedAt    string        `json:"createdAt"`
 	Username     string        `json:"username"`
 	DisplayName  string        `json:"displayName"`
@@ -63,17 +59,11 @@ type ReplyParticipant struct {
 
 type Service struct {
 	db         *db.DB
-	relayPriv  string                 // relay private key for signing events
 	notifyFunc func(*Message, string) // callback for notifications
 }
 
 func NewService(database *db.DB) *Service {
 	return &Service{db: database}
-}
-
-// SetRelayKey sets the private key used to sign nostr events.
-func (s *Service) SetRelayKey(privkey string) {
-	s.relayPriv = privkey
 }
 
 // SetNotifyFunc sets the callback for sending notifications.
@@ -82,12 +72,7 @@ func (s *Service) SetNotifyFunc(fn func(*Message, string)) {
 }
 
 // Create creates a new top-level message in a channel.
-func (s *Service) Create(channelID, userID int64, content, groupID string) (*Message, error) {
-	eventID, err := s.createEvent(content, groupID, "", "")
-	if err != nil {
-		return nil, fmt.Errorf("create event: %w", err)
-	}
-
+func (s *Service) Create(channelID, userID int64, content string) (*Message, error) {
 	// Extract and serialize mentions
 	mentions := extractMentions(content)
 	mentionsJSON, _ := json.Marshal(mentions)
@@ -101,8 +86,8 @@ func (s *Service) Create(channelID, userID int64, content, groupID string) (*Mes
 
 	now := time.Now().UTC().Format(time.RFC3339)
 	res, err := s.db.Exec(
-		"INSERT INTO messages (channel_id, user_id, content, event_id, mentions, link_previews, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-		channelID, userID, content, eventID, mentionsJSON, previewsJSON, now,
+		"INSERT INTO messages (channel_id, user_id, content, mentions, link_previews, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+		channelID, userID, content, mentionsJSON, previewsJSON, now,
 	)
 	if err != nil {
 		return nil, err
@@ -126,22 +111,14 @@ func (s *Service) Create(channelID, userID int64, content, groupID string) (*Mes
 }
 
 // CreateReply creates a thread reply to an existing message.
-func (s *Service) CreateReply(parentID, userID int64, content string, groupID string) (*Message, error) {
-	// Look up parent to get channel and event_id
+func (s *Service) CreateReply(parentID, userID int64, content string) (*Message, error) {
+	// Look up parent to get channel
 	parent, err := s.GetByID(parentID)
 	if err != nil {
 		return nil, fmt.Errorf("parent not found: %w", err)
 	}
 	if parent.ParentID != nil {
 		return nil, errors.New("cannot reply to a reply (threads are one level deep)")
-	}
-
-	// Get parent author pubkey for p-tag (best effort)
-	parentEventID := parent.EventID
-
-	eventID, err := s.createEvent(content, groupID, parentEventID, "")
-	if err != nil {
-		return nil, fmt.Errorf("create event: %w", err)
 	}
 
 	// Extract and serialize mentions
@@ -157,8 +134,8 @@ func (s *Service) CreateReply(parentID, userID int64, content string, groupID st
 
 	now := time.Now().UTC().Format(time.RFC3339)
 	res, err := s.db.Exec(
-		"INSERT INTO messages (channel_id, user_id, parent_id, content, event_id, mentions, link_previews, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-		parent.ChannelID, userID, parentID, content, eventID, mentionsJSON, previewsJSON, now,
+		"INSERT INTO messages (channel_id, user_id, parent_id, content, mentions, link_previews, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+		parent.ChannelID, userID, parentID, content, mentionsJSON, previewsJSON, now,
 	)
 	if err != nil {
 		return nil, err
@@ -185,21 +162,20 @@ func (s *Service) CreateReply(parentID, userID int64, content string, groupID st
 func (s *Service) GetByID(id int64) (*Message, error) {
 	var m Message
 	var parentID sql.NullInt64
-	var eventID sql.NullString
 	var previewsJSON sql.NullString
 	var editedAt sql.NullString
 	var deletedAt sql.NullString
 	var role string
 	var avatarFileID sql.NullInt64
 	err := s.db.QueryRow(`
-		SELECT m.id, m.channel_id, m.user_id, m.parent_id, m.content, m.event_id, m.link_previews, m.created_at,
+		SELECT m.id, m.channel_id, m.user_id, m.parent_id, m.content, m.link_previews, m.created_at,
 		       m.edited_at, m.deleted_at,
 		       u.username, u.display_name, u.role, u.profile_picture_id, u.created_at,
 		       (SELECT COUNT(*) FROM messages r WHERE r.parent_id = m.id AND r.deleted_at IS NULL) as reply_count
 		FROM messages m
 		JOIN users u ON m.user_id = u.id
 		WHERE m.id = ?
-	`, id).Scan(&m.ID, &m.ChannelID, &m.UserID, &parentID, &m.Content, &eventID, &previewsJSON, &m.CreatedAt,
+	`, id).Scan(&m.ID, &m.ChannelID, &m.UserID, &parentID, &m.Content, &previewsJSON, &m.CreatedAt,
 		&editedAt, &deletedAt,
 		&m.Username, &m.DisplayName, &role, &avatarFileID, &m.UserCreatedAt, &m.ReplyCount)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -216,9 +192,6 @@ func (s *Service) GetByID(id int64) (*Message, error) {
 	m.Mentions = extractMentions(m.Content)
 	if parentID.Valid {
 		m.ParentID = &parentID.Int64
-	}
-	if eventID.Valid {
-		m.EventID = eventID.String
 	}
 	if previewsJSON.Valid {
 		json.Unmarshal([]byte(previewsJSON.String), &m.LinkPreviews)
@@ -294,7 +267,7 @@ func (s *Service) ListChannel(channelID int64, limit int, before int64) ([]Messa
 	var err error
 	if before > 0 {
 		rows, err = s.db.Query(`
-			SELECT m.id, m.channel_id, m.user_id, m.content, m.event_id, m.link_previews, m.created_at,
+			SELECT m.id, m.channel_id, m.user_id, m.content, m.link_previews, m.created_at,
 			       m.edited_at, m.deleted_at,
 			       u.username, u.display_name, u.role, u.profile_picture_id, u.created_at,
 			       (SELECT COUNT(*) FROM messages r WHERE r.parent_id = m.id AND r.deleted_at IS NULL) as reply_count
@@ -305,7 +278,7 @@ func (s *Service) ListChannel(channelID int64, limit int, before int64) ([]Messa
 		`, channelID, before, limit)
 	} else {
 		rows, err = s.db.Query(`
-			SELECT m.id, m.channel_id, m.user_id, m.content, m.event_id, m.link_previews, m.created_at,
+			SELECT m.id, m.channel_id, m.user_id, m.content, m.link_previews, m.created_at,
 			       m.edited_at, m.deleted_at,
 			       u.username, u.display_name, u.role, u.profile_picture_id, u.created_at,
 			       (SELECT COUNT(*) FROM messages r WHERE r.parent_id = m.id AND r.deleted_at IS NULL) as reply_count
@@ -323,13 +296,12 @@ func (s *Service) ListChannel(channelID int64, limit int, before int64) ([]Messa
 	var msgs []Message
 	for rows.Next() {
 		var m Message
-		var eventID sql.NullString
 		var previewsJSON sql.NullString
 		var editedAt sql.NullString
 		var deletedAt sql.NullString
 		var role string
 		var avatarFileID sql.NullInt64
-		if err := rows.Scan(&m.ID, &m.ChannelID, &m.UserID, &m.Content, &eventID, &previewsJSON, &m.CreatedAt,
+		if err := rows.Scan(&m.ID, &m.ChannelID, &m.UserID, &m.Content, &previewsJSON, &m.CreatedAt,
 			&editedAt, &deletedAt,
 			&m.Username, &m.DisplayName, &role, &avatarFileID, &m.UserCreatedAt, &m.ReplyCount); err != nil {
 			return nil, err
@@ -340,9 +312,6 @@ func (s *Service) ListChannel(channelID int64, limit int, before int64) ([]Messa
 			m.AvatarURL = fmt.Sprintf("/api/files/%d", avatarFileID.Int64)
 		}
 		m.Mentions = extractMentions(m.Content)
-		if eventID.Valid {
-			m.EventID = eventID.String
-		}
 		if previewsJSON.Valid {
 			json.Unmarshal([]byte(previewsJSON.String), &m.LinkPreviews)
 		}
@@ -389,7 +358,7 @@ func (s *Service) ListThread(parentID int64, limit int, before int64) ([]Message
 	var err error
 	if before > 0 {
 		rows, err = s.db.Query(`
-			SELECT m.id, m.channel_id, m.user_id, m.parent_id, m.content, m.event_id, m.link_previews, m.created_at,
+			SELECT m.id, m.channel_id, m.user_id, m.parent_id, m.content, m.link_previews, m.created_at,
 			       m.edited_at, m.deleted_at,
 			       u.username, u.display_name, u.role, u.profile_picture_id, u.created_at
 			FROM messages m
@@ -399,7 +368,7 @@ func (s *Service) ListThread(parentID int64, limit int, before int64) ([]Message
 		`, parentID, before, limit)
 	} else {
 		rows, err = s.db.Query(`
-			SELECT m.id, m.channel_id, m.user_id, m.parent_id, m.content, m.event_id, m.link_previews, m.created_at,
+			SELECT m.id, m.channel_id, m.user_id, m.parent_id, m.content, m.link_previews, m.created_at,
 			       m.edited_at, m.deleted_at,
 			       u.username, u.display_name, u.role, u.profile_picture_id, u.created_at
 			FROM messages m
@@ -417,13 +386,12 @@ func (s *Service) ListThread(parentID int64, limit int, before int64) ([]Message
 	for rows.Next() {
 		var m Message
 		var parentID sql.NullInt64
-		var eventID sql.NullString
 		var previewsJSON sql.NullString
 		var editedAt sql.NullString
 		var deletedAt sql.NullString
 		var role string
 		var avatarFileID sql.NullInt64
-		if err := rows.Scan(&m.ID, &m.ChannelID, &m.UserID, &parentID, &m.Content, &eventID, &previewsJSON, &m.CreatedAt,
+		if err := rows.Scan(&m.ID, &m.ChannelID, &m.UserID, &parentID, &m.Content, &previewsJSON, &m.CreatedAt,
 			&editedAt, &deletedAt,
 			&m.Username, &m.DisplayName, &role, &avatarFileID, &m.UserCreatedAt); err != nil {
 			return nil, err
@@ -436,9 +404,6 @@ func (s *Service) ListThread(parentID int64, limit int, before int64) ([]Message
 		m.Mentions = extractMentions(m.Content)
 		if parentID.Valid {
 			m.ParentID = &parentID.Int64
-		}
-		if eventID.Valid {
-			m.EventID = eventID.String
 		}
 		if previewsJSON.Valid {
 			json.Unmarshal([]byte(previewsJSON.String), &m.LinkPreviews)
@@ -585,43 +550,6 @@ func (s *Service) ListUserThreads(userID int64, limit int) ([]ThreadSummary, err
 	return threads, rows.Err()
 }
 
-// createEvent builds a signed kind-1 nostr event and returns its ID.
-func (s *Service) createEvent(content, groupID, parentEventID, parentPubkey string) (string, error) {
-	privkey := s.relayPriv
-	if privkey == "" {
-		// Generate a throwaway key if none configured
-		privkey = nostr.GeneratePrivateKey()
-	}
-
-	pubkey, err := nostr.GetPublicKey(privkey)
-	if err != nil {
-		return "", fmt.Errorf("get pubkey: %w", err)
-	}
-
-	tags := nostr.Tags{
-		{"h", groupID},
-	}
-	if parentEventID != "" {
-		tags = append(tags, nostr.Tag{"e", parentEventID, "", "reply"})
-	}
-	if parentPubkey != "" {
-		tags = append(tags, nostr.Tag{"p", parentPubkey})
-	}
-
-	ev := nostr.Event{
-		PubKey:    pubkey,
-		CreatedAt: nostr.Timestamp(time.Now().Unix()),
-		Kind:      1,
-		Tags:      tags,
-		Content:   content,
-	}
-	if err := ev.Sign(privkey); err != nil {
-		return "", fmt.Errorf("sign event: %w", err)
-	}
-
-	return ev.ID, nil
-}
-
 // extractMentions parses @username patterns from message content.
 func extractMentions(content string) []string {
 	matches := mentionRe.FindAllStringSubmatch(content, -1)
@@ -666,8 +594,3 @@ func fetchLinkPreviews(content string) []LinkPreview {
 	return previews
 }
 
-func randomHex(n int) string {
-	b := make([]byte, n)
-	rand.Read(b)
-	return hex.EncodeToString(b)
-}

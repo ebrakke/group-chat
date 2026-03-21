@@ -62,7 +62,7 @@ func TestAttachToMessage(t *testing.T) {
 	svc := NewService(d, uploadDir, 10<<20)
 
 	d.Exec("INSERT INTO channels (name) VALUES ('general')")
-	d.Exec("INSERT INTO messages (channel_id, user_id, content, event_id, created_at) VALUES (1, 1, 'test', 'evt1', datetime('now'))")
+	d.Exec("INSERT INTO messages (channel_id, user_id, content, created_at) VALUES (1, 1, 'test', datetime('now'))")
 
 	f, _ := svc.Upload(1, "doc.pdf", "application/pdf", 3, strings.NewReader("pdf"))
 	svc.AttachToMessage(f.ID, 1)

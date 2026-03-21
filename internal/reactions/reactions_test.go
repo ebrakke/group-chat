@@ -28,7 +28,7 @@ func TestAddReaction(t *testing.T) {
 	d := setupTestDB(t)
 	svc := NewService(d)
 
-	r, err := svc.Add(1, 1, "👍", "general")
+	r, err := svc.Add(1, 1, "👍")
 	if err != nil {
 		t.Fatalf("add: %v", err)
 	}
@@ -47,12 +47,12 @@ func TestAddReactionIdempotent(t *testing.T) {
 	d := setupTestDB(t)
 	svc := NewService(d)
 
-	r1, err := svc.Add(1, 1, "👍", "general")
+	r1, err := svc.Add(1, 1, "👍")
 	if err != nil {
 		t.Fatalf("add1: %v", err)
 	}
 
-	r2, err := svc.Add(1, 1, "👍", "general")
+	r2, err := svc.Add(1, 1, "👍")
 	if err != nil {
 		t.Fatalf("add2: %v", err)
 	}
@@ -65,7 +65,7 @@ func TestInvalidEmoji(t *testing.T) {
 	d := setupTestDB(t)
 	svc := NewService(d)
 
-	_, err := svc.Add(1, 1, "💩", "general")
+	_, err := svc.Add(1, 1, "💩")
 	if err != ErrInvalidEmoji {
 		t.Errorf("expected ErrInvalidEmoji, got %v", err)
 	}
@@ -75,7 +75,7 @@ func TestRemoveReaction(t *testing.T) {
 	d := setupTestDB(t)
 	svc := NewService(d)
 
-	svc.Add(1, 1, "👍", "general")
+	svc.Add(1, 1, "👍")
 
 	err := svc.Remove(1, 1, "👍")
 	if err != nil {
@@ -94,7 +94,7 @@ func TestToggleReaction(t *testing.T) {
 	svc := NewService(d)
 
 	// Toggle on
-	r, added, err := svc.Toggle(1, 1, "❤️", "general")
+	r, added, err := svc.Toggle(1, 1, "❤️")
 	if err != nil {
 		t.Fatalf("toggle on: %v", err)
 	}
@@ -106,7 +106,7 @@ func TestToggleReaction(t *testing.T) {
 	}
 
 	// Toggle off
-	r, added, err = svc.Toggle(1, 1, "❤️", "general")
+	r, added, err = svc.Toggle(1, 1, "❤️")
 	if err != nil {
 		t.Fatalf("toggle off: %v", err)
 	}
@@ -118,7 +118,7 @@ func TestToggleReaction(t *testing.T) {
 	}
 
 	// Toggle on again
-	r, added, err = svc.Toggle(1, 1, "❤️", "general")
+	r, added, err = svc.Toggle(1, 1, "❤️")
 	if err != nil {
 		t.Fatalf("toggle on again: %v", err)
 	}
@@ -131,10 +131,10 @@ func TestSummaryForMessages(t *testing.T) {
 	d := setupTestDB(t)
 	svc := NewService(d)
 
-	svc.Add(1, 1, "👍", "general")
-	svc.Add(1, 2, "👍", "general")
-	svc.Add(1, 1, "❤️", "general")
-	svc.Add(2, 2, "🔥", "general")
+	svc.Add(1, 1, "👍")
+	svc.Add(1, 2, "👍")
+	svc.Add(1, 1, "❤️")
+	svc.Add(2, 2, "🔥")
 
 	summaries, err := svc.SummaryForMessages([]int64{1, 2})
 	if err != nil {
@@ -187,15 +187,3 @@ func TestSummaryForMessagesEmpty(t *testing.T) {
 	}
 }
 
-func TestNostrEventKind7(t *testing.T) {
-	d := setupTestDB(t)
-	svc := NewService(d)
-
-	r, err := svc.Add(1, 1, "👍", "general")
-	if err != nil {
-		t.Fatalf("add: %v", err)
-	}
-	if len(r.EventID) != 64 {
-		t.Errorf("eventId length = %d, want 64", len(r.EventID))
-	}
-}

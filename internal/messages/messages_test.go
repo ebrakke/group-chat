@@ -26,7 +26,7 @@ func TestCreateAndGetMessage(t *testing.T) {
 	d := setupTestDB(t)
 	svc := NewService(d)
 
-	msg, err := svc.Create(1, 1, "Hello world", "general")
+	msg, err := svc.Create(1, 1, "Hello world")
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
@@ -41,9 +41,6 @@ func TestCreateAndGetMessage(t *testing.T) {
 	}
 	if msg.ParentID != nil {
 		t.Errorf("parentId should be nil")
-	}
-	if msg.EventID == "" {
-		t.Errorf("eventId should not be empty")
 	}
 
 	// GetByID
@@ -60,12 +57,12 @@ func TestCreateReply(t *testing.T) {
 	d := setupTestDB(t)
 	svc := NewService(d)
 
-	parent, err := svc.Create(1, 1, "Parent message", "general")
+	parent, err := svc.Create(1, 1, "Parent message")
 	if err != nil {
 		t.Fatalf("create parent: %v", err)
 	}
 
-	reply, err := svc.CreateReply(parent.ID, 2, "Reply from bob", "general")
+	reply, err := svc.CreateReply(parent.ID, 2, "Reply from bob")
 	if err != nil {
 		t.Fatalf("create reply: %v", err)
 	}
@@ -84,10 +81,10 @@ func TestCannotReplyToReply(t *testing.T) {
 	d := setupTestDB(t)
 	svc := NewService(d)
 
-	parent, _ := svc.Create(1, 1, "Parent", "general")
-	reply, _ := svc.CreateReply(parent.ID, 2, "Reply", "general")
+	parent, _ := svc.Create(1, 1, "Parent")
+	reply, _ := svc.CreateReply(parent.ID, 2, "Reply")
 
-	_, err := svc.CreateReply(reply.ID, 1, "Nested reply", "general")
+	_, err := svc.CreateReply(reply.ID, 1, "Nested reply")
 	if err == nil {
 		t.Fatal("expected error when replying to a reply")
 	}
@@ -98,11 +95,11 @@ func TestListChannelMessages(t *testing.T) {
 	svc := NewService(d)
 
 	// Create messages
-	svc.Create(1, 1, "msg1", "general")
-	svc.Create(1, 2, "msg2", "general")
-	parent, _ := svc.Create(1, 1, "msg3", "general")
+	svc.Create(1, 1, "msg1")
+	svc.Create(1, 2, "msg2")
+	parent, _ := svc.Create(1, 1, "msg3")
 	// Create a reply (should NOT appear in channel list)
-	svc.CreateReply(parent.ID, 2, "reply1", "general")
+	svc.CreateReply(parent.ID, 2, "reply1")
 
 	msgs, err := svc.ListChannel(1, 50, 0)
 	if err != nil {
@@ -125,9 +122,9 @@ func TestListChannelPagination(t *testing.T) {
 	d := setupTestDB(t)
 	svc := NewService(d)
 
-	svc.Create(1, 1, "msg1", "general")
-	svc.Create(1, 1, "msg2", "general")
-	msg3, _ := svc.Create(1, 1, "msg3", "general")
+	svc.Create(1, 1, "msg1")
+	svc.Create(1, 1, "msg2")
+	msg3, _ := svc.Create(1, 1, "msg3")
 
 	// Get messages before msg3
 	msgs, err := svc.ListChannel(1, 50, msg3.ID)
@@ -143,9 +140,9 @@ func TestListThread(t *testing.T) {
 	d := setupTestDB(t)
 	svc := NewService(d)
 
-	parent, _ := svc.Create(1, 1, "Parent", "general")
-	svc.CreateReply(parent.ID, 2, "reply1", "general")
-	svc.CreateReply(parent.ID, 1, "reply2", "general")
+	parent, _ := svc.Create(1, 1, "Parent")
+	svc.CreateReply(parent.ID, 2, "reply1")
+	svc.CreateReply(parent.ID, 1, "reply2")
 
 	replies, err := svc.ListThread(parent.ID, 50, 0)
 	if err != nil {
@@ -201,7 +198,7 @@ func TestMessageLinkPreviews(t *testing.T) {
 	svc := NewService(d)
 
 	// Message with no URLs — linkPreviews should be nil
-	msg, err := svc.Create(1, 1, "no links here", "general")
+	msg, err := svc.Create(1, 1, "no links here")
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
@@ -223,7 +220,7 @@ func TestEditMessage(t *testing.T) {
 	d := setupTestDB(t)
 	svc := NewService(d)
 
-	msg, err := svc.Create(1, 1, "original content", "general")
+	msg, err := svc.Create(1, 1, "original content")
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
@@ -259,7 +256,7 @@ func TestEditMessageWrongUser(t *testing.T) {
 	d := setupTestDB(t)
 	svc := NewService(d)
 
-	msg, err := svc.Create(1, 1, "alice's message", "general")
+	msg, err := svc.Create(1, 1, "alice's message")
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
@@ -281,7 +278,7 @@ func TestDeleteMessage(t *testing.T) {
 	d := setupTestDB(t)
 	svc := NewService(d)
 
-	msg, err := svc.Create(1, 1, "to be deleted", "general")
+	msg, err := svc.Create(1, 1, "to be deleted")
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
@@ -307,7 +304,7 @@ func TestDeleteMessageAdmin(t *testing.T) {
 	svc := NewService(d)
 
 	// Bob (user 2, member) creates a message
-	msg, err := svc.Create(1, 2, "bob's message", "general")
+	msg, err := svc.Create(1, 2, "bob's message")
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
@@ -329,7 +326,7 @@ func TestDeleteMessageWrongUser(t *testing.T) {
 	svc := NewService(d)
 
 	// Alice (user 1) creates a message
-	msg, err := svc.Create(1, 1, "alice's message", "general")
+	msg, err := svc.Create(1, 1, "alice's message")
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
@@ -351,9 +348,9 @@ func TestDeletedMessagesExcludedFromList(t *testing.T) {
 	d := setupTestDB(t)
 	svc := NewService(d)
 
-	svc.Create(1, 1, "msg1", "general")
-	msg2, _ := svc.Create(1, 1, "msg2", "general")
-	svc.Create(1, 1, "msg3", "general")
+	svc.Create(1, 1, "msg1")
+	msg2, _ := svc.Create(1, 1, "msg2")
+	svc.Create(1, 1, "msg3")
 
 	// Delete msg2
 	svc.Delete(msg2.ID, 1, false)
@@ -376,7 +373,7 @@ func TestEditDeletedMessage(t *testing.T) {
 	d := setupTestDB(t)
 	svc := NewService(d)
 
-	msg, err := svc.Create(1, 1, "will be deleted", "general")
+	msg, err := svc.Create(1, 1, "will be deleted")
 	if err != nil {
 		t.Fatalf("create: %v", err)
 	}
@@ -398,12 +395,12 @@ func TestDeletedRepliesExcludedFromThread(t *testing.T) {
 	d := setupTestDB(t)
 	svc := NewService(d)
 
-	parent, err := svc.Create(1, 1, "parent", "general")
+	parent, err := svc.Create(1, 1, "parent")
 	if err != nil {
 		t.Fatalf("create parent: %v", err)
 	}
 
-	reply, err := svc.CreateReply(parent.ID, 2, "reply to delete", "general")
+	reply, err := svc.CreateReply(parent.ID, 2, "reply to delete")
 	if err != nil {
 		t.Fatalf("create reply: %v", err)
 	}
@@ -428,17 +425,17 @@ func TestDeletedReplyCountExcluded(t *testing.T) {
 	d := setupTestDB(t)
 	svc := NewService(d)
 
-	parent, err := svc.Create(1, 1, "parent", "general")
+	parent, err := svc.Create(1, 1, "parent")
 	if err != nil {
 		t.Fatalf("create parent: %v", err)
 	}
 
-	reply1, err := svc.CreateReply(parent.ID, 2, "reply 1", "general")
+	reply1, err := svc.CreateReply(parent.ID, 2, "reply 1")
 	if err != nil {
 		t.Fatalf("create reply1: %v", err)
 	}
 
-	_, err = svc.CreateReply(parent.ID, 2, "reply 2", "general")
+	_, err = svc.CreateReply(parent.ID, 2, "reply 2")
 	if err != nil {
 		t.Fatalf("create reply2: %v", err)
 	}
@@ -459,18 +456,3 @@ func TestDeletedReplyCountExcluded(t *testing.T) {
 	}
 }
 
-func TestNostrEventTags(t *testing.T) {
-	d := setupTestDB(t)
-	svc := NewService(d)
-
-	// Just verify events are created with proper IDs (non-empty 64-char hex)
-	msg, _ := svc.Create(1, 1, "test", "general")
-	if len(msg.EventID) != 64 {
-		t.Errorf("eventId length = %d, want 64", len(msg.EventID))
-	}
-
-	reply, _ := svc.CreateReply(msg.ID, 2, "reply", "general")
-	if len(reply.EventID) != 64 {
-		t.Errorf("reply eventId length = %d, want 64", len(reply.EventID))
-	}
-}

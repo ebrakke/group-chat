@@ -25,9 +25,9 @@ func TestSearchMessages(t *testing.T) {
 	d, msgSvc := setupTestDB(t)
 	searchSvc := NewService(d)
 
-	msgSvc.Create(1, 1, "hello world", "general")
-	msgSvc.Create(1, 1, "goodbye world", "general")
-	msgSvc.Create(1, 1, "something else", "general")
+	msgSvc.Create(1, 1, "hello world")
+	msgSvc.Create(1, 1, "goodbye world")
+	msgSvc.Create(1, 1, "something else")
 
 	results, err := searchSvc.Search("hello", 50)
 	if err != nil {
@@ -64,8 +64,8 @@ func TestSearchMultipleWords(t *testing.T) {
 	d, msgSvc := setupTestDB(t)
 	searchSvc := NewService(d)
 
-	msgSvc.Create(1, 1, "the quick brown fox", "general")
-	msgSvc.Create(1, 1, "the slow brown dog", "general")
+	msgSvc.Create(1, 1, "the quick brown fox")
+	msgSvc.Create(1, 1, "the slow brown dog")
 
 	results, err := searchSvc.Search("quick fox", 50)
 	if err != nil {
@@ -80,7 +80,7 @@ func TestSearchExcludesDeletedMessages(t *testing.T) {
 	d, msgSvc := setupTestDB(t)
 	searchSvc := NewService(d)
 
-	msg, _ := msgSvc.Create(1, 1, "findable message", "general")
+	msg, _ := msgSvc.Create(1, 1, "findable message")
 	msgSvc.Delete(msg.ID, 1, false)
 
 	results, err := searchSvc.Search("findable", 50)

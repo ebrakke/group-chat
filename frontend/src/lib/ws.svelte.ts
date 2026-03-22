@@ -3,6 +3,7 @@ import { messageStore } from './stores/messages';
 import { channelStore } from './stores/channels';
 import { calendarStore } from './stores/calendar.svelte';
 import { threadStore } from './stores/threads';
+import { dmStore } from './stores/dms.svelte';
 
 class WebSocketManager {
   private ws: WebSocket | null = null;
@@ -68,7 +69,18 @@ class WebSocketManager {
       case 'new_message':
         if (payload) {
           messageStore.addMessage(payload);
-          if (payload.channelId !== channelStore.activeChannelId) {
+          const dmConv = dmStore.getByChannelId(payload.channelId);
+          if (dmConv) {
+            dmStore.updateLastMessage(
+              payload.channelId,
+              payload.content,
+              payload.displayName,
+              payload.createdAt
+            );
+            if (dmStore.activeConversationId !== dmConv.id) {
+              dmStore.updateUnread(payload.channelId, 1);
+            }
+          } else if (payload.channelId !== channelStore.activeChannelId) {
             channelStore.updateUnread(payload.channelId, 1, false);
           }
         }
@@ -83,6 +95,10 @@ class WebSocketManager {
             avatarUrl: payload.avatarUrl
           });
           threadStore.addReply(payload);
+          const dmConvReply = dmStore.getByChannelId(payload.channelId);
+          if (dmConvReply && dmStore.activeConversationId !== dmConvReply.id) {
+            dmStore.updateUnread(payload.channelId, 1);
+          }
         }
         break;
       case 'reaction_added':
@@ -110,6 +126,11 @@ class WebSocketManager {
       case 'channel_created':
         if (payload) {
           channelStore.addChannel({ id: payload.id, name: payload.name });
+        }
+        break;
+      case 'dm_created':
+        if (payload) {
+          dmStore.load();
         }
         break;
       case 'calendar_event_created':

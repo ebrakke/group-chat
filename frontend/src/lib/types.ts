@@ -140,3 +140,19 @@ export interface CalendarEvent {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface DMConversation {
+  id: number;
+  channelId: number;
+  user1Id: number;
+  user2Id: number;
+  createdAt: string;
+  otherUserId: number;
+  otherUsername: string;
+  otherDisplayName: string;
+  otherAvatarUrl?: string;
+  lastMessageContent?: string;
+  lastMessageAt?: string;
+  lastMessageSenderName?: string;
+  unreadCount: number;
+}

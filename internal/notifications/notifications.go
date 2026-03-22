@@ -316,6 +316,66 @@ func (s *Service) sendToUser(userID int64, msg *messages.Message, channelName st
 	}
 }
 
+// SendDM sends a DM notification to the recipient.
+func (s *Service) SendDM(msg *messages.Message, senderName string, recipientID int64, conversationID int64) {
+	level := s.GetChannelNotificationLevel(recipientID, msg.ChannelID)
+	if level == "nothing" {
+		return
+	}
+
+	baseURL := s.baseURL
+	if configuredURL, err := s.GetAppSetting("base_url"); err == nil && configuredURL != "" {
+		baseURL = configuredURL
+	}
+
+	content := msg.Content
+	if len(content) > 500 {
+		content = content[:500] + "..."
+	}
+
+	payload := Payload{
+		Title:     senderName,
+		Message:   content,
+		Sender:    senderName,
+		ChannelID: msg.ChannelID,
+		URL:       fmt.Sprintf("%s/dms/%d", baseURL, conversationID),
+		Timestamp: msg.CreatedAt,
+	}
+
+	// Try web push first
+	subs, _ := s.GetWebPushSubscriptions(recipientID)
+	if len(subs) > 0 {
+		log.Printf("Sending DM web push to user %d (%d subscriptions)", recipientID, len(subs))
+		s.SendWebPush(subs, payload)
+		return
+	}
+
+	// Fall back to webhook provider (same pattern as sendToUser)
+	settings, err := s.GetSettings(recipientID)
+	if err != nil || settings == nil || settings.Provider == "" {
+		return
+	}
+	provider, ok := s.providers[settings.Provider]
+	if !ok {
+		return
+	}
+
+	var providerConfig map[string]string
+	json.Unmarshal([]byte(settings.ProviderConfig), &providerConfig)
+
+	recipient := Recipient{
+		UserID:      recipientID,
+		ProviderKey: providerConfig["key"],
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err := provider.Send(ctx, recipient, payload); err != nil {
+		log.Printf("DM notification send error (user %d, provider %s): %v", recipientID, settings.Provider, err)
+	}
+}
+
 // shouldNotify checks if a user should receive a notification for a message.
 func (s *Service) shouldNotify(userID int64, msg *messages.Message) bool {
 	level := s.GetChannelNotificationLevel(userID, msg.ChannelID)

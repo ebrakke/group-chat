@@ -14,6 +14,7 @@ import (
 	"github.com/ebrakke/relay-chat/internal/calendar"
 	"github.com/ebrakke/relay-chat/internal/channels"
 	"github.com/ebrakke/relay-chat/internal/db"
+	"github.com/ebrakke/relay-chat/internal/dms"
 	"github.com/ebrakke/relay-chat/internal/files"
 	"github.com/ebrakke/relay-chat/internal/messages"
 	"github.com/ebrakke/relay-chat/internal/notifications"
@@ -34,6 +35,7 @@ func setup(t *testing.T) *Handler {
 	botSvc := bots.NewService(d)
 	chanSvc := channels.NewService(d)
 	calSvc := calendar.NewService(d)
+	dmSvc := dms.NewService(d)
 	msgSvc := messages.NewService(d)
 	reactSvc := reactions.NewService(d)
 	hub := ws.NewHub()
@@ -42,7 +44,7 @@ func setup(t *testing.T) *Handler {
 	uploadDir := filepath.Join(t.TempDir(), "uploads")
 	fileSvc := files.NewService(d, uploadDir, 10<<20)
 	searchSvc := search.NewService(d)
-	return New(authSvc, botSvc, chanSvc, calSvc, msgSvc, reactSvc, notifySvc, fileSvc, searchSvc, "test", hub)
+	return New(authSvc, botSvc, chanSvc, calSvc, dmSvc, msgSvc, reactSvc, notifySvc, fileSvc, searchSvc, "test", hub)
 }
 
 func doReq(h http.Handler, method, path string, body interface{}) *httptest.ResponseRecorder {

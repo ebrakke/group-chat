@@ -19,6 +19,7 @@ import (
 	"github.com/ebrakke/relay-chat/internal/branding"
 	"github.com/ebrakke/relay-chat/internal/calendar"
 	"github.com/ebrakke/relay-chat/internal/channels"
+	"github.com/ebrakke/relay-chat/internal/dms"
 	"github.com/ebrakke/relay-chat/internal/files"
 	"github.com/ebrakke/relay-chat/internal/messages"
 	"github.com/ebrakke/relay-chat/internal/notifications"
@@ -32,6 +33,7 @@ type Handler struct {
 	bots          *bots.Service
 	channels      *channels.Service
 	calendar      *calendar.Service
+	dms           *dms.Service
 	messages      *messages.Service
 	reactions     *reactions.Service
 	notifications *notifications.Service
@@ -42,12 +44,13 @@ type Handler struct {
 	mux           *http.ServeMux
 }
 
-func New(authSvc *auth.Service, botSvc *bots.Service, chanSvc *channels.Service, calSvc *calendar.Service, msgSvc *messages.Service, reactSvc *reactions.Service, notifySvc *notifications.Service, fileSvc *files.Service, searchSvc *search.Service, version string, hub *ws.Hub) *Handler {
+func New(authSvc *auth.Service, botSvc *bots.Service, chanSvc *channels.Service, calSvc *calendar.Service, dmSvc *dms.Service, msgSvc *messages.Service, reactSvc *reactions.Service, notifySvc *notifications.Service, fileSvc *files.Service, searchSvc *search.Service, version string, hub *ws.Hub) *Handler {
 	h := &Handler{
 		auth:          authSvc,
 		bots:          botSvc,
 		channels:      chanSvc,
 		calendar:      calSvc,
+		dms:           dmSvc,
 		messages:      msgSvc,
 		reactions:     reactSvc,
 		notifications: notifySvc,
@@ -91,6 +94,11 @@ func (h *Handler) routes() {
 	h.mux.HandleFunc("GET /api/channels", h.handleListChannels)
 	h.mux.HandleFunc("POST /api/channels", h.handleCreateChannel)
 	h.mux.HandleFunc("POST /api/channels/{id}/read", h.handleMarkRead)
+
+	// Direct Messages
+	h.mux.HandleFunc("GET /api/dms", h.handleListDMs)
+	h.mux.HandleFunc("POST /api/dms", h.handleCreateDM)
+	h.mux.HandleFunc("GET /api/dms/{id}", h.handleGetDM)
 
 	// Messages
 	h.mux.HandleFunc("GET /api/channels/{id}/messages", h.handleListMessages)
@@ -512,6 +520,10 @@ func (h *Handler) handleMarkRead(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !h.checkDMAccess(w, channelID, user.ID) {
+		return
+	}
+
 	var req struct {
 		MessageID int64 `json:"messageId"`
 	}
@@ -530,6 +542,95 @@ func (h *Handler) handleMarkRead(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+}
+
+// --- DM handlers ---
+
+func (h *Handler) handleListDMs(w http.ResponseWriter, r *http.Request) {
+	user, err := h.requireAuth(r)
+	if err != nil {
+		writeErr(w, http.StatusUnauthorized, err)
+		return
+	}
+	convs, err := h.dms.ListForUser(user.ID)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	if convs == nil {
+		convs = []dms.ConversationWithUser{}
+	}
+	writeJSON(w, http.StatusOK, convs)
+}
+
+func (h *Handler) handleCreateDM(w http.ResponseWriter, r *http.Request) {
+	user, err := h.requireAuth(r)
+	if err != nil {
+		writeErr(w, http.StatusUnauthorized, err)
+		return
+	}
+	var req struct {
+		UserID int64 `json:"userId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeErr(w, http.StatusBadRequest, err)
+		return
+	}
+	if req.UserID == 0 {
+		writeErr(w, http.StatusBadRequest, errors.New("userId required"))
+		return
+	}
+	// Verify target user exists and is not a bot
+	targetUser, err := h.auth.GetUserByID(req.UserID)
+	if err != nil {
+		writeErr(w, http.StatusNotFound, errors.New("user not found"))
+		return
+	}
+	if targetUser.IsBot {
+		writeErr(w, http.StatusBadRequest, errors.New("cannot DM a bot"))
+		return
+	}
+	conv, err := h.dms.GetOrCreate(user.ID, req.UserID)
+	if err != nil {
+		if errors.Is(err, dms.ErrSelfDM) {
+			writeErr(w, http.StatusBadRequest, err)
+			return
+		}
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	// Register in hub for WS filtering
+	h.hub.RegisterDMChannel(conv.ChannelID, conv.User1ID, conv.User2ID)
+	// Broadcast dm_created to the other user
+	h.hub.Broadcast(ws.Event{Type: "dm_created", Payload: conv, ChannelID: conv.ChannelID})
+	writeJSON(w, http.StatusOK, conv)
+}
+
+func (h *Handler) handleGetDM(w http.ResponseWriter, r *http.Request) {
+	user, err := h.requireAuth(r)
+	if err != nil {
+		writeErr(w, http.StatusUnauthorized, err)
+		return
+	}
+	dmID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		writeErr(w, http.StatusBadRequest, errors.New("invalid dm id"))
+		return
+	}
+	conv, err := h.dms.GetByID(dmID)
+	if err != nil {
+		if errors.Is(err, dms.ErrNotFound) {
+			writeErr(w, http.StatusNotFound, err)
+			return
+		}
+		writeErr(w, http.StatusInternalServerError, err)
+		return
+	}
+	if conv.User1ID != user.ID && conv.User2ID != user.ID {
+		writeErr(w, http.StatusForbidden, errors.New("not a participant"))
+		return
+	}
+	writeJSON(w, http.StatusOK, conv)
 }
 
 var channelNameRe = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
@@ -616,8 +717,17 @@ func (h *Handler) enrichMessage(msg *messages.Message) messageResponse {
 	return messageResponse{Message: *msg, Reactions: r, Files: msgFiles}
 }
 
+// checkDMAccess returns false (and writes a 403) if the channel is a DM and the user is not a participant.
+func (h *Handler) checkDMAccess(w http.ResponseWriter, channelID, userID int64) bool {
+	if h.dms.IsDMChannel(channelID) && !h.dms.IsParticipant(channelID, userID) {
+		writeErr(w, http.StatusForbidden, errors.New("not a participant in this conversation"))
+		return false
+	}
+	return true
+}
+
 func (h *Handler) handleListMessages(w http.ResponseWriter, r *http.Request) {
-	_, err := h.requireAuth(r)
+	user, err := h.requireAuth(r)
 	if err != nil {
 		writeErr(w, http.StatusUnauthorized, err)
 		return
@@ -626,6 +736,10 @@ func (h *Handler) handleListMessages(w http.ResponseWriter, r *http.Request) {
 	channelID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, errors.New("invalid channel id"))
+		return
+	}
+
+	if !h.checkDMAccess(w, channelID, user.ID) {
 		return
 	}
 
@@ -665,6 +779,10 @@ func (h *Handler) handleCreateMessage(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if !h.checkDMAccess(w, channelID, user.ID) {
+		return
+	}
+
 	// Verify channel exists
 	_, err = h.channels.GetByID(channelID)
 	if err != nil {
@@ -697,11 +815,22 @@ func (h *Handler) handleCreateMessage(w http.ResponseWriter, r *http.Request) {
 	// Broadcast to WebSocket clients
 	h.hub.Broadcast(ws.Event{Type: "new_message", Payload: enriched, ChannelID: channelID})
 
+	// For DM channels, send notification only to the other participant
+	if h.dms.IsDMChannel(channelID) {
+		conv, err := h.dms.GetByChannelID(channelID)
+		if err == nil {
+			otherUserID, err := h.dms.GetOtherUserID(channelID, user.ID)
+			if err == nil {
+				go h.notifications.SendDM(msg, user.DisplayName, otherUserID, conv.ID)
+			}
+		}
+	}
+
 	writeJSON(w, http.StatusCreated, enriched)
 }
 
 func (h *Handler) handleListThread(w http.ResponseWriter, r *http.Request) {
-	_, err := h.requireAuth(r)
+	user, err := h.requireAuth(r)
 	if err != nil {
 		writeErr(w, http.StatusUnauthorized, err)
 		return
@@ -710,6 +839,16 @@ func (h *Handler) handleListThread(w http.ResponseWriter, r *http.Request) {
 	parentID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
 		writeErr(w, http.StatusBadRequest, errors.New("invalid message id"))
+		return
+	}
+
+	parent, err := h.messages.GetByID(parentID)
+	if err != nil {
+		writeErr(w, http.StatusNotFound, errors.New("message not found"))
+		return
+	}
+
+	if !h.checkDMAccess(w, parent.ChannelID, user.ID) {
 		return
 	}
 
@@ -743,6 +882,10 @@ func (h *Handler) handleCreateReply(w http.ResponseWriter, r *http.Request) {
 	parent, err := h.messages.GetByID(parentID)
 	if err != nil {
 		writeErr(w, http.StatusNotFound, errors.New("parent message not found"))
+		return
+	}
+
+	if !h.checkDMAccess(w, parent.ChannelID, user.ID) {
 		return
 	}
 
@@ -921,6 +1064,10 @@ func (h *Handler) handleAddReaction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if !h.checkDMAccess(w, msg.ChannelID, user.ID) {
+		return
+	}
+
 	// Bot permission check
 	if user.IsBot {
 		canWrite, err := h.bots.CanWrite(user.ID, msg.ChannelID)
@@ -964,6 +1111,10 @@ func (h *Handler) handleRemoveReaction(w http.ResponseWriter, r *http.Request) {
 	msg, err := h.messages.GetByID(messageID)
 	if err != nil {
 		writeErr(w, http.StatusNotFound, errors.New("message not found"))
+		return
+	}
+
+	if !h.checkDMAccess(w, msg.ChannelID, user.ID) {
 		return
 	}
 

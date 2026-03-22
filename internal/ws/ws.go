@@ -39,12 +39,16 @@ type Hub struct {
 	AuthFunc func(token string) (*AuthResult, error)
 	// GetChannelIDsFunc retrieves current channel IDs for a bot. Set by the app.
 	GetChannelIDsFunc func(userID int64) ([]int64, error)
+	// DM filtering
+	dmMu    sync.RWMutex
+	dmChans map[int64][2]int64 // channel ID -> [user1_id, user2_id]
 }
 
 // NewHub creates a new WebSocket hub.
 func NewHub() *Hub {
 	return &Hub{
 		clients: make(map[*client]struct{}),
+		dmChans: make(map[int64][2]int64),
 	}
 }
 
@@ -103,6 +107,7 @@ func (h *Hub) Handler() http.Handler {
 
 // Broadcast sends an event to all connected clients.
 // Bot clients only receive events from their bound channels.
+// DM channel events are only sent to the two participants.
 func (h *Hub) Broadcast(ev Event) {
 	data, err := json.Marshal(ev)
 	if err != nil {
@@ -110,6 +115,11 @@ func (h *Hub) Broadcast(ev Event) {
 		return
 	}
 	msg := string(data)
+
+	// Check if this is a DM channel
+	h.dmMu.RLock()
+	dmUsers, isDM := h.dmChans[ev.ChannelID]
+	h.dmMu.RUnlock()
 
 	h.mu.RLock()
 	defer h.mu.RUnlock()
@@ -119,10 +129,28 @@ func (h *Hub) Broadcast(ev Event) {
 		if c.isBot && ev.ChannelID > 0 && !c.channelIDs[ev.ChannelID] {
 			continue
 		}
+		// Filter: DM events only go to participants
+		if isDM && c.userID != dmUsers[0] && c.userID != dmUsers[1] {
+			continue
+		}
 		if err := websocket.Message.Send(c.conn, msg); err != nil {
 			log.Printf("ws: send error: %v", err)
 		}
 	}
+}
+
+// RegisterDMChannel registers a DM channel for broadcast filtering.
+func (h *Hub) RegisterDMChannel(channelID, user1ID, user2ID int64) {
+	h.dmMu.Lock()
+	h.dmChans[channelID] = [2]int64{user1ID, user2ID}
+	h.dmMu.Unlock()
+}
+
+// LoadDMChannels bulk-loads all DM channels (called on startup).
+func (h *Hub) LoadDMChannels(channels map[int64][2]int64) {
+	h.dmMu.Lock()
+	h.dmChans = channels
+	h.dmMu.Unlock()
 }
 
 func (h *Hub) register(c *client) {

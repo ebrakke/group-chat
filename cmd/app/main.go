@@ -22,6 +22,7 @@ import (
 	"github.com/ebrakke/relay-chat/internal/calendar"
 	"github.com/ebrakke/relay-chat/internal/channels"
 	"github.com/ebrakke/relay-chat/internal/db"
+	"github.com/ebrakke/relay-chat/internal/dms"
 	"github.com/ebrakke/relay-chat/internal/files"
 	"github.com/ebrakke/relay-chat/internal/messages"
 	"github.com/ebrakke/relay-chat/internal/notifications"
@@ -91,6 +92,7 @@ func main() {
 	maxUploadSize := int64(10 << 20) // 10MB
 	fileSvc := files.NewService(database, uploadDir, maxUploadSize)
 	searchSvc := search.NewService(database)
+	dmSvc := dms.NewService(database)
 	notifySvc := notifications.NewService(database, baseURL)
 
 	getAppName := func() string {
@@ -114,6 +116,10 @@ func main() {
 
 	// Set notification callback on message service
 	msgSvc.SetNotifyFunc(func(msg *messages.Message, channelName string) {
+		// Skip DM channels — DM notifications are handled separately in the API handler
+		if dmSvc.IsDMChannel(msg.ChannelID) {
+			return
+		}
 		if err := notifySvc.Send(msg, channelName); err != nil {
 			log.Printf("Notification error: %v", err)
 		}
@@ -144,8 +150,17 @@ func main() {
 		return botSvc.GetBoundChannelIDs(userID)
 	}
 
+	// Load DM channels into hub for broadcast filtering
+	if dmConvs, err := dmSvc.ListAll(); err == nil {
+		dmChanMap := make(map[int64][2]int64, len(dmConvs))
+		for _, dc := range dmConvs {
+			dmChanMap[dc.ChannelID] = [2]int64{dc.User1ID, dc.User2ID}
+		}
+		hub.LoadDMChannels(dmChanMap)
+	}
+
 	// API handler
-	apiHandler := api.New(authSvc, botSvc, chanSvc, calSvc, msgSvc, reactSvc, notifySvc, fileSvc, searchSvc, version, hub)
+	apiHandler := api.New(authSvc, botSvc, chanSvc, calSvc, dmSvc, msgSvc, reactSvc, notifySvc, fileSvc, searchSvc, version, hub)
 
 	// Build mux
 	mux := http.NewServeMux()

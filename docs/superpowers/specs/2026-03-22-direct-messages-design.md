@@ -29,6 +29,7 @@ This reuses ~90% of existing code paths. The new work is: a thin DB layer, an ac
 
 - Add `is_dm BOOLEAN DEFAULT FALSE` column
 - DM channels are excluded from channel list, search, and browsing APIs
+- DM backing channels use the naming convention `dm-{user1_id}-{user2_id}` (e.g., `dm-3-17`). The `channels.name` column has a UNIQUE constraint, and canonical user ID ordering guarantees uniqueness
 
 ### No changes to existing tables
 
@@ -58,7 +59,10 @@ Once the backing `channel_id` is known, all existing endpoints work unchanged:
 
 ### Access control
 
-A middleware check on all `/api/channels/:id/*` routes: if the channel has `is_dm = TRUE`, verify the requesting user is one of the two participants. This single gate enforces DM privacy across all existing endpoints without modifying individual handlers.
+Two layers of protection:
+
+1. **Channel-level gate:** A middleware check on all `/api/channels/:id/*` routes: if the channel has `is_dm = TRUE`, verify the requesting user is one of the two participants.
+2. **Message-level routes:** Some endpoints use `/api/messages/{id}/*` paths (edit, delete, reactions) rather than nesting under `/api/channels/:id/`. These routes must also check: if the message belongs to a DM channel, verify the requesting user is a participant. The existing message ownership checks (only the author can edit/delete) already protect write operations, but read-adjacent operations (e.g., fetching a thread) need the DM participant check added.
 
 ### Changes to existing endpoints
 
@@ -78,6 +82,7 @@ When an event originates from a DM channel, the hub delivers it only to the two 
 
 - The `Event` struct already has a `ChannelID` field used for bot filtering. Same field is used to look up whether the channel is a DM.
 - When broadcasting, if the channel is a DM, check `dm_conversations` (cached in memory) and only send to connections belonging to `user1_id` or `user2_id`.
+- **Cache management:** The DM channel cache is a `map[int64][2]int64` (channel ID → participant pair). Populated on hub startup from the database. Updated synchronously when `POST /api/dms` creates a new conversation (before the response is sent), so the hub is always aware of new DMs before any messages can be sent through them.
 - The hub needs to track which user owns each connection.
 
 ### Event types

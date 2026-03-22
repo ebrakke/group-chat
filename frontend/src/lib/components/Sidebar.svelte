@@ -5,10 +5,13 @@
   import { wsManager } from '$lib/ws';
   import { unsubscribePush } from '$lib/push';
   import LogOut from 'lucide-svelte/icons/log-out';
+  import { dmStore } from '$lib/stores/dms.svelte';
+  import UserPicker from './UserPicker.svelte';
 
   let { onCloseSidebar }: { onCloseSidebar?: () => void } = $props();
 
   let showCreateModal = $state(false);
+  let showDMPicker = $state(false);
   let newChannelName = $state('');
   let createError = $state('');
   let creating = $state(false);
@@ -28,6 +31,11 @@
 
   function navigateToChannel(name: string) {
     goto(`/channels/${name}`);
+    onCloseSidebar?.();
+  }
+
+  function navigateToDM(id: number) {
+    goto(`/dms/${id}`);
     onCloseSidebar?.();
   }
 
@@ -124,6 +132,50 @@
                 class="text-[11px] tabular-nums ml-auto"
                 style="color: var(--rc-olive);"
               >{channel.unreadCount}</span>
+            {/if}
+          </button>
+        </li>
+      {/each}
+    </ul>
+
+    <!-- Direct Messages -->
+    <div class="flex items-center justify-between px-4 pb-1 pt-4">
+      <span
+        class="text-[10px] uppercase tracking-[0.12em]"
+        style="color: var(--rc-timestamp);"
+      >direct messages</span>
+      <button
+        onclick={() => showDMPicker = true}
+        class="text-[16px] leading-none hover:opacity-70 p-1"
+        style="color: var(--rc-timestamp);"
+        title="New direct message"
+      >+</button>
+    </div>
+
+    <ul class="dm-list">
+      {#each dmStore.conversations as conv (conv.id)}
+        {@const active = dmStore.activeConversationId === conv.id}
+        <li>
+          <button
+            onclick={() => navigateToDM(conv.id)}
+            class="w-full flex items-center gap-1.5 px-4 py-2 text-[13px] text-left"
+            style="background: {active ? 'var(--rc-channel-active-bg)' : 'transparent'}; color: {active ? 'var(--rc-channel-active-fg)' : 'var(--foreground)'};"
+            aria-current={active ? 'page' : undefined}
+          >
+            {#if conv.otherAvatarUrl}
+              <img src={conv.otherAvatarUrl} alt="" class="w-4 h-4 rounded-full object-cover shrink-0" />
+            {:else}
+              <span
+                class="inline-flex items-center justify-center w-4 h-4 text-[9px] shrink-0"
+                style="background: var(--rc-channel-active-bg); color: {active ? 'var(--rc-channel-active-fg)' : 'var(--rc-timestamp)'};"
+              >{conv.otherDisplayName.charAt(0).toUpperCase()}</span>
+            {/if}
+            <span class="flex-1 truncate">{conv.otherDisplayName}</span>
+            {#if conv.unreadCount}
+              <span
+                class="text-[11px] tabular-nums ml-auto"
+                style="color: var(--rc-olive);"
+              >{conv.unreadCount}</span>
             {/if}
           </button>
         </li>
@@ -248,4 +300,8 @@
       </div>
     </div>
   </div>
+{/if}
+
+{#if showDMPicker}
+  <UserPicker onClose={() => showDMPicker = false} />
 {/if}

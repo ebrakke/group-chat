@@ -2,6 +2,7 @@
   import { onMount, onDestroy } from 'svelte';
   import { goto } from '$app/navigation';
   import { channelStore } from '$lib/stores/channels';
+  import { dmStore } from '$lib/stores/dms.svelte';
   import { wsManager } from '$lib/ws';
   import { initPush } from '$lib/push';
   import Sidebar from '$lib/components/Sidebar.svelte';
@@ -30,6 +31,7 @@
 
   onMount(async () => {
     channelStore.load();
+    dmStore.load();
     wsManager.connect();
     window.addEventListener('keydown', handleKeydown);
 

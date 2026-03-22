@@ -25,6 +25,7 @@
       role: string;
       userCreatedAt: string;
       isBot: boolean;
+      userId?: number;
     }) => void;
   } = $props();
 
@@ -77,7 +78,8 @@
       avatarUrl: m.avatarUrl,
       role: m.role,
       userCreatedAt: m.createdAt,
-      isBot: m.isBot ?? false
+      isBot: m.isBot ?? false,
+      userId: m.id
     });
   }
 </script>

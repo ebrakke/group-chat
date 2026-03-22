@@ -22,7 +22,7 @@
     message: Message;
     onOpenThread?: (id: number) => void;
     onReactionChange?: () => void;
-    onOpenProfile?: (profile: { displayName: string; username?: string; avatarUrl?: string; role?: string; userCreatedAt?: string; isBot?: boolean }) => void;
+    onOpenProfile?: (profile: { displayName: string; username?: string; avatarUrl?: string; role?: string; userCreatedAt?: string; isBot?: boolean; userId?: number }) => void;
     grouped?: boolean;
     compact?: boolean;
   } = $props();
@@ -231,7 +231,8 @@
       avatarUrl: message.avatarUrl,
       role: message.role,
       userCreatedAt: message.userCreatedAt,
-      isBot: message.isBot
+      isBot: message.isBot,
+      userId: message.userId
     });
   }
 </script>

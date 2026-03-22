@@ -8,7 +8,8 @@
     role,
     userCreatedAt,
     isBot = false,
-    onClose
+    onClose,
+    onMessage
   }: {
     displayName: string;
     username?: string;
@@ -17,6 +18,7 @@
     userCreatedAt?: string;
     isBot?: boolean;
     onClose: () => void;
+    onMessage?: () => void;
   } = $props();
 
   // --- Resizable width ---
@@ -105,6 +107,13 @@
           <div class="text-[11px]" style="color: var(--rc-timestamp);">
             member since {formatJoinDate(userCreatedAt)}
           </div>
+        {/if}
+        {#if onMessage}
+          <button
+            onclick={onMessage}
+            class="w-full px-3 py-1.5 text-[12px] border font-mono mt-3"
+            style="background: var(--rc-channel-active-bg); color: var(--rc-channel-active-fg); border-color: var(--rc-channel-active-bg);"
+          >Message</button>
         {/if}
       </div>
     </div>

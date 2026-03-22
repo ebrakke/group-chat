@@ -11,7 +11,7 @@
   }: {
     messages: MessageType[];
     onOpenThread?: (id: number) => void;
-    onOpenProfile?: (profile: { displayName: string; username?: string; avatarUrl?: string; role?: string; userCreatedAt?: string; isBot?: boolean }) => void;
+    onOpenProfile?: (profile: { displayName: string; username?: string; avatarUrl?: string; role?: string; userCreatedAt?: string; isBot?: boolean; userId?: number }) => void;
     compact?: boolean;
   } = $props();
 

@@ -3,6 +3,8 @@
   import { goto } from '$app/navigation';
   import { untrack } from 'svelte';
   import { channelStore } from '$lib/stores/channels';
+  import { dmStore } from '$lib/stores/dms.svelte';
+  import { authStore } from '$lib/stores/auth';
   import { messageStore } from '$lib/stores/messages';
   import { threadStore } from '$lib/stores/threads';
   import { uploadFile } from '$lib/api';
@@ -25,6 +27,7 @@
   let lastMarkedMsgId = $state(0);
 
   interface ProfileData {
+    userId?: number;
     displayName: string;
     username?: string;
     avatarUrl?: string;
@@ -66,6 +69,7 @@
   $effect(() => {
     if (channelId) {
       channelStore.setActive(channelId);
+      dmStore.setActive(null);
       loadMessages(channelId);
     }
   });
@@ -219,6 +223,11 @@
       userCreatedAt={profileOpen.userCreatedAt}
       isBot={profileOpen.isBot}
       onClose={closeProfile}
+      onMessage={profileOpen.userId && profileOpen.userId !== authStore.user?.id ? async () => {
+        const conv = await dmStore.startDM(profileOpen!.userId!);
+        closeProfile();
+        goto(`/dms/${conv.id}`);
+      } : undefined}
     />
   {/if}
 

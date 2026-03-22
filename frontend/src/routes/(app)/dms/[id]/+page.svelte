@@ -3,6 +3,7 @@
   import { goto } from '$app/navigation';
   import { untrack } from 'svelte';
   import { dmStore } from '$lib/stores/dms.svelte';
+  import { authStore } from '$lib/stores/auth';
   import { messageStore } from '$lib/stores/messages';
   import { channelStore } from '$lib/stores/channels';
   import { threadStore } from '$lib/stores/threads';
@@ -183,6 +184,11 @@
       userCreatedAt={profileOpen.userCreatedAt}
       isBot={profileOpen.isBot}
       onClose={closeProfile}
+      onMessage={profileOpen.userId && profileOpen.userId !== authStore.user?.id ? async () => {
+        const conv = await dmStore.startDM(profileOpen!.userId!);
+        closeProfile();
+        goto(`/dms/${conv.id}`);
+      } : undefined}
     />
   {/if}
 </div>

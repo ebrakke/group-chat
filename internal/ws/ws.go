@@ -3,18 +3,21 @@ package ws
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"sync"
+	"time"
 
 	"golang.org/x/net/websocket"
 )
 
 // Event is a message broadcast to connected clients.
 type Event struct {
-	Type      string      `json:"type"`
-	Payload   interface{} `json:"payload"`
-	ChannelID int64       `json:"-"` // used for bot filtering, not serialized
+	Type          string      `json:"type"`
+	Payload       interface{} `json:"payload"`
+	ChannelID     int64       `json:"-"` // used for bot filtering, not serialized
+	ExcludeUserID int64       `json:"-"` // skip this user when broadcasting
 }
 
 // AuthResult is returned by AuthFunc with user metadata.
@@ -39,16 +42,39 @@ type Hub struct {
 	AuthFunc func(token string) (*AuthResult, error)
 	// GetChannelIDsFunc retrieves current channel IDs for a bot. Set by the app.
 	GetChannelIDsFunc func(userID int64) ([]int64, error)
+	// GetDisplayNameFunc retrieves display name for a user. Set by the app.
+	GetDisplayNameFunc func(userID int64) string
 	// DM filtering
 	dmMu    sync.RWMutex
 	dmChans map[int64][2]int64 // channel ID -> [user1_id, user2_id]
+	// Typing indicator rate limiting
+	typingMu   sync.Mutex
+	typingLast map[string]time.Time
 }
 
 // NewHub creates a new WebSocket hub.
 func NewHub() *Hub {
-	return &Hub{
-		clients: make(map[*client]struct{}),
-		dmChans: make(map[int64][2]int64),
+	h := &Hub{
+		clients:    make(map[*client]struct{}),
+		dmChans:    make(map[int64][2]int64),
+		typingLast: make(map[string]time.Time),
+	}
+	go h.cleanupTypingRates()
+	return h
+}
+
+func (h *Hub) cleanupTypingRates() {
+	ticker := time.NewTicker(60 * time.Second)
+	defer ticker.Stop()
+	for range ticker.C {
+		h.typingMu.Lock()
+		now := time.Now()
+		for k, t := range h.typingLast {
+			if now.Sub(t) > 5*time.Second {
+				delete(h.typingLast, k)
+			}
+		}
+		h.typingMu.Unlock()
 	}
 }
 
@@ -95,12 +121,13 @@ func (h *Hub) Handler() http.Handler {
 
 		websocket.Message.Send(conn, `{"type":"connected"}`)
 
-		// Read loop (discard incoming, just keep alive)
+		// Read loop — parse and dispatch client events
 		for {
 			var msg string
 			if err := websocket.Message.Receive(conn, &msg); err != nil {
 				return
 			}
+			h.handleClientMessage(c, msg)
 		}
 	})
 }
@@ -125,6 +152,10 @@ func (h *Hub) Broadcast(ev Event) {
 	defer h.mu.RUnlock()
 
 	for c := range h.clients {
+		// Filter: exclude specific user (e.g., typing indicator sender)
+		if ev.ExcludeUserID != 0 && c.userID == ev.ExcludeUserID {
+			continue
+		}
 		// Filter: bot clients only get events from bound channels
 		if c.isBot && ev.ChannelID > 0 && !c.channelIDs[ev.ChannelID] {
 			continue
@@ -163,6 +194,75 @@ func (h *Hub) unregister(c *client) {
 	h.mu.Lock()
 	delete(h.clients, c)
 	h.mu.Unlock()
+}
+
+// clientMessage is the JSON structure for client-to-server events.
+type clientMessage struct {
+	Type      string `json:"type"`
+	ChannelID int64  `json:"channelId"`
+	ParentID  *int64 `json:"parentId"` // pointer to distinguish null from 0
+}
+
+func (h *Hub) handleClientMessage(c *client, raw string) {
+	// Ignore messages from bots
+	if c.isBot {
+		return
+	}
+
+	var msg clientMessage
+	if err := json.Unmarshal([]byte(raw), &msg); err != nil {
+		return // silently ignore malformed messages
+	}
+
+	switch msg.Type {
+	case "typing":
+		h.broadcastTyping(c, msg.ChannelID, msg.ParentID)
+	}
+	// Unknown types are silently ignored
+}
+
+func (h *Hub) broadcastTyping(c *client, channelID int64, parentID *int64) {
+	if channelID == 0 {
+		return
+	}
+
+	// Rate limit: 2s per user+channel+parent
+	var parentVal int64
+	if parentID != nil {
+		parentVal = *parentID
+	}
+	key := fmt.Sprintf("%d:%d:%d", c.userID, channelID, parentVal)
+
+	h.typingMu.Lock()
+	if last, ok := h.typingLast[key]; ok && time.Since(last) < 2*time.Second {
+		h.typingMu.Unlock()
+		return
+	}
+	h.typingLast[key] = time.Now()
+	h.typingMu.Unlock()
+
+	// Look up display name
+	displayName := ""
+	if h.GetDisplayNameFunc != nil {
+		displayName = h.GetDisplayNameFunc(c.userID)
+	}
+	if displayName == "" {
+		displayName = "Someone"
+	}
+
+	payload := map[string]interface{}{
+		"channelId":   channelID,
+		"parentId":    parentID,
+		"userId":      c.userID,
+		"displayName": displayName,
+	}
+
+	h.Broadcast(Event{
+		Type:          "user_typing",
+		Payload:       payload,
+		ChannelID:     channelID,
+		ExcludeUserID: c.userID,
+	})
 }
 
 // RefreshBotPermissions updates the channel IDs for all connected bot clients with the given userID.

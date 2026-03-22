@@ -6,10 +6,12 @@
   import { formatTime } from '$lib/utils/time';
   import MessageList from './MessageList.svelte';
   import MessageInput from './MessageInput.svelte';
+  import TypingIndicator from './TypingIndicator.svelte';
 
   let { onClose }: { onClose: () => void } = $props();
 
   let parentMessage = $derived(threadStore.parentMessage);
+  let channelId = $derived(parentMessage?.channelId ?? 0);
   let replies = $derived(threadStore.replies);
   let muted = $derived(threadStore.muted);
 
@@ -152,12 +154,17 @@
       {/if}
     </div>
 
+    <!-- Typing indicator -->
+    <TypingIndicator {channelId} parentId={threadStore.openThreadId} />
+
     <!-- Reply input -->
     <MessageInput
       onSend={handleSendReply}
       placeholder="reply..."
       inputId="reply-input"
       sendButtonId="reply-send"
+      {channelId}
+      parentId={threadStore.openThreadId}
     />
   </div>
 </div>

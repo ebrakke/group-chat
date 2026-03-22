@@ -11,6 +11,7 @@
   import { toastStore } from '$lib/stores/toast.svelte';
   import MessageList from '$lib/components/MessageList.svelte';
   import MessageInput from '$lib/components/MessageInput.svelte';
+  import TypingIndicator from '$lib/components/TypingIndicator.svelte';
   import ThreadPanel from '$lib/components/ThreadPanel.svelte';
   import ProfilePanel from '$lib/components/ProfilePanel.svelte';
   import MembersPanel from '$lib/components/MembersPanel.svelte';
@@ -201,10 +202,14 @@
       <MessageList {messages} onOpenThread={openThread} onOpenProfile={openProfile} />
     {/if}
 
+    <!-- Typing indicator -->
+    <TypingIndicator {channelId} />
+
     <!-- Input -->
     <MessageInput
       onSend={handleSend}
       placeholder={channel ? `message #${channel.name}` : 'type a message...'}
+      {channelId}
     />
   </div>
 

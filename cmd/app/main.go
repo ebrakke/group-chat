@@ -149,6 +149,13 @@ func main() {
 	hub.GetChannelIDsFunc = func(userID int64) ([]int64, error) {
 		return botSvc.GetBoundChannelIDs(userID)
 	}
+	hub.GetDisplayNameFunc = func(userID int64) string {
+		user, err := authSvc.GetUserByID(userID)
+		if err != nil {
+			return ""
+		}
+		return user.DisplayName
+	}
 
 	// Load DM channels into hub for broadcast filtering
 	if dmConvs, err := dmSvc.ListAll(); err == nil {

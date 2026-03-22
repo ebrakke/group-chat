@@ -4,6 +4,7 @@ import { channelStore } from './stores/channels';
 import { calendarStore } from './stores/calendar.svelte';
 import { threadStore } from './stores/threads';
 import { dmStore } from './stores/dms.svelte';
+import { typingStore } from './stores/typing.svelte';
 
 class WebSocketManager {
   private ws: WebSocket | null = null;
@@ -69,6 +70,7 @@ class WebSocketManager {
       case 'new_message':
         if (payload) {
           messageStore.addMessage(payload);
+          typingStore.removeTyper(payload.channelId, null, payload.userId);
           const dmConv = dmStore.getByChannelId(payload.channelId);
           if (dmConv) {
             dmStore.updateLastMessage(
@@ -95,6 +97,7 @@ class WebSocketManager {
             avatarUrl: payload.avatarUrl
           });
           threadStore.addReply(payload);
+          typingStore.removeTyper(payload.channelId, payload.parentId, payload.userId);
           const dmConvReply = dmStore.getByChannelId(payload.channelId);
           if (dmConvReply && dmStore.activeConversationId !== dmConvReply.id) {
             dmStore.updateUnread(payload.channelId, 1);
@@ -133,6 +136,11 @@ class WebSocketManager {
           dmStore.load();
         }
         break;
+      case 'user_typing':
+        if (payload) {
+          typingStore.addTyper(payload.channelId, payload.parentId, payload.userId, payload.displayName);
+        }
+        break;
       case 'calendar_event_created':
         if (payload) calendarStore.addEvent(payload);
         break;
@@ -149,6 +157,24 @@ class WebSocketManager {
     const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempt), this.maxReconnectDelay);
     this.reconnectAttempt++;
     setTimeout(() => this.connect(), delay);
+  }
+
+  private typingThrottles = new Map<string, number>();
+
+  sendTyping(channelId: number, parentId: number | null = null) {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+
+    const key = parentId ? `${channelId}:${parentId}` : `${channelId}`;
+    const now = Date.now();
+    const last = this.typingThrottles.get(key) ?? 0;
+    if (now - last < 2000) return;
+    this.typingThrottles.set(key, now);
+
+    try {
+      this.ws.send(JSON.stringify({ type: 'typing', channelId, parentId }));
+    } catch {
+      // Silently ignore — typing is non-critical
+    }
   }
 
   disconnect() {

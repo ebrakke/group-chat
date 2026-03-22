@@ -2,17 +2,22 @@
   import MentionAutocomplete from './MentionAutocomplete.svelte';
   import ArrowRight from 'lucide-svelte/icons/arrow-right';
   import Plus from 'lucide-svelte/icons/plus';
+  import { wsManager } from '$lib/ws';
 
   let {
     onSend,
     placeholder = 'Type a message...',
     inputId = 'msg-input',
-    sendButtonId = 'msg-send'
+    sendButtonId = 'msg-send',
+    channelId = 0,
+    parentId = null
   }: {
     onSend: (content: string, files?: globalThis.File[]) => void;
     placeholder?: string;
     inputId?: string;
     sendButtonId?: string;
+    channelId?: number;
+    parentId?: number | null;
   } = $props();
 
   let text = $state('');
@@ -53,6 +58,9 @@
   function handleInput() {
     autoResize();
     autocomplete?.handleInput();
+    if (channelId) {
+      wsManager.sendTyping(channelId, parentId);
+    }
   }
 
   function handleAutocompleteSelect(newValue: string) {

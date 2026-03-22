@@ -70,7 +70,7 @@ func (s *Service) GetByName(name string) (*Channel, error) {
 
 // List returns all channels.
 func (s *Service) List() ([]Channel, error) {
-	rows, err := s.db.Query("SELECT id, name, created_at FROM channels ORDER BY name")
+	rows, err := s.db.Query("SELECT id, name, created_at FROM channels WHERE is_dm = 0 ORDER BY name")
 	if err != nil {
 		return nil, err
 	}
@@ -112,6 +112,7 @@ func (s *Service) ListForUser(userID int64, username string) ([]ChannelWithUnrea
 			) AS has_mention
 		FROM channels c
 		LEFT JOIN channel_reads cm ON cm.channel_id = c.id AND cm.user_id = ?
+		WHERE c.is_dm = 0
 		ORDER BY c.name
 	`, username, userID)
 	if err != nil {

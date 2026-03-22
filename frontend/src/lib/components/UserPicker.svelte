@@ -4,6 +4,7 @@
   import { goto } from '$app/navigation';
   import type { User } from '$lib/types';
   import { authStore } from '$lib/stores/auth';
+  import { portal } from '$lib/actions/portal';
 
   let { onClose }: { onClose: () => void } = $props();
 
@@ -47,6 +48,7 @@
 
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 <div
+  use:portal
   class="fixed inset-0 bg-black/30 flex items-center justify-center z-50"
   role="dialog"
   aria-modal="true"

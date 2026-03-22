@@ -7,6 +7,7 @@
   import LogOut from 'lucide-svelte/icons/log-out';
   import { dmStore } from '$lib/stores/dms.svelte';
   import UserPicker from './UserPicker.svelte';
+  import { portal } from '$lib/actions/portal';
 
   let { onCloseSidebar }: { onCloseSidebar?: () => void } = $props();
 
@@ -253,6 +254,7 @@
 {#if showCreateModal}
   <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
   <div
+    use:portal
     class="fixed inset-0 bg-black/30 flex items-center justify-center z-50"
     role="dialog"
     aria-modal="true"

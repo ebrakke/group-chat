@@ -147,17 +147,25 @@ func (s *Service) RegenerateNtfyTopic(userID int64) (string, error) {
 
 // EnsureAllNtfyTopics generates ntfy topics for all users who don't have one.
 func (s *Service) EnsureAllNtfyTopics() error {
+	// Collect IDs first, then close rows before doing writes.
+	// With MaxOpenConns(1), holding rows open while calling Exec deadlocks.
 	rows, err := s.db.Query("SELECT id FROM users WHERE ntfy_topic IS NULL OR ntfy_topic = ''")
 	if err != nil {
 		return fmt.Errorf("ntfy: query users without topics: %w", err)
 	}
-	defer rows.Close()
 
+	var userIDs []int64
 	for rows.Next() {
 		var userID int64
 		if err := rows.Scan(&userID); err != nil {
+			rows.Close()
 			return err
 		}
+		userIDs = append(userIDs, userID)
+	}
+	rows.Close()
+
+	for _, userID := range userIDs {
 		topic := generateNtfyTopic()
 		if _, err := s.db.Exec("UPDATE users SET ntfy_topic = ? WHERE id = ?", topic, userID); err != nil {
 			return fmt.Errorf("ntfy: store topic for user %d: %w", userID, err)

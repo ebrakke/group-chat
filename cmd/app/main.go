@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"html"
 	"io/fs"
-	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -53,8 +53,16 @@ func main() {
 		return
 	}
 
+	// Set up structured logging — JSON in production, text in dev
+	logLevel := slog.LevelInfo
+	if os.Getenv("LOG_LEVEL") == "debug" {
+		logLevel = slog.LevelDebug
+	}
+	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: logLevel}))
+	slog.SetDefault(logger)
+
 	port := envOr("PORT", "8080")
-	baseURL := envOr("BASE_URL", "http://localhost:8080")
+	baseURL := inferBaseURL(port)
 	dbPath := envOr("DATABASE_PATH", filepath.Join(dataDir(), "app.db"))
 
 	// Ensure data directory exists
@@ -63,7 +71,8 @@ func main() {
 	// Open app database (runs migrations)
 	database, err := db.Open(dbPath)
 	if err != nil {
-		log.Fatalf("Failed to open database: %v", err)
+		slog.Error("failed to open database", "error", err)
+		os.Exit(1)
 	}
 	defer database.Close()
 
@@ -80,9 +89,9 @@ func main() {
 		if err == nil && !hasUsers {
 			_, _, err := authSvc.Bootstrap("admin", "admin", "Dev Admin")
 			if err != nil {
-				log.Printf("Dev mode: failed to auto-bootstrap admin user: %v", err)
+				slog.Error("dev mode: failed to auto-bootstrap admin user", "error", err)
 			} else {
-				log.Printf("Dev mode: auto-bootstrapped admin/admin user")
+				slog.Info("dev mode: auto-bootstrapped admin/admin user")
 			}
 		}
 	}
@@ -111,7 +120,7 @@ func main() {
 
 	// Ensure VAPID keys exist for web push
 	if _, _, err := notifySvc.EnsureVAPIDKeys(); err != nil {
-		log.Printf("Warning: VAPID key setup failed: %v", err)
+		slog.Warn("VAPID key setup failed", "error", err)
 	}
 
 	// Set notification callback on message service
@@ -121,13 +130,13 @@ func main() {
 			return
 		}
 		if err := notifySvc.Send(msg, channelName); err != nil {
-			log.Printf("Notification error: %v", err)
+			slog.Error("notification send failed", "error", err, "channel", channelName)
 		}
 	})
 
 	// Ensure #general exists
 	if _, err := chanSvc.EnsureGeneral(); err != nil {
-		log.Printf("Warning: could not ensure #general channel: %v", err)
+		slog.Warn("could not ensure #general channel", "error", err)
 	}
 
 	// WebSocket hub
@@ -190,11 +199,11 @@ func main() {
 			return
 		}
 		if _, err := database.Exec("PRAGMA wal_checkpoint(TRUNCATE)"); err != nil {
-			log.Printf("pre-backup: WAL checkpoint failed: %v", err)
+			slog.Error("pre-backup: WAL checkpoint failed", "error", err)
 			http.Error(w, "checkpoint failed", http.StatusInternalServerError)
 			return
 		}
-		log.Printf("pre-backup: stores flushed successfully")
+		slog.Info("pre-backup: stores flushed successfully")
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -207,7 +216,8 @@ func main() {
 	// / -> SPA static assets
 	staticSub, err := fs.Sub(staticFS, "static")
 	if err != nil {
-		log.Fatalf("Failed to create static sub FS: %v", err)
+		slog.Error("failed to create static sub FS", "error", err)
+		os.Exit(1)
 	}
 	// Dynamic branding: manifest served from DB
 	mux.HandleFunc("GET /manifest.json", func(w http.ResponseWriter, r *http.Request) {
@@ -255,9 +265,10 @@ func main() {
 	mux.Handle("/", spaHandler(staticSub, getAppName))
 
 	addr := "0.0.0.0:" + port
-	log.Printf("Relay Chat starting on %s", addr)
+	slog.Info("relay chat starting", "addr", addr, "version", version, "base_url", baseURL)
 	if err := http.ListenAndServe(addr, mux); err != nil {
-		log.Fatal(err)
+		slog.Error("server exited", "error", err)
+		os.Exit(1)
 	}
 }
 
@@ -315,6 +326,18 @@ func spaHandler(fsys fs.FS, getAppName func() string) http.Handler {
 	})
 }
 
+// inferBaseURL determines the public base URL for the app.
+// Priority: BASE_URL env var > DOMAIN env var (Once/Stalker) > default localhost.
+func inferBaseURL(port string) string {
+	if v := os.Getenv("BASE_URL"); v != "" {
+		return strings.TrimRight(v, "/")
+	}
+	if domain := os.Getenv("DOMAIN"); domain != "" {
+		return "https://" + strings.TrimRight(domain, "/")
+	}
+	return "http://localhost:" + port
+}
+
 func envOr(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {
 		return v
@@ -334,13 +357,15 @@ func handleResetPassword() {
 	dbPath := envOr("DATABASE_PATH", filepath.Join(dataDir(), "app.db"))
 	database, err := db.Open(dbPath)
 	if err != nil {
-		log.Fatalf("Failed to open database: %v", err)
+		slog.Error("failed to open database", "error", err)
+		os.Exit(1)
 	}
 	defer database.Close()
 
 	authSvc := auth.NewService(database)
 	if err := authSvc.ResetPasswordByUsername(username, newPassword); err != nil {
-		log.Fatalf("Failed to reset password: %v", err)
+		slog.Error("failed to reset password", "error", err)
+		os.Exit(1)
 	}
 
 	fmt.Printf("Password reset successfully for user '%s'\n", username)

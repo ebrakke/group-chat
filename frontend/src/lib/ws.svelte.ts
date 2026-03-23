@@ -11,10 +11,20 @@ class WebSocketManager {
   private reconnectAttempt = 0;
   private maxReconnectDelay = 30000;
   private debounceTimer: ReturnType<typeof setTimeout> | null = null;
+  private heartbeatInterval: ReturnType<typeof setInterval> | null = null;
+  private lastPong = 0;
+  private visibilityHandler: (() => void) | null = null;
   connected = $state(false);
   displayConnected = $state(false);
 
   connect() {
+    // Clean up any existing connection first
+    if (this.ws) {
+      this.ws.onclose = null;
+      this.ws.close();
+      this.ws = null;
+    }
+
     const url = getWsUrl();
 
     try {
@@ -33,11 +43,14 @@ class WebSocketManager {
       }
       this.displayConnected = true;
       this.reconnectAttempt = 0;
+      this.lastPong = Date.now();
+      this.startHeartbeat();
     };
 
     this.ws.onclose = () => {
       this.connected = false;
       this.ws = null;
+      this.stopHeartbeat();
       // Debounce the display state — wait 5s before showing disconnected
       if (!this.debounceTimer) {
         this.debounceTimer = setTimeout(() => {
@@ -57,11 +70,70 @@ class WebSocketManager {
     this.ws.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
+        if (data.type === 'pong') {
+          this.lastPong = Date.now();
+          return;
+        }
         this.handleEvent(data);
-      } catch {
-        // Ignore malformed messages
+      } catch (err) {
+        console.warn('[ws] Failed to handle message:', err);
       }
     };
+
+    // Set up visibility change listener (once)
+    if (!this.visibilityHandler) {
+      this.visibilityHandler = () => this.handleVisibilityChange();
+      document.addEventListener('visibilitychange', this.visibilityHandler);
+    }
+  }
+
+  private startHeartbeat() {
+    this.stopHeartbeat();
+    // Send a ping every 30s; if no pong received within 45s, reconnect
+    this.heartbeatInterval = setInterval(() => {
+      if (!this.ws || this.ws.readyState !== WebSocket.OPEN) return;
+
+      // Check if we missed a pong (stale connection)
+      if (Date.now() - this.lastPong > 45000) {
+        console.warn('[ws] Heartbeat timeout — reconnecting');
+        this.ws.close();
+        return;
+      }
+
+      try {
+        this.ws.send(JSON.stringify({ type: 'ping' }));
+      } catch {
+        // Send failed — connection is dead
+        this.ws?.close();
+      }
+    }, 30000);
+  }
+
+  private stopHeartbeat() {
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = null;
+    }
+  }
+
+  private handleVisibilityChange() {
+    if (document.hidden) return;
+
+    // Tab/PWA became visible — check if WS is still alive
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      console.info('[ws] Reconnecting after visibility change');
+      this.reconnectAttempt = 0; // Reset backoff for immediate reconnect
+      this.connect();
+      return;
+    }
+
+    // Connection looks open but might be stale — send a ping to verify
+    try {
+      this.lastPong = Date.now(); // Give it a fresh window
+      this.ws.send(JSON.stringify({ type: 'ping' }));
+    } catch {
+      this.ws?.close();
+    }
   }
 
   private handleEvent(data: any) {
@@ -178,6 +250,11 @@ class WebSocketManager {
   }
 
   disconnect() {
+    this.stopHeartbeat();
+    if (this.visibilityHandler) {
+      document.removeEventListener('visibilitychange', this.visibilityHandler);
+      this.visibilityHandler = null;
+    }
     if (this.debounceTimer) {
       clearTimeout(this.debounceTimer);
       this.debounceTimer = null;

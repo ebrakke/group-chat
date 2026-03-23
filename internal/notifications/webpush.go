@@ -155,6 +155,11 @@ func (s *Service) SendTestWebPush(subs []WebPushSubscription, payload Payload) {
 
 	for _, sub := range subs {
 		go func(sub WebPushSubscription) {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Printf("web push test: recovered panic: %v", r)
+				}
+			}()
 			resp, err := webpush.SendNotification(payloadJSON, &webpush.Subscription{
 				Endpoint: sub.Endpoint,
 				Keys: webpush.Keys{
@@ -213,6 +218,11 @@ func (s *Service) SendWebPush(subs []WebPushSubscription, payload Payload) {
 
 	for _, sub := range subs {
 		go func(sub WebPushSubscription) {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Printf("web push: recovered panic: %v", r)
+				}
+			}()
 			resp, err := webpush.SendNotification(payloadJSON, &webpush.Subscription{
 				Endpoint: sub.Endpoint,
 				Keys: webpush.Keys{

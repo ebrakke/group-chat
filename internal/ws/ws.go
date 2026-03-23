@@ -204,14 +204,20 @@ type clientMessage struct {
 }
 
 func (h *Hub) handleClientMessage(c *client, raw string) {
-	// Ignore messages from bots
-	if c.isBot {
-		return
-	}
-
 	var msg clientMessage
 	if err := json.Unmarshal([]byte(raw), &msg); err != nil {
 		return // silently ignore malformed messages
+	}
+
+	// Respond to pings from any client (including bots) for keepalive
+	if msg.Type == "ping" {
+		websocket.Message.Send(c.conn, `{"type":"pong"}`)
+		return
+	}
+
+	// Ignore other messages from bots
+	if c.isBot {
+		return
 	}
 
 	switch msg.Type {

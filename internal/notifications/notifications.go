@@ -238,7 +238,14 @@ func (s *Service) Send(msg *messages.Message, channelName string) error {
 
 	// Send notification to each user asynchronously
 	for _, userID := range userIDs {
-		go s.sendToUser(userID, msg, channelName)
+		go func(uid int64) {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Printf("notification: recovered panic sending to user %d: %v", uid, r)
+				}
+			}()
+			s.sendToUser(uid, msg, channelName)
+		}(userID)
 	}
 
 	return nil

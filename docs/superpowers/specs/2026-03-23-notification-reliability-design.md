@@ -96,19 +96,19 @@ Additionally, ntfy's server package is not designed as an embeddable library. It
 
 Instead, Relay Chat publishes to an external ntfy instance via its simple HTTP API. The admin configures the ntfy server URL in admin settings. This is dramatically simpler and still meets the reliability goal.
 
-The admin has two options:
-- **Self-hosted ntfy**: Run ntfy alongside Relay Chat (single binary, similar Go+SQLite architecture). Can run on the same server.
-- **ntfy.sh cloud**: Use the free public ntfy.sh instance. No server setup needed. Trade-off: topics are on a shared public instance (but unguessable UUIDs make this acceptable for most threat models).
+The server URL defaults to `https://ntfy.sh` (free hosted instance, no setup required). This works out of the box for small groups (~250 messages/day rate limit). Admins can override the URL to point at a self-hosted ntfy instance if they outgrow the free tier or want more control.
 
 ### Admin Setup
 
 1. Admin navigates to the new admin settings page (`/settings/admin`)
-2. In the "Notification Relay" section, enters the ntfy server URL (e.g., `https://ntfy.myserver.com` or `https://ntfy.sh`)
-3. Toggles "Enable ntfy relay" → on
+2. In the "Notification Relay" section, toggles "Enable ntfy relay" → on
+3. The server URL defaults to `https://ntfy.sh` — no further config needed for most deployments
 4. All existing users get ntfy topics auto-generated (UUID)
 5. New users get topics on signup
 
-If the admin is self-hosting ntfy with auth, they also enter a publish token. This token is stored in `app_settings` and used as a Bearer token when publishing. For ntfy.sh (or open instances), no token is needed.
+**Optional overrides** (collapsed "Advanced" section):
+- **Server URL**: Change from `https://ntfy.sh` to a self-hosted instance (e.g., `https://ntfy.myserver.com`)
+- **Publish token**: Bearer token for authenticated ntfy instances. Not needed for ntfy.sh or open instances.
 
 ### Security Model
 
@@ -206,7 +206,7 @@ Nullable. Contains the full topic name (e.g., `relay-a8f3b2c1-...`). Null means 
 
 ```sql
 INSERT OR IGNORE INTO app_settings (key, value) VALUES ('ntfy_enabled', 'false');
-INSERT OR IGNORE INTO app_settings (key, value) VALUES ('ntfy_server_url', '');
+INSERT OR IGNORE INTO app_settings (key, value) VALUES ('ntfy_server_url', 'https://ntfy.sh');
 INSERT OR IGNORE INTO app_settings (key, value) VALUES ('ntfy_publish_token', '');
 ```
 

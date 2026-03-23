@@ -420,11 +420,6 @@ func (s *Service) isMentioned(username string, mentions []string) bool {
 	return false
 }
 
-// sendNtfy sends an ntfy notification to a user.
-func (s *Service) sendNtfy(userID int64, payload Payload) {
-	// Will be implemented in ntfy.go
-}
-
 // userParticipatedInThread checks if a user authored or replied to a thread.
 func (s *Service) userParticipatedInThread(userID, parentID int64) (bool, error) {
 	var count int

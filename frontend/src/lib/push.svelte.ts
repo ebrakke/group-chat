@@ -19,10 +19,14 @@ export async function initPush(): Promise<void> {
 		const existing = await reg.pushManager.getSubscription();
 
 		if (existing) {
+			// Always sync existing subscription with the server on every app open.
+			// The server endpoint is an upsert, so this is safe and catches stale records.
 			await sendSubscriptionToServer(existing);
 			subscribed = true;
 			return;
 		}
+
+		// Subscription is null — try to recover it.
 
 		// Request permission if not yet decided
 		if (permissionState === 'default') {
@@ -31,9 +35,12 @@ export async function initPush(): Promise<void> {
 			if (result !== 'granted') return;
 		}
 
-		// Subscribe if permission granted
+		// If permission was already granted but subscription is missing (e.g. expired
+		// endpoint, cleared browser data), re-subscribe automatically.
 		if (permissionState === 'granted') {
 			await subscribe(reg);
+		} else {
+			subscribed = false;
 		}
 	} catch (e) {
 		console.error('Push init error:', e);

@@ -114,13 +114,6 @@ func main() {
 		log.Printf("Warning: VAPID key setup failed: %v", err)
 	}
 
-	// Generate ntfy topics for any users missing them
-	if enabled, err := notifySvc.GetAppSetting("ntfy_enabled"); err == nil && enabled == "true" {
-		if err := notifySvc.EnsureAllNtfyTopics(); err != nil {
-			log.Printf("Warning: failed to ensure ntfy topics: %v", err)
-		}
-	}
-
 	// Set notification callback on message service
 	msgSvc.SetNotifyFunc(func(msg *messages.Message, channelName string) {
 		// Skip DM channels — DM notifications are handled separately in the API handler

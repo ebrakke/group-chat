@@ -52,3 +52,12 @@ jobs:
               .
             docker push "$IMAGE:dev"
           fi
+
+      - name: Nudge deploy
+        if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
+        run: |
+          curl -sf --max-time 300 -X POST \
+            "http://${{ secrets.NUDGE_HOST }}/deploy" \
+            -H "Authorization: Bearer ${{ secrets.NUDGE_SECRET }}" \
+            -H "Content-Type: application/json" \
+            -d '{"app":"group-chat"}'

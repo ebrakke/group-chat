@@ -110,6 +110,12 @@ type webPushPayload struct {
 	Options webPushPayloadOpts `json:"options"`
 }
 
+type webPushTestPayload struct {
+	Title   string             `json:"title"`
+	Test    bool               `json:"test"`
+	Options webPushPayloadOpts `json:"options"`
+}
+
 type webPushPayloadOpts struct {
 	Body string             `json:"body"`
 	Icon string             `json:"icon"`
@@ -121,6 +127,56 @@ type webPushPayloadData struct {
 	Path      string `json:"path"`
 	ChannelID int64  `json:"channelId"`
 	ThreadID  *int64 `json:"threadId"`
+}
+
+func (s *Service) SendTestWebPush(subs []WebPushSubscription, payload Payload) {
+	vapidPub, pubErr := s.GetAppSetting("vapid_public_key")
+	vapidPriv, privErr := s.GetAppSetting("vapid_private_key")
+	if pubErr != nil || privErr != nil || vapidPub == "" || vapidPriv == "" {
+		return
+	}
+
+	pushPayload := webPushTestPayload{
+		Title: payload.Title,
+		Test:  true,
+		Options: webPushPayloadOpts{
+			Body: payload.Message,
+			Icon: "/icon-192.png",
+			Tag:  fmt.Sprintf("test-%d", time.Now().UnixMilli()),
+		},
+	}
+
+	payloadJSON, _ := json.Marshal(pushPayload)
+
+	subject := s.baseURL
+	if configuredURL, err := s.GetAppSetting("base_url"); err == nil && configuredURL != "" {
+		subject = configuredURL
+	}
+
+	for _, sub := range subs {
+		go func(sub WebPushSubscription) {
+			resp, err := webpush.SendNotification(payloadJSON, &webpush.Subscription{
+				Endpoint: sub.Endpoint,
+				Keys: webpush.Keys{
+					P256dh: sub.P256dh,
+					Auth:   sub.Auth,
+				},
+			}, &webpush.Options{
+				Subscriber:      subject,
+				VAPIDPublicKey:  vapidPub,
+				VAPIDPrivateKey: vapidPriv,
+				Urgency:         webpush.UrgencyHigh,
+			})
+			if err != nil {
+				log.Printf("web push test: send error: %v", err)
+				return
+			}
+			defer resp.Body.Close()
+			if resp.StatusCode == http.StatusGone {
+				s.DeleteWebPushSubscription(sub.Endpoint)
+			}
+		}(sub)
+	}
 }
 
 func (s *Service) SendWebPush(subs []WebPushSubscription, payload Payload) {

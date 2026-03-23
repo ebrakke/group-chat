@@ -146,6 +146,7 @@ func (h *Handler) routes() {
 	h.mux.HandleFunc("POST /api/push/subscribe", h.handlePushSubscribe)
 	h.mux.HandleFunc("DELETE /api/push/subscribe", h.handlePushUnsubscribe)
 	h.mux.HandleFunc("GET /api/push/subscriptions", h.handleGetPushSubscriptions)
+	h.mux.HandleFunc("POST /api/push/test", h.handlePushTest)
 
 	// Files
 	h.mux.HandleFunc("POST /api/upload", h.handleUploadFile)
@@ -1715,6 +1716,34 @@ func (h *Handler) handleGetPushSubscriptions(w http.ResponseWriter, r *http.Requ
 		subs = []notifications.WebPushSubscription{}
 	}
 	writeJSON(w, http.StatusOK, subs)
+}
+
+func (h *Handler) handlePushTest(w http.ResponseWriter, r *http.Request) {
+	user, err := h.requireAuth(r)
+	if err != nil {
+		writeErr(w, http.StatusUnauthorized, err)
+		return
+	}
+
+	payload := notifications.Payload{
+		Title:     "Test Notification",
+		Message:   "If you see this, notifications are working!",
+		Sender:    "System",
+		MessageID: 0,
+		URL:       "",
+		Timestamp: time.Now().UTC().Format(time.RFC3339),
+	}
+
+	// Send via web push with a test-specific tag and test flag
+	subs, _ := h.notifications.GetWebPushSubscriptions(user.ID)
+	if len(subs) > 0 {
+		h.notifications.SendTestWebPush(subs, payload)
+	}
+
+	// Send via ntfy
+	h.notifications.SendTestNtfy(user.ID, payload)
+
+	writeJSON(w, http.StatusOK, map[string]string{"status": "sent"})
 }
 
 

@@ -78,13 +78,13 @@
       const settings = await api<{
         baseUrl?: string;
         appName?: string;
-        ntfyEnabled?: boolean;
+        ntfyEnabled?: string | boolean;
         ntfyServerUrl?: string;
         ntfyPublishToken?: string;
       }>('GET', '/api/admin/settings');
       baseUrl = settings.baseUrl || '';
       appName = settings.appName || '';
-      ntfyEnabled = settings.ntfyEnabled ?? false;
+      ntfyEnabled = settings.ntfyEnabled === true || settings.ntfyEnabled === 'true';
       ntfyServerUrl = settings.ntfyServerUrl || 'https://ntfy.sh';
       ntfyPublishToken = settings.ntfyPublishToken || '';
     } catch {

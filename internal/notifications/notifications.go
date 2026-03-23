@@ -282,16 +282,17 @@ func (s *Service) sendToUser(userID int64, msg *messages.Message, channelName st
 
 	payload := s.buildPayload(msg, channelName)
 
-	// Try web push subscriptions first
+	// Web push (always try)
 	subs, _ := s.GetWebPushSubscriptions(userID)
 	if len(subs) > 0 {
 		log.Printf("Sending web push to user %d (%d subscriptions)", userID, len(subs))
 		s.SendWebPush(subs, payload)
-		return
 	}
-	log.Printf("No web push subscriptions for user %d, skipping push", userID)
 
-	// Fall back to configured provider (webhook)
+	// ntfy (if enabled and user has a topic)
+	s.sendNtfy(userID, payload)
+
+	// Webhook fallback (if configured)
 	settings, err := s.GetSettings(userID)
 	if err != nil || settings == nil || settings.Provider == "" {
 		return
@@ -344,15 +345,17 @@ func (s *Service) SendDM(msg *messages.Message, senderName string, recipientID i
 		Timestamp: msg.CreatedAt,
 	}
 
-	// Try web push first
+	// Web push (always try)
 	subs, _ := s.GetWebPushSubscriptions(recipientID)
 	if len(subs) > 0 {
 		log.Printf("Sending DM web push to user %d (%d subscriptions)", recipientID, len(subs))
 		s.SendWebPush(subs, payload)
-		return
 	}
 
-	// Fall back to webhook provider (same pattern as sendToUser)
+	// ntfy (if enabled and user has a topic)
+	s.sendNtfy(recipientID, payload)
+
+	// Webhook fallback (if configured)
 	settings, err := s.GetSettings(recipientID)
 	if err != nil || settings == nil || settings.Provider == "" {
 		return
@@ -415,6 +418,11 @@ func (s *Service) isMentioned(username string, mentions []string) bool {
 		}
 	}
 	return false
+}
+
+// sendNtfy sends an ntfy notification to a user.
+func (s *Service) sendNtfy(userID int64, payload Payload) {
+	// Will be implemented in ntfy.go
 }
 
 // userParticipatedInThread checks if a user authored or replied to a thread.

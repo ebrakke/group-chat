@@ -66,18 +66,23 @@ sw.addEventListener('fetch', (event) => {
 // --- Web Push Notifications ---
 
 sw.addEventListener('push', (event) => {
-	if (!event.data) return;
+	event.waitUntil(
+		(async () => {
+			if (!event.data) {
+				await sw.registration.showNotification('New message', {});
+				return;
+			}
+			const data = event.data.json();
+			await sw.registration.showNotification(data.title, data.options);
 
-	const handlePush = async () => {
-		const data = event.data!.json();
-		// Skip notification if user is actively looking at the app
-		const clients = await sw.clients.matchAll({ type: 'window', includeUncontrolled: true });
-		if (clients.some((c) => c.focused)) return;
-
-		await sw.registration.showNotification(data.title, data.options);
-	};
-
-	event.waitUntil(handlePush());
+			// If this is a test notification, tell the page it arrived
+			if (data.test) {
+				const bc = new BroadcastChannel('push-test');
+				bc.postMessage({ received: true });
+				bc.close();
+			}
+		})()
+	);
 });
 
 sw.addEventListener('notificationclick', (event) => {

@@ -28,6 +28,109 @@
   let qrError = $state('');
   let qrRefreshTimer: ReturnType<typeof setInterval> | null = null;
 
+  // --- ntfy ---
+  interface NtfyTopicResponse {
+    topic: string;
+    serverUrl: string;
+    enabled: boolean;
+  }
+  let ntfyEnabled = $state(false);
+  let ntfyTopic = $state('');
+  let ntfyServerUrl = $state('');
+  let ntfyModalOpen = $state(false);
+  let ntfyTopicExpanded = $state(false);
+  let ntfyRegenerating = $state(false);
+  let copiedField = $state<'server' | 'topic' | null>(null);
+
+  // --- Test notification ---
+  let testState = $state<'idle' | 'sending' | 'success' | 'timeout'>('idle');
+  let testTimer: ReturnType<typeof setTimeout> | null = null;
+  let testBroadcastChannel: BroadcastChannel | null = null;
+
+  // --- Platform detection ---
+  function detectPlatform(): 'android' | 'ios' | 'desktop' {
+    if (typeof navigator === 'undefined') return 'desktop';
+    const ua = navigator.userAgent;
+    if (/Android/i.test(ua)) return 'android';
+    if (/iPhone|iPad/i.test(ua)) return 'ios';
+    return 'desktop';
+  }
+
+  const platform = $derived(detectPlatform());
+
+  function ntfyDeepLink(): string {
+    try {
+      const url = new URL(ntfyServerUrl);
+      return `ntfy://${url.host}/${ntfyTopic}`;
+    } catch {
+      return `ntfy://${ntfyServerUrl}/${ntfyTopic}`;
+    }
+  }
+
+  async function copyToClipboard(text: string, field: 'server' | 'topic') {
+    try {
+      await navigator.clipboard.writeText(text);
+      copiedField = field;
+      toastStore.success('Copied!');
+      setTimeout(() => { copiedField = null; }, 2000);
+    } catch {
+      toastStore.error('Failed to copy');
+    }
+  }
+
+  async function regenerateTopic() {
+    ntfyRegenerating = true;
+    try {
+      const res = await api<{ topic: string }>('POST', '/api/push/ntfy-topic/regenerate');
+      ntfyTopic = res.topic;
+    } catch (e: unknown) {
+      toastStore.error(e instanceof Error ? e.message : 'Failed to regenerate topic');
+    } finally {
+      ntfyRegenerating = false;
+    }
+  }
+
+  async function sendTestNotification() {
+    if (testState === 'sending') return;
+    testState = 'sending';
+
+    // Clean up any previous channel
+    if (testBroadcastChannel) {
+      testBroadcastChannel.close();
+      testBroadcastChannel = null;
+    }
+    if (testTimer) {
+      clearTimeout(testTimer);
+      testTimer = null;
+    }
+
+    const bc = new BroadcastChannel('push-test');
+    testBroadcastChannel = bc;
+
+    bc.onmessage = () => {
+      testState = 'success';
+      if (testTimer) clearTimeout(testTimer);
+      bc.close();
+      testBroadcastChannel = null;
+    };
+
+    testTimer = setTimeout(() => {
+      testState = 'timeout';
+      bc.close();
+      testBroadcastChannel = null;
+    }, 10000);
+
+    try {
+      await api('POST', '/api/push/test');
+    } catch (e: unknown) {
+      testState = 'idle';
+      if (testTimer) clearTimeout(testTimer);
+      bc.close();
+      testBroadcastChannel = null;
+      toastStore.error(e instanceof Error ? e.message : 'Failed to send test notification');
+    }
+  }
+
   async function generateQR() {
     qrLoading = true;
     qrError = '';
@@ -134,11 +237,23 @@
   }
 
   // --- Init ---
-  onMount(() => {
+  onMount(async () => {
     startQRRefresh();
+    try {
+      const res = await api<NtfyTopicResponse>('GET', '/api/push/ntfy-topic');
+      ntfyEnabled = res.enabled;
+      ntfyTopic = res.topic;
+      ntfyServerUrl = res.serverUrl;
+    } catch {
+      // ntfy not configured — section stays hidden
+    }
   });
 
-  onDestroy(() => { stopQRRefresh(); });
+  onDestroy(() => {
+    stopQRRefresh();
+    if (testBroadcastChannel) testBroadcastChannel.close();
+    if (testTimer) clearTimeout(testTimer);
+  });
 </script>
 
 <div id="admin-page" class="flex flex-col h-full">
@@ -229,6 +344,182 @@
                   style="background: var(--rc-channel-active-bg); color: var(--rc-channel-active-fg); border-color: var(--rc-channel-active-bg);">
             {changingPassword ? 'saving...' : 'change password'}</button>
         </div>
+      </div>
+
+      <!-- Reliable Notifications (ntfy) -->
+      {#if ntfyEnabled}
+        <div class="border p-4" style="border-color: var(--border);">
+          <h3 class="text-[13px] font-bold mb-1" style="color: var(--foreground);">reliable notifications</h3>
+          <p class="text-[11px] mb-3" style="color: var(--rc-timestamp);">
+            Get notifications even when the app is closed. Requires the free ntfy app.
+          </p>
+          <div class="flex gap-2 flex-wrap">
+            <button
+              onclick={() => (ntfyModalOpen = true)}
+              class="px-3 py-1.5 text-[11px] border font-mono hover:opacity-80"
+              style="background: var(--rc-channel-active-bg); color: var(--rc-channel-active-fg); border-color: var(--rc-channel-active-bg);"
+            >
+              set up ntfy
+            </button>
+            <button
+              onclick={regenerateTopic}
+              disabled={ntfyRegenerating}
+              class="px-3 py-1.5 text-[11px] border font-mono disabled:opacity-40 hover:opacity-80"
+              style="border-color: var(--border); color: var(--rc-timestamp);"
+            >
+              {ntfyRegenerating ? 'regenerating...' : 'regenerate topic'}
+            </button>
+          </div>
+
+          <!-- Collapsible topic debug -->
+          <div class="mt-3">
+            <button
+              onclick={() => (ntfyTopicExpanded = !ntfyTopicExpanded)}
+              class="text-[10px] hover:opacity-70"
+              style="color: var(--rc-timestamp);"
+            >
+              {ntfyTopicExpanded ? '▾' : '▸'} current topic
+            </button>
+            {#if ntfyTopicExpanded}
+              <p class="text-[11px] mt-1 font-mono break-all" style="color: var(--foreground);">{ntfyTopic}</p>
+            {/if}
+          </div>
+        </div>
+
+        <!-- ntfy setup modal -->
+        {#if ntfyModalOpen}
+          <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_static_element_interactions -->
+          <div
+            class="fixed inset-0 z-50 flex items-center justify-center p-4"
+            style="background: rgba(0,0,0,0.5);"
+            onclick={(e) => { if (e.target === e.currentTarget) ntfyModalOpen = false; }}
+          >
+            <div class="border p-5 max-w-sm w-full space-y-4" style="background: var(--background); border-color: var(--border);">
+              <div class="flex items-center justify-between">
+                <h3 class="text-[13px] font-bold" style="color: var(--foreground);">set up ntfy</h3>
+                <button onclick={() => (ntfyModalOpen = false)} class="text-[12px] hover:opacity-70" style="color: var(--rc-timestamp);">✕</button>
+              </div>
+
+              {#if platform === 'android'}
+                <div class="space-y-3">
+                  <a
+                    href="https://play.google.com/store/apps/details?id=io.heckel.ntfy"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="flex items-center justify-center w-full px-3 py-2 text-[11px] border font-mono hover:opacity-80"
+                    style="background: var(--rc-channel-active-bg); color: var(--rc-channel-active-fg); border-color: var(--rc-channel-active-bg);"
+                  >
+                    install ntfy (Play Store)
+                  </a>
+                  <a
+                    href={ntfyDeepLink()}
+                    class="flex items-center justify-center w-full px-3 py-2 text-[11px] border font-mono hover:opacity-80"
+                    style="border-color: var(--border); color: var(--foreground);"
+                  >
+                    open in ntfy
+                  </a>
+                  <p class="text-[11px]" style="color: var(--rc-timestamp);">
+                    You're all set! ntfy will handle your notifications. You can disable browser push to avoid duplicates.
+                  </p>
+                </div>
+
+              {:else if platform === 'ios'}
+                <div class="space-y-3">
+                  <div class="space-y-2">
+                    <p class="text-[11px] font-bold" style="color: var(--foreground);">1. Install ntfy from the App Store</p>
+                    <a
+                      href="https://apps.apple.com/app/ntfy/id1625396347"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="inline-block px-3 py-1.5 text-[11px] border font-mono hover:opacity-80"
+                      style="background: var(--rc-channel-active-bg); color: var(--rc-channel-active-fg); border-color: var(--rc-channel-active-bg);"
+                    >
+                      open App Store
+                    </a>
+                  </div>
+                  <div class="space-y-2">
+                    <p class="text-[11px] font-bold" style="color: var(--foreground);">2. Open ntfy → tap + → enter this server:</p>
+                    <button
+                      onclick={() => copyToClipboard(ntfyServerUrl, 'server')}
+                      class="w-full text-left px-3 py-2 border font-mono text-[11px] hover:opacity-80 break-all"
+                      style="background: var(--rc-input-bg); border-color: var(--border); color: var(--foreground);"
+                    >
+                      {ntfyServerUrl}
+                      <span class="ml-1 text-[10px]" style="color: var(--rc-timestamp);">
+                        {copiedField === 'server' ? '✓ copied' : 'tap to copy'}
+                      </span>
+                    </button>
+                  </div>
+                  <div class="space-y-2">
+                    <p class="text-[11px] font-bold" style="color: var(--foreground);">3. Enter this topic:</p>
+                    <button
+                      onclick={() => copyToClipboard(ntfyTopic, 'topic')}
+                      class="w-full text-left px-3 py-2 border font-mono text-[11px] hover:opacity-80 break-all"
+                      style="background: var(--rc-input-bg); border-color: var(--border); color: var(--foreground);"
+                    >
+                      {ntfyTopic}
+                      <span class="ml-1 text-[10px]" style="color: var(--rc-timestamp);">
+                        {copiedField === 'topic' ? '✓ copied' : 'tap to copy'}
+                      </span>
+                    </button>
+                  </div>
+                </div>
+
+              {:else}
+                <p class="text-[11px]" style="color: var(--rc-timestamp);">
+                  On desktop, notifications work best when your browser stays running.
+                </p>
+              {/if}
+            </div>
+          </div>
+        {/if}
+      {/if}
+
+      <!-- Test Notification -->
+      <div class="border p-4" style="border-color: var(--border);">
+        <h3 class="text-[13px] font-bold mb-1" style="color: var(--foreground);">test notification</h3>
+        <p class="text-[11px] mb-3" style="color: var(--rc-timestamp);">Send a test push notification to verify delivery.</p>
+        <button
+          onclick={sendTestNotification}
+          disabled={testState === 'sending'}
+          class="px-3 py-1.5 text-[11px] border font-mono disabled:opacity-40 hover:opacity-80"
+          style="background: var(--rc-channel-active-bg); color: var(--rc-channel-active-fg); border-color: var(--rc-channel-active-bg);"
+        >
+          {#if testState === 'sending'}
+            <span class="inline-flex items-center gap-1.5">
+              <span class="inline-block w-3 h-3 border-2 border-t-transparent rounded-full animate-spin" style="border-color: var(--rc-channel-active-fg); border-top-color: transparent;"></span>
+              sending...
+            </span>
+          {:else}
+            send test notification
+          {/if}
+        </button>
+
+        {#if testState === 'success'}
+          <p class="text-[11px] mt-2 flex items-center gap-1" style="color: var(--rc-olive);">
+            <span>✓</span> Notification received!
+          </p>
+        {:else if testState === 'timeout'}
+          <div class="mt-2">
+            <p class="text-[11px]" style="color: var(--rc-mention-badge);">Notification not received within 10 seconds.</p>
+            <p class="text-[11px] mt-1" style="color: var(--rc-timestamp);">
+              {#if platform === 'android'}
+                Check that Chrome is not battery-optimized in your device settings.
+              {:else if platform === 'ios'}
+                Make sure this app is added to your home screen.
+              {:else}
+                Notifications require your browser to be running.
+              {/if}
+            </p>
+            <button
+              onclick={() => (testState = 'idle')}
+              class="mt-1 text-[10px] hover:opacity-70 hover:underline"
+              style="color: var(--rc-timestamp);"
+            >
+              dismiss
+            </button>
+          </div>
+        {/if}
       </div>
 
       <!-- QR Login -->

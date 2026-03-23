@@ -208,6 +208,7 @@ func (s *Service) buildPayload(msg *messages.Message, channelName string) Payloa
 		Sender:    msg.DisplayName,
 		Channel:   channelName,
 		ChannelID: msg.ChannelID,
+		MessageID: msg.ID,
 		URL:       url,
 		Timestamp: msg.CreatedAt,
 	}
@@ -338,6 +339,7 @@ func (s *Service) SendDM(msg *messages.Message, senderName string, recipientID i
 		Message:   content,
 		Sender:    senderName,
 		ChannelID: msg.ChannelID,
+		MessageID: msg.ID,
 		URL:       fmt.Sprintf("%s/dms/%d", baseURL, conversationID),
 		Timestamp: msg.CreatedAt,
 	}

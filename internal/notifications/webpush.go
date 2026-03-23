@@ -113,6 +113,7 @@ type webPushPayload struct {
 type webPushPayloadOpts struct {
 	Body string             `json:"body"`
 	Icon string             `json:"icon"`
+	Tag  string             `json:"tag"`
 	Data webPushPayloadData `json:"data"`
 }
 
@@ -135,6 +136,7 @@ func (s *Service) SendWebPush(subs []WebPushSubscription, payload Payload) {
 		Options: webPushPayloadOpts{
 			Body: fmt.Sprintf("%s: %s", payload.Sender, payload.Message),
 			Icon: "/icon-192.png",
+			Tag:  fmt.Sprintf("msg-%d", payload.MessageID),
 			Data: webPushPayloadData{
 				Path:      payload.URL,
 				ChannelID: payload.ChannelID,

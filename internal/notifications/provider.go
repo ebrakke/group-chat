@@ -25,6 +25,7 @@ type Payload struct {
 	Sender           string
 	Channel          string
 	ChannelID        int64
+	MessageID        int64
 	URL              string
 	Timestamp        string
 	NotificationType string

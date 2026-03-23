@@ -4,7 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"log"
+	"io"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -61,9 +62,17 @@ func publishNtfy(serverURL, publishToken, topic string, payload Payload, iconURL
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
+		respBody, _ := io.ReadAll(resp.Body)
+		slog.Error("ntfy publish failed",
+			"status", resp.StatusCode,
+			"topic", topic,
+			"server", serverURL,
+			"response", string(respBody),
+		)
 		return fmt.Errorf("ntfy: server returned %d", resp.StatusCode)
 	}
 
+	slog.Debug("ntfy publish succeeded", "topic", topic, "title", payload.Title)
 	return nil
 }
 
@@ -96,7 +105,11 @@ func (s *Service) sendNtfy(userID int64, payload Payload) {
 	iconURL := baseURL + "/icon-192.png"
 
 	if err := publishNtfy(serverURL, publishToken, topic, payload, iconURL); err != nil {
-		log.Printf("ntfy: failed to send to user %d: %v", userID, err)
+		slog.Error("ntfy: failed to send notification",
+			"user_id", userID,
+			"topic", topic,
+			"error", err,
+		)
 	}
 }
 

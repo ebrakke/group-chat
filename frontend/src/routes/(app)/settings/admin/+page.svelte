@@ -355,9 +355,9 @@
     ntfyMessage = '';
     try {
       await api('POST', '/api/admin/settings', {
-        ntfy_enabled: ntfyEnabled,
-        ntfy_server_url: ntfyServerUrl,
-        ntfy_publish_token: ntfyPublishToken,
+        ntfyEnabled: String(ntfyEnabled),
+        ntfyServerUrl: ntfyServerUrl,
+        ntfyPublishToken: ntfyPublishToken,
       });
       ntfyMessage = 'Notification relay settings saved';
       autoHide((v) => (ntfyMessage = v));
@@ -481,10 +481,6 @@
             ></span>
           </button>
           <span class="text-[12px]" style="color: var(--foreground);">enable notification relay</span>
-          <span class="text-[11px] px-1.5 py-0.5"
-                style="background: {ntfyEnabled ? 'var(--rc-olive)' : 'var(--border)'}; color: var(--rc-channel-active-fg);">
-            {ntfyEnabled ? 'on' : 'off'}
-          </span>
         </label>
 
         <!-- Advanced collapsible -->

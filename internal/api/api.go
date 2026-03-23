@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"regexp"
@@ -1846,9 +1847,19 @@ func (h *Handler) handleUpdateAdminSettings(w http.ResponseWriter, r *http.Reque
 
 	var req map[string]string
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		slog.Error("admin settings: failed to decode request body",
+			"error", err,
+			"user_id", user.ID,
+		)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+
+	keys := make([]string, 0, len(req))
+	for k := range req {
+		keys = append(keys, k)
+	}
+	slog.Info("admin settings: updating", "keys", keys, "user_id", user.ID)
 
 	// Transform camelCase keys from frontend to snake_case for storage
 	camelToSnake := map[string]string{
@@ -1887,9 +1898,11 @@ func (h *Handler) handleUpdateAdminSettings(w http.ResponseWriter, r *http.Reque
 	}
 
 	if filtered["ntfy_enabled"] == "true" {
+		slog.Info("admin settings: ntfy enabled, provisioning topics")
 		go h.notifications.EnsureAllNtfyTopics()
 	}
 
+	slog.Info("admin settings: saved successfully", "user_id", user.ID)
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]bool{"success": true})
 }

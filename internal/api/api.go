@@ -147,6 +147,8 @@ func (h *Handler) routes() {
 	h.mux.HandleFunc("DELETE /api/push/subscribe", h.handlePushUnsubscribe)
 	h.mux.HandleFunc("GET /api/push/subscriptions", h.handleGetPushSubscriptions)
 	h.mux.HandleFunc("POST /api/push/test", h.handlePushTest)
+	h.mux.HandleFunc("GET /api/push/ntfy-topic", h.handleGetNtfyTopic)
+	h.mux.HandleFunc("POST /api/push/ntfy-topic/regenerate", h.handleRegenerateNtfyTopic)
 
 	// Files
 	h.mux.HandleFunc("POST /api/upload", h.handleUploadFile)
@@ -1746,6 +1748,45 @@ func (h *Handler) handlePushTest(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "sent"})
 }
 
+func (h *Handler) handleGetNtfyTopic(w http.ResponseWriter, r *http.Request) {
+	user, err := h.requireAuth(r)
+	if err != nil {
+		writeErr(w, http.StatusUnauthorized, err)
+		return
+	}
+
+	topic, err := h.notifications.GetNtfyTopic(user.ID)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, errors.New("failed to get ntfy topic"))
+		return
+	}
+
+	serverURL, _ := h.notifications.GetAppSetting("ntfy_server_url")
+	enabled, _ := h.notifications.GetAppSetting("ntfy_enabled")
+
+	writeJSON(w, http.StatusOK, map[string]interface{}{
+		"topic":     topic,
+		"serverUrl": serverURL,
+		"enabled":   enabled == "true",
+	})
+}
+
+func (h *Handler) handleRegenerateNtfyTopic(w http.ResponseWriter, r *http.Request) {
+	user, err := h.requireAuth(r)
+	if err != nil {
+		writeErr(w, http.StatusUnauthorized, err)
+		return
+	}
+
+	topic, err := h.notifications.RegenerateNtfyTopic(user.ID)
+	if err != nil {
+		writeErr(w, http.StatusInternalServerError, errors.New("failed to regenerate ntfy topic"))
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]string{"topic": topic})
+}
+
 
 // --- Admin Settings handlers ---
 
@@ -1774,6 +1815,16 @@ func (h *Handler) handleGetAdminSettings(w http.ResponseWriter, r *http.Request)
 			response["baseUrl"] = v
 		case "app_name":
 			response["appName"] = v
+		case "ntfy_enabled":
+			response["ntfyEnabled"] = v
+		case "ntfy_server_url":
+			response["ntfyServerUrl"] = v
+		case "ntfy_publish_token":
+			if v != "" {
+				response["ntfyPublishToken"] = "********"
+			} else {
+				response["ntfyPublishToken"] = ""
+			}
 		default:
 			response[k] = v
 		}
@@ -1799,18 +1850,44 @@ func (h *Handler) handleUpdateAdminSettings(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// icon_192 and icon_512 are only writable via POST /api/admin/settings/icon
-	protected := map[string]bool{"icon_192": true, "icon_512": true}
-	filtered := make(map[string]string, len(req))
+	// Transform camelCase keys from frontend to snake_case for storage
+	camelToSnake := map[string]string{
+		"baseUrl":          "base_url",
+		"appName":          "app_name",
+		"ntfyEnabled":      "ntfy_enabled",
+		"ntfyServerUrl":    "ntfy_server_url",
+		"ntfyPublishToken": "ntfy_publish_token",
+	}
+	normalized := make(map[string]string, len(req))
 	for k, v := range req {
-		if !protected[k] {
-			filtered[k] = v
+		if snake, ok := camelToSnake[k]; ok {
+			normalized[snake] = v
+		} else {
+			normalized[k] = v
 		}
+	}
+
+	// icon_192 and icon_512 are only writable via POST /api/admin/settings/icon
+	// ntfy_publish_token masked value should not overwrite the real token
+	protected := map[string]bool{"icon_192": true, "icon_512": true}
+	filtered := make(map[string]string, len(normalized))
+	for k, v := range normalized {
+		if protected[k] {
+			continue
+		}
+		if k == "ntfy_publish_token" && v == "********" {
+			continue
+		}
+		filtered[k] = v
 	}
 
 	if err := h.notifications.UpdateAppSettings(filtered); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
+	}
+
+	if filtered["ntfy_enabled"] == "true" {
+		go h.notifications.EnsureAllNtfyTopics()
 	}
 
 	w.WriteHeader(http.StatusOK)

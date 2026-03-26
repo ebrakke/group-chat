@@ -68,8 +68,11 @@ func fetchYouTubePreview(rawURL string) *LinkPreview {
 func fetchOGMetadata(rawURL string) *LinkPreview {
 	// YouTube pages have >600KB of inline JS before OG tags, exceeding our
 	// body read limit. Use their oEmbed API instead for reliable previews.
+	// Fall back to OG scraping if oEmbed fails (e.g. age-restricted videos).
 	if isYouTubeURL(rawURL) {
-		return fetchYouTubePreview(rawURL)
+		if lp := fetchYouTubePreview(rawURL); lp != nil {
+			return lp
+		}
 	}
 
 	req, err := http.NewRequest("GET", rawURL, nil)

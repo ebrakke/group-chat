@@ -134,6 +134,9 @@ func main() {
 		}
 	})
 
+	// Backfill link previews for existing messages (e.g. YouTube oEmbed)
+	go msgSvc.BackfillLinkPreviews()
+
 	// Ensure #general exists
 	if _, err := chanSvc.EnsureGeneral(); err != nil {
 		slog.Warn("could not ensure #general channel", "error", err)

@@ -568,6 +568,39 @@ func extractMentions(content string) []string {
 	return mentions
 }
 
+// BackfillLinkPreviews finds messages containing YouTube URLs with no link
+// previews and fetches them. Intended to run in a background goroutine on
+// startup to fix messages created before oEmbed support was added.
+func (s *Service) BackfillLinkPreviews() {
+	rows, err := s.db.Query(
+		`SELECT id, content FROM messages
+		 WHERE deleted_at IS NULL
+		   AND (link_previews IS NULL OR link_previews = 'null')
+		   AND (content LIKE '%youtube.com/watch%'
+		     OR content LIKE '%youtu.be/%'
+		     OR content LIKE '%youtube.com/shorts%')`,
+	)
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var id int64
+		var content string
+		if err := rows.Scan(&id, &content); err != nil {
+			continue
+		}
+
+		previews := fetchLinkPreviews(content)
+		if len(previews) == 0 {
+			continue
+		}
+		previewsJSON, _ := json.Marshal(previews)
+		s.db.Exec("UPDATE messages SET link_previews = ? WHERE id = ?", previewsJSON, id)
+	}
+}
+
 // extractURLs finds up to maxPreviews URLs in message content.
 func extractURLs(content string) []string {
 	matches := urlRe.FindAllString(content, maxPreviews)

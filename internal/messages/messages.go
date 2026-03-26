@@ -572,6 +572,14 @@ func extractMentions(content string) []string {
 // previews and fetches them. Intended to run in a background goroutine on
 // startup to fix messages created before oEmbed support was added.
 func (s *Service) BackfillLinkPreviews() {
+	// Collect all candidates first, then close rows promptly.
+	// SQLite is configured with MaxOpenConns(1), so holding the connection
+	// open during slow network fetches would starve all other DB operations.
+	type candidate struct {
+		id      int64
+		content string
+	}
+
 	rows, err := s.db.Query(
 		`SELECT id, content FROM messages
 		 WHERE deleted_at IS NULL
@@ -583,21 +591,24 @@ func (s *Service) BackfillLinkPreviews() {
 	if err != nil {
 		return
 	}
-	defer rows.Close()
 
+	var candidates []candidate
 	for rows.Next() {
-		var id int64
-		var content string
-		if err := rows.Scan(&id, &content); err != nil {
+		var c candidate
+		if err := rows.Scan(&c.id, &c.content); err != nil {
 			continue
 		}
+		candidates = append(candidates, c)
+	}
+	rows.Close()
 
-		previews := fetchLinkPreviews(content)
+	for _, c := range candidates {
+		previews := fetchLinkPreviews(c.content)
 		if len(previews) == 0 {
 			continue
 		}
 		previewsJSON, _ := json.Marshal(previews)
-		s.db.Exec("UPDATE messages SET link_previews = ? WHERE id = ?", previewsJSON, id)
+		s.db.Exec("UPDATE messages SET link_previews = ? WHERE id = ?", previewsJSON, c.id)
 	}
 }
 

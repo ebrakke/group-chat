@@ -1,8 +1,11 @@
 package messages
 
 import (
+	"encoding/json"
 	"io"
 	"net/http"
+	"net/url"
+	"regexp"
 	"strings"
 	"time"
 
@@ -11,9 +14,64 @@ import (
 
 var ogClient = &http.Client{Timeout: 5 * time.Second}
 
+// youtubeRe matches youtube.com/watch, youtu.be, and youtube.com/shorts URLs.
+var youtubeRe = regexp.MustCompile(`^https?://(?:www\.)?(?:youtube\.com/(?:watch|shorts)|youtu\.be/)`)
+
+// isYouTubeURL checks if a URL is a YouTube video/shorts URL.
+func isYouTubeURL(rawURL string) bool {
+	return youtubeRe.MatchString(rawURL)
+}
+
+// youtubeOEmbed represents the relevant fields from YouTube's oEmbed API.
+type youtubeOEmbed struct {
+	Title        string `json:"title"`
+	AuthorName   string `json:"author_name"`
+	ThumbnailURL string `json:"thumbnail_url"`
+	ProviderName string `json:"provider_name"`
+}
+
+// fetchYouTubePreview uses YouTube's oEmbed API to get link preview metadata.
+// YouTube pages are too large (>600KB of inline JS in <head>) for OG tag scraping.
+func fetchYouTubePreview(rawURL string) *LinkPreview {
+	oembedURL := "https://www.youtube.com/oembed?format=json&url=" + url.QueryEscape(rawURL)
+	req, err := http.NewRequest("GET", oembedURL, nil)
+	if err != nil {
+		return nil
+	}
+
+	resp, err := ogClient.Do(req)
+	if err != nil {
+		return nil
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		return nil
+	}
+
+	var oembed youtubeOEmbed
+	if err := json.NewDecoder(resp.Body).Decode(&oembed); err != nil || oembed.Title == "" {
+		return nil
+	}
+
+	desc := oembed.AuthorName
+	return &LinkPreview{
+		Title:       oembed.Title,
+		Description: desc,
+		Image:       oembed.ThumbnailURL,
+		SiteName:    oembed.ProviderName,
+	}
+}
+
 // fetchOGMetadata fetches a URL and extracts Open Graph metadata.
 // Returns nil if the fetch fails or no title is found.
 func fetchOGMetadata(rawURL string) *LinkPreview {
+	// YouTube pages have >600KB of inline JS before OG tags, exceeding our
+	// body read limit. Use their oEmbed API instead for reliable previews.
+	if isYouTubeURL(rawURL) {
+		return fetchYouTubePreview(rawURL)
+	}
+
 	req, err := http.NewRequest("GET", rawURL, nil)
 	if err != nil {
 		return nil
@@ -37,8 +95,9 @@ func fetchOGMetadata(rawURL string) *LinkPreview {
 		return nil
 	}
 
-	// Limit read to 512KB to avoid downloading huge pages
-	body := io.LimitReader(resp.Body, 512*1024)
+	// Limit read to 1MB to avoid downloading huge pages.
+	// Some sites (e.g. SPAs) put significant JS in <head> before OG tags.
+	body := io.LimitReader(resp.Body, 1024*1024)
 	return parseOGTags(body)
 }
 
